@@ -23,6 +23,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
@@ -66,11 +67,10 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
     import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
     const firebaseConfig = {
-      apiKey: "AIzaSyA1ND18a-P7X936z0Dpc6RRY2_oXYU5_Ao",
+      apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY",
       authDomain: "startupuprealestate-e4b0a.firebaseapp.com",
       projectId: "startupuprealestate-e4b0a",
       storageBucket: "startupuprealestate-e4b0a.firebasestorage.app",
@@ -80,7 +80,6 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
     const db = getFirestore(app);
 
     window.firebaseDB = db;
@@ -90,14 +89,6 @@
 </head>
 <body class="text-gray-800 transition-colors duration-200">
   <div id="root"></div>
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('Service Worker failed', err));
-      });
-    }
-  </script>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
@@ -110,6 +101,8 @@
         ChevronDown: '<path d="m6 9 6 6 6-6"/>',
         Menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
         X: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        Sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+        Moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
         Plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
         Search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
         CalendarIcon: '<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>',
@@ -125,7 +118,8 @@
         MessageCircle: '<path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>',
         Image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
         Bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
-        Send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>'
+        Send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+        RefreshCw: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'
       };
       return (
         <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: icons[name] }} {...props} />
@@ -236,6 +230,7 @@
       const [memberToDelete, setMemberToDelete] = useState('');
       const [deptOfMemberToDelete, setDeptOfMemberToDelete] = useState('');
       const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
+      const [contentChecklists, setContentChecklists] = useState({});
       
       const [formData, setFormData] = useState({
         type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: ''
@@ -256,8 +251,8 @@
 
       // --- Google Sheet Data States ---
       const [sheetData, setSheetData] = useState([]);
-      const [statusFilter, setStatusFilter] = useState([]);
-      const [websiteFilter, setWebsiteFilter] = useState([]);
+      const [sheetError, setSheetError] = useState(null);
+      const [manualRefreshKey, setManualRefreshKey] = useState(0);
 
       useEffect(() => {
         if (window.firebaseDB) setIsFirebaseLoaded(true);
@@ -303,14 +298,29 @@
           setHouses(loadedHouses.reverse());
         });
 
-        const unsubscribeSheet = onSnapshot(collection(window.firebaseDB, "google_sheet_data"), (snapshot) => {
-          const loadedData = [];
-          snapshot.forEach((doc) => loadedData.push({ id: doc.id, ...doc.data() }));
-          setSheetData(loadedData);
+        const unsubscribeChecklists = onSnapshot(collection(window.firebaseDB, "content_checklists"), (snapshot) => {
+          const loaded = {};
+          snapshot.forEach((doc) => {
+            loaded[doc.id] = doc.data();
+          });
+          setContentChecklists(loaded);
         });
 
-        return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); };
-      }, [isFirebaseLoaded]);
+        const unsubscribeSheet = onSnapshot(collection(window.firebaseDB, "google_sheet_data"), 
+          (snapshot) => {
+            const loadedData = [];
+            snapshot.forEach((doc) => loadedData.push({ id: doc.id, ...doc.data() }));
+            setSheetData(loadedData);
+            setSheetError(null);
+          },
+          (error) => {
+            console.error("Firebase Read Error:", error);
+            setSheetError(error.message);
+          }
+        );
+
+        return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); unsubscribeChecklists(); };
+      }, [isFirebaseLoaded, manualRefreshKey]);
 
       // --- ฟังก์ชันขยับทีม (ขึ้น-ลง) ---
       const moveDeptUp = async (index) => {
@@ -588,118 +598,466 @@
 
       // --- Modules Renderers ---
       const ContentChecklist = () => {
-        // ดึงตัวเลือกทั้งหมดที่มีในคอลัมน์ 'สถานะ' และ 'Website' แบบไม่ซ้ำกัน
-        const availableStatuses = [...new Set(sheetData.map(item => item['สถานะ']).filter(Boolean))];
-        const availableWebsites = [...new Set(sheetData.map(item => item['Website']).filter(Boolean))];
+        const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+        const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
+        const [isRefreshing, setIsRefreshing] = useState(false);
+        const [expandedRowId, setExpandedRowId] = useState(null);
 
-        // กรองข้อมูลตามที่ผู้ใช้เลือก (ถ้าไม่ได้เลือกอะไรเลย ให้แสดงทั้งหมด)
-        const filteredData = sheetData.filter(item => {
-           const matchStatus = statusFilter.length === 0 || statusFilter.includes(item['สถานะ']);
-           const matchWebsite = websiteFilter.length === 0 || websiteFilter.includes(item['Website']);
-           return matchStatus && matchWebsite;
+        // ใช้ LocalStorage เพื่อจดจำค่าตัวกรองไว้ เมื่อรีเฟรชจะได้ไม่หาย
+        const [hiddenValues, setHiddenValues] = useState(() => {
+            const saved = localStorage.getItem('startupup_hiddenValues');
+            return saved ? JSON.parse(saved) : { 'สถานะ': [], 'Website': [] };
+        }); 
+        const [visibleColumns, setVisibleColumns] = useState(() => {
+            const saved = localStorage.getItem('startupup_visibleColumns');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะ'];
+        });
+
+        // บันทึกค่าลง LocalStorage ทันทีเมื่อมีการเปลี่ยนแปลง
+        useEffect(() => {
+            localStorage.setItem('startupup_hiddenValues', JSON.stringify(hiddenValues));
+        }, [hiddenValues]);
+
+        useEffect(() => {
+            localStorage.setItem('startupup_visibleColumns', JSON.stringify(visibleColumns));
+        }, [visibleColumns]);
+
+        // สร้างฟังก์ชันตัดช่องว่าง (Space) ส่วนเกิน เพื่อป้องกันปัญหาการกรอง/ซ่อนข้อมูลผิดพลาด
+        const safeTrim = (val) => val ? String(val).trim() : '';
+
+        // กรองเอาแถวที่เป็นระบบทดสอบ (test_ping) และ "แถวที่ว่างเปล่า (มีแต่ช่องว่าง)" ออกไป
+        const validSheetData = sheetData.filter(row => {
+            if (row.id === 'test_ping') return false;
+            if (row['หมู่บ้าน'] === 'Connected OK!') return false;
+            
+            // ตรวจสอบว่าแถวนี้มีตัวอักษรจริงๆ พิมพ์อยู่อย่างน้อย 1 ช่องหรือไม่ (ไม่นับการเคาะเว้นวรรค)
+            let hasActualData = false;
+            for (const key in row) {
+                if (key !== 'id' && safeTrim(row[key]) !== '') {
+                    hasActualData = true;
+                    break; // เจอข้อมูลปุ๊บ หยุดหาแล้วให้ผ่านได้เลย
+                }
+            }
+            return hasActualData;
         });
 
         // ดึงชื่อหัวข้อคอลัมน์ทั้งหมดจากข้อมูล
         const keySet = new Set();
-        sheetData.forEach(item => Object.keys(item).forEach(k => k !== 'id' && keySet.add(k)));
-        const columns = Array.from(keySet);
+        validSheetData.forEach(item => Object.keys(item).forEach(k => k !== 'id' && keySet.add(safeTrim(k))));
+        const allColumns = Array.from(keySet);
 
-        // จัดเรียงคอลัมน์ให้อ่านง่าย (เอาสถานะกับWebsiteไว้ด้านขวาสุด)
-        const sortedColumns = columns.sort((a, b) => {
-            if (a === 'สถานะ' || a === 'Website') return 1;
-            if (b === 'สถานะ' || b === 'Website') return -1;
-            return 0;
+        // จัดเรียงข้อมูลจากบนลงล่าง ตามเลขแถวที่อยู่ใน Google Sheet
+        const sortedSheetData = [...validSheetData].sort((a, b) => {
+            const rowA = parseInt(a.id.replace('row_', '')) || 0;
+            const rowB = parseInt(b.id.replace('row_', '')) || 0;
+            return rowA - rowB;
         });
 
-        const toggleFilter = (type, value) => {
-            if (type === 'status') {
-                setStatusFilter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
-            } else {
-                setWebsiteFilter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
+        // ดึงตัวเลือกที่ไม่ซ้ำกันของคอลัมน์ 'สถานะ' และ 'Website'
+        const uniqueStatuses = [...new Set(sortedSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
+        const uniqueWebsites = [...new Set(sortedSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
+
+        // เรียงลำดับตัวเลือกคอลัมน์ใน Dropdown
+        const knownOrder = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะ', 'Website'];
+        const sortedAllColumns = allColumns.sort((a, b) => {
+            const idxA = knownOrder.indexOf(a);
+            const idxB = knownOrder.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+
+        // ฟังก์ชันประมวลผลข้อมูล (กรองเอาข้อมูลที่ถูกสั่งให้ซ่อนออกไป)
+        const filteredData = sortedSheetData.filter(row => {
+            const rowStatus = safeTrim(row['สถานะ']);
+            const rowWebsite = safeTrim(row['Website']);
+            
+            if (hiddenValues['สถานะ']?.includes(rowStatus)) return false;
+            if (hiddenValues['Website']?.includes(rowWebsite)) return false;
+            return true;
+        });
+
+        // ฟังก์ชันเมื่อกดติ๊กเลือกข้อมูลแสดงคอลัมน์
+        const toggleColumn = (col) => {
+            setVisibleColumns(prev => {
+                if (prev.includes(col)) return prev.filter(c => c !== col);
+                return [...prev, col]; 
+            });
+        };
+
+        // ฟังก์ชันเมื่อกดติ๊กซ่อน/แสดง ค่าในตัวกรอง
+        const toggleHideValue = (column, value) => {
+            setHiddenValues(prev => {
+                const currentHidden = prev[column] || [];
+                if (currentHidden.includes(value)) {
+                    return { ...prev, [column]: currentHidden.filter(v => v !== value) };
+                } else {
+                    return { ...prev, [column]: [...currentHidden, value] };
+                }
+            });
+        };
+
+        // ฟังชันก์เซฟเช็คลิสต์ลง Firebase
+        const toggleChecklist = async (rowId, taskKey, currentValue) => {
+            if (!isFirebaseLoaded) return;
+            const docRef = window.firebaseAPI.doc(window.firebaseDB, "content_checklists", rowId);
+            try {
+                await window.firebaseAPI.setDoc(docRef, { [taskKey]: !currentValue }, { merge: true });
+            } catch(e) {
+                console.error("Error updating checklist", e);
             }
+        };
+
+        // Component สำหรับแถบติ๊กถูกแต่ละอัน
+        const CheckboxItem = ({ rowId, taskKey, label, checklist }) => {
+            const isChecked = !!checklist[taskKey];
+            return (
+                <label className="flex items-center space-x-3 cursor-pointer group w-fit">
+                    <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={(e) => {
+                            e.stopPropagation();
+                            toggleChecklist(rowId, taskKey, isChecked);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-[18px] h-[18px] accent-brand rounded border-gray-300 cursor-pointer"
+                    />
+                    <span className={`text-[14px] font-medium transition-colors ${isChecked ? 'text-gray-400 line-through' : 'text-gray-700 group-hover:text-brand'}`}>
+                        {label}
+                    </span>
+                </label>
+            );
         };
 
         return (
           <div className="flex-1 p-4 md:p-8 overflow-auto bg-background flex flex-col h-full">
             <div className="flex justify-between items-center mb-6 shrink-0">
               <div>
-                <h2 className="text-[22px] font-bold text-gray-800 flex items-center">
-                    <Icon name="CheckSquare" className="mr-3 text-brand" size={26}/> เช็คลิสต์คอนเทนต์บ้าน
-                </h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-[22px] font-bold text-gray-800 flex items-center">
+                        <Icon name="CheckSquare" className="mr-3 text-brand" size={26}/> เช็คลิสต์คอนเทนต์บ้าน
+                    </h2>
+                    {validSheetData.length > 0 && (
+                        <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full flex items-center shadow-sm">
+                            <span className="text-[12px] font-bold text-brand">{filteredData.length} รายการ</span>
+                        </div>
+                    )}
+                    <button 
+                        onClick={() => {
+                            setIsRefreshing(true);
+                            setManualRefreshKey(k => k + 1); // บังคับให้โหลดข้อมูลใหม่
+                            setTimeout(() => setIsRefreshing(false), 800);
+                        }}
+                        className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"
+                        title="รีเฟรชข้อมูล"
+                    >
+                        <Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} />
+                    </button>
+                </div>
                 <p className="text-gray-500 text-[13px] mt-1">ข้อมูลเชื่อมต่อตรงจาก Google Sheet แบบเรียลไทม์</p>
               </div>
             </div>
 
-            {/* ส่วนตัวกรอง (Filters) */}
-            <div className="bg-white p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 space-y-4">
-                {availableStatuses.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[13px] font-bold text-gray-500 w-[60px]">สถานะ:</span>
-                        {availableStatuses.map(status => (
-                            <button
-                                key={status}
-                                onClick={() => toggleFilter('status', status)}
-                                className={`px-4 py-2 rounded-full text-[12px] font-bold transition-all border ${statusFilter.includes(status) ? 'bg-brand text-white border-brand shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-brand/50'}`}
-                            >
-                                {status}
-                            </button>
-                        ))}
-                    </div>
-                )}
+            {/* ส่วนตัวจัดการข้อมูลทั้งหมด (เรียงคอลัมน์ + ตัวกรองซ่อนข้อมูล) */}
+            <div className="bg-white p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 flex flex-col xl:flex-row items-start xl:items-center relative z-20">
+                <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0">ตัวจัดการข้อมูล:</span>
                 
-                {availableWebsites.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[13px] font-bold text-gray-500 w-[60px]">Website:</span>
-                        {availableWebsites.map(web => (
-                            <button
-                                key={web}
-                                onClick={() => toggleFilter('website', web)}
-                                className={`px-4 py-2 rounded-full text-[12px] font-bold transition-all border ${websiteFilter.includes(web) ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-600/50'}`}
-                            >
-                                {web}
-                            </button>
-                        ))}
+                <div className="flex flex-wrap gap-2.5 shrink-0">
+                    {/* 1. ปุ่มเลือกคอลัมน์ */}
+                    <div className="relative shrink-0">
+                        <button 
+                            onClick={() => { setIsDropdownOpen(!isDropdownOpen); setActiveFilterDropdown(null); }} 
+                            className="flex items-center justify-between w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm"
+                        >
+                            <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" />
+                            เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} />
+                        </button>
+                        
+                        {isDropdownOpen && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                    <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
+                                    <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                        {sortedAllColumns.map(col => (
+                                            <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={visibleColumns.includes(col)}
+                                                    onChange={() => toggleColumn(col)}
+                                                    className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer"
+                                                />
+                                                <span className="text-[13px] font-semibold text-gray-700">{col}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
-                )}
 
-                {availableStatuses.length === 0 && availableWebsites.length === 0 && (
-                    <div className="text-[13px] text-gray-400 font-medium">รอข้อมูลโหลดจาก Google Sheet... (กรุณาตั้งชื่อหัวคอลัมน์ในชีตว่า "สถานะ" และ "Website")</div>
-                )}
+                    {/* 2. ปุ่มตัวกรองสถานะ (ถ้ามีคอลัมน์สถานะ) */}
+                    {uniqueStatuses.length > 0 && (
+                        <div className="relative shrink-0">
+                            <button 
+                                onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); }} 
+                                className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ'].length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}
+                            >
+                                <Icon name="Search" size={14} className="mr-1.5 text-gray-400" />
+                                สถานะ 
+                                {hiddenValues['สถานะ'].length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                            </button>
+                            
+                            {activeFilterDropdown === 'status' && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                    <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                            <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                            {hiddenValues['สถานะ'].length > 0 && (
+                                                <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>
+                                            )}
+                                        </div>
+                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                            {uniqueStatuses.map(status => (
+                                                <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!hiddenValues['สถานะ'].includes(status)}
+                                                        onChange={() => toggleHideValue('สถานะ', status)}
+                                                        className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer"
+                                                    />
+                                                    <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 3. ปุ่มตัวกรอง Website (ถ้ามีคอลัมน์ Website) */}
+                    {uniqueWebsites.length > 0 && (
+                        <div className="relative shrink-0">
+                            <button 
+                                onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} 
+                                className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website'].length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}
+                            >
+                                <Icon name="Search" size={14} className="mr-1.5 text-gray-400" />
+                                Website 
+                                {hiddenValues['Website'].length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                            </button>
+                            
+                            {activeFilterDropdown === 'website' && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                    <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                            <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                            {hiddenValues['Website'].length > 0 && (
+                                                <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>
+                                            )}
+                                        </div>
+                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                            {uniqueWebsites.map(web => (
+                                                <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={!hiddenValues['Website'].includes(web)}
+                                                        onChange={() => toggleHideValue('Website', web)}
+                                                        className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer"
+                                                    />
+                                                    <span className="text-[13px] font-semibold text-gray-700">{web}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* แสดง tag ของคอลัมน์ที่ถูกเลือกแสดง */}
+                <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
+                    {visibleColumns.map((col, idx) => (
+                        <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
+                            <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
+                            <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
+                        </span>
+                    ))}
+                </div>
             </div>
 
             {/* ตารางแสดงผล */}
-            <div className="bg-surface rounded-[20px] shadow-subtle border border-gray-100 flex-1 overflow-hidden flex flex-col">
+            <div className="bg-surface rounded-[20px] shadow-subtle border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
               <div className="overflow-auto custom-scrollbar flex-1 relative">
                 <table className="w-full text-left border-collapse min-w-max">
                   <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm shadow-sm border-b border-gray-100">
                     <tr>
-                      {sortedColumns.map(col => (
+                      <th className="p-4 text-[13px] font-bold text-gray-600 tracking-wide whitespace-nowrap w-[60px] text-center border-r border-gray-100">ลำดับ</th>
+                      {visibleColumns.map(col => (
                           <th key={col} className="p-4 text-[13px] font-bold text-gray-600 tracking-wide whitespace-nowrap">{col}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.map((row, idx) => (
-                      <tr key={row.id || idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                        {sortedColumns.map(col => {
-                            const val = row[col];
-                            let content = <span className="text-[14px] text-gray-700 font-medium">{val || '-'}</span>;
-                            
-                            // จัดสีพิเศษให้คอลัมน์สถานะและWebsite
-                            if (col === 'สถานะ' && val) {
-                                content = <span className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-gray-100 text-gray-700">{val}</span>;
-                            } else if (col === 'Website' && val) {
-                                content = <span className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-blue-50 text-blue-700">{val}</span>;
-                            }
-
-                            return <td key={col} className="p-4 align-top">{content}</td>;
-                        })}
-                      </tr>
-                    ))}
-                    {filteredData.length === 0 && sheetData.length > 0 && (
-                        <tr><td colSpan={sortedColumns.length || 1} className="py-12 text-center text-gray-500 font-medium">ไม่พบข้อมูลที่ตรงกับตัวกรองที่เลือก</td></tr>
+                    {visibleColumns.length === 0 && validSheetData.length > 0 && (
+                        <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>
                     )}
-                    {sheetData.length === 0 && (
+                    {filteredData.map((row, idx) => {
+                      const statusVal = safeTrim(row['สถานะ']);
+                      
+                      // กำหนดสีไฮไลท์ตามสถานะ
+                      let rowBgStyle = {};
+                      let textClass = 'text-gray-700';
+                      let badgeClass = 'bg-white/60 text-gray-800 border border-black/5 shadow-sm';
+                      let isDarkBg = false;
+
+                      if (statusVal === 'ว่าง') {
+                          rowBgStyle = { backgroundColor: '#fef9c3' }; // สีเหลืองอ่อน
+                          textClass = 'text-gray-900';
+                          badgeClass = 'bg-white text-yellow-700 border border-yellow-300 shadow-sm';
+                      } else if (statusVal === 'ยื่นซ้อน') {
+                          rowBgStyle = { backgroundColor: '#14532d' }; // เขียวเข้ม
+                          textClass = 'text-white';
+                          badgeClass = 'bg-white text-[#14532d] shadow-sm font-extrabold border border-transparent';
+                          isDarkBg = true;
+                      } else if (statusVal === 'ยื่นกู้') {
+                          rowBgStyle = { backgroundColor: '#166534' }; // เขียวเข้ม 2
+                          textClass = 'text-white';
+                          badgeClass = 'bg-white text-[#166534] shadow-sm font-extrabold border border-transparent';
+                          isDarkBg = true;
+                      } else if (statusVal === 'ประเมิน') {
+                          rowBgStyle = { backgroundColor: '#0a53a8' }; // น้ำเงิน
+                          textClass = 'text-white';
+                          badgeClass = 'bg-white text-[#0a53a8] shadow-sm font-extrabold border border-transparent';
+                          isDarkBg = true;
+                      } else if (statusVal === 'รอโอน') {
+                          rowBgStyle = { backgroundColor: '#5a3286' }; // ม่วง
+                          textClass = 'text-white';
+                          badgeClass = 'bg-white text-[#5a3286] shadow-sm font-extrabold border border-transparent';
+                          isDarkBg = true;
+                      }
+
+                      const rowClassName = `border-b transition-colors cursor-pointer ${!isDarkBg ? 'border-gray-50 hover:bg-black/5' : 'border-white/10 hover:opacity-90'}`;
+
+                      // เช็คสถานะ Checklists
+                      const checklist = contentChecklists[row.id] || {};
+                      const totalTasks = 9;
+                      const completedTasks = Object.values(checklist).filter(v => v).length;
+                      const isComplete = completedTasks === totalTasks;
+
+                      return (
+                        <React.Fragment key={row.id}>
+                          <tr style={rowBgStyle} className={rowClassName} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
+                            <td className={`p-4 align-top text-center text-[13px] font-bold border-r ${isDarkBg ? 'border-white/10 bg-black/20 text-white/70' : 'border-gray-50 bg-gray-50/30 text-gray-500'}`}>
+                                {idx + 1}
+                            </td>
+                            {visibleColumns.map(col => {
+                                const val = safeTrim(row[col]);
+                                let content;
+                                
+                                if (col === 'สถานะ' && val) {
+                                    content = <span className={`px-3 py-1.5 rounded-lg text-[12px] font-bold ${badgeClass}`}>{val}</span>;
+                                } else if (col === 'Website' && val) {
+                                    content = <span className={`px-3 py-1.5 rounded-lg text-[12px] font-bold ${isDarkBg ? 'bg-blue-400/20 text-blue-100 border border-blue-400/30' : 'bg-blue-50 text-blue-700'}`}>{val}</span>;
+                                } else {
+                                    content = <span className={`text-[14px] font-medium ${textClass}`}>{val || '-'}</span>;
+                                }
+
+                                // เพิ่มป้ายเช็คลิสต์คอนเทนต์ ต่อท้ายชื่อหมู่บ้าน
+                                let badgeContent = null;
+                                if (col === 'หมู่บ้าน' && val) {
+                                    badgeContent = isComplete 
+                                        ? <span className="ml-3 px-2.5 py-1 bg-[#d1fae5] text-[#065f46] border border-[#34d399] text-[11px] rounded-md font-bold whitespace-nowrap shadow-sm">ครบแล้ว</span>
+                                        : <span className="ml-3 px-2.5 py-1 bg-red-100 text-red-700 border border-red-200 text-[11px] rounded-md font-bold whitespace-nowrap shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
+                                }
+
+                                return <td key={col} className="p-4 align-top">
+                                    <div className="flex items-center">
+                                        {content}
+                                        {badgeContent}
+                                    </div>
+                                </td>;
+                            })}
+                          </tr>
+
+                          {/* ลิสต์รายการเมื่อกด Dropdown แถวนั้น */}
+                          {expandedRowId === row.id && (
+                              <tr className="border-b border-gray-200 bg-gray-50">
+                                  <td colSpan={visibleColumns.length + 1} className="p-0">
+                                      <div className="p-6 md:p-8 bg-white border-t-2 border-brand shadow-inner w-full">
+                                          <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                                              <h4 className="text-[18px] font-bold text-gray-800 flex items-center">
+                                                  <Icon name="CheckSquare" size={22} className="mr-3 text-brand" />
+                                                  เช็คลิสต์คอนเทนต์ - {safeTrim(row['หมู่บ้าน']) || 'โครงการ'} {safeTrim(row['บ้านเลขที่']) || ''}
+                                              </h4>
+                                              <button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors">
+                                                  <Icon name="X" size={16} />
+                                              </button>
+                                          </div>
+                                          
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                                              {/* หมวดงานหลัก */}
+                                              <div>
+                                                  <div className="bg-brand/5 p-5 rounded-[16px] border border-brand/10">
+                                                      <h5 className="font-bold text-brand mb-4 flex items-center"><Icon name="Video" size={18} className="mr-2"/> งานหลัก</h5>
+                                                      <div className="space-y-4">
+                                                          <CheckboxItem rowId={row.id} taskKey="main_vertical" label="คลิปแนวตั้ง" checklist={checklist} />
+                                                          <CheckboxItem rowId={row.id} taskKey="main_horizontal" label="คลิปแนวนอน" checklist={checklist} />
+                                                          <CheckboxItem rowId={row.id} taskKey="main_person" label="คลิปมีคน" checklist={checklist} />
+                                                          <CheckboxItem rowId={row.id} taskKey="main_photo" label="ถ่ายรูป" checklist={checklist} />
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                              
+                                              {/* หมวดงานรอง */}
+                                              <div>
+                                                  <div className="bg-blue-50/50 p-5 rounded-[16px] border border-blue-100">
+                                                      <h5 className="font-bold text-blue-800 mb-4 flex items-center"><Icon name="FileSignature" size={18} className="mr-2"/> งานรอง (คอนเท้น)</h5>
+                                                      
+                                                      <h6 className="text-[11px] font-bold text-blue-500 uppercase mb-3 bg-blue-100 px-2 py-1 rounded w-max">DIRECT</h6>
+                                                      <div className="space-y-4 mb-6 pl-1">
+                                                          <CheckboxItem rowId={row.id} taskKey="sub_dir_before_after" label="Before/After" checklist={checklist} />
+                                                          <CheckboxItem rowId={row.id} taskKey="sub_dir_asmr" label="เทสบ้าน / Asmr" checklist={checklist} />
+                                                          <CheckboxItem rowId={row.id} taskKey="sub_dir_facility" label="Facility (ทำเล) ไลฟ์สไตล์" checklist={checklist} />
+                                                      </div>
+                                                      
+                                                      <h6 className="text-[11px] font-bold text-blue-500 uppercase mb-3 bg-blue-100 px-2 py-1 rounded w-max">INDIRECT</h6>
+                                                      <div className="space-y-4 pl-1">
+                                                          <CheckboxItem rowId={row.id} taskKey="sub_indir_startup" label="ช่วง Startup อัพความพร้อม ก่อนมีบ้าน" checklist={checklist} />
+                                                          <CheckboxItem rowId={row.id} taskKey="sub_indir_qa" label="ตอบคอมเมนต์ / QA" checklist={checklist} />
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </td>
+                              </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                    {sheetError && (
+                        <tr><td colSpan={100} className="py-12 text-center bg-red-50 text-red-500 rounded-xl">
+                            <Icon name="X" size={40} className="mx-auto mb-2 opacity-50"/>
+                            <p className="font-bold">ดึงข้อมูลไม่สำเร็จ</p>
+                            <p className="text-sm">{sheetError}</p>
+                        </td></tr>
+                    )}
+                    {!sheetError && filteredData.length === 0 && validSheetData.length > 0 && (
+                        <tr><td colSpan={100} className="py-16 text-center text-gray-400">
+                            <Icon name="Search" size={32} className="mx-auto mb-3 opacity-30"/>
+                            <p className="font-medium">ไม่มีข้อมูลที่ตรงกับตัวกรอง (ถูกซ่อนไว้ทั้งหมด)</p>
+                        </td></tr>
+                    )}
+                    {!sheetError && validSheetData.length === 0 && (
                         <tr><td colSpan={100} className="py-20 text-center flex flex-col items-center justify-center text-gray-400">
                             <Icon name="FileSignature" size={48} className="mb-4 opacity-30"/>
                             กำลังรอรับข้อมูลจาก Google Sheet...
@@ -937,7 +1295,7 @@
                 <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar">
                   {/* วันว่างของเดือนก่อนหน้า (Shift สำหรับเริ่มที่วันจันทร์) */}
                   {Array.from({ length: startDayIndex }).map((_, i) => (
-                    <div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] bg-gray-50/20" />
+                    <div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none" />
                   ))}
                   
                   {/* วันในเดือนปัจจุบัน */}
@@ -953,11 +1311,11 @@
                     let bgClass = "bg-white"; 
                     let inlineStyle = {};
                     
-                    if (hasEvent && hasHoliday) {
+                    if (hasEvent && hasHoliday && selectedUser !== 'All') {
                        inlineStyle = { background: 'linear-gradient(135deg, #fef2f2 50%, #ebfbf1 50%)' };
                     } else if (hasEvent) {
                        bgClass = "bg-cellHighlight";
-                    } else if (hasHoliday) {
+                    } else if (hasHoliday && selectedUser !== 'All') {
                        bgClass = "bg-red-50";
                     }
 
@@ -986,7 +1344,7 @@
                   
                   {/* ถมช่องว่างท้ายเดือน */}
                   {Array.from({ length: emptyEndCells }).map((_, i) => (
-                    <div key={`empty-end-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] bg-gray-50/20" />
+                    <div key={`empty-end-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none" />
                   ))}
                 </div>
               </div>
