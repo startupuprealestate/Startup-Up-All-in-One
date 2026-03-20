@@ -437,7 +437,7 @@
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('startupup_hiddenValues');
-            return saved ? JSON.parse(saved) : { 'สถานะ': [] };
+            return saved ? JSON.parse(saved) : { 'สถานะ': [], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
             const saved = localStorage.getItem('startupup_visibleColumns');
@@ -450,6 +450,7 @@
         const validSheetData = getValidSheetData(sheetData);
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะ'];
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
+        const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
         const taskOptions = [
             { key: 'main_vertical', label: 'คลิปแนวตั้ง' },
@@ -465,8 +466,10 @@
 
         const filteredData = validSheetData.filter(row => {
             const rowStatus = safeTrim(row['สถานะ']);
+            const rowWebsite = safeTrim(row['Website']);
             
             if (hiddenValues['สถานะ']?.includes(rowStatus)) return false;
+            if (hiddenValues['Website']?.includes(rowWebsite)) return false;
             
             if (pendingTaskFilter) {
                 const checklist = contentChecklists[row.id] || {};
@@ -591,9 +594,9 @@
 
                     {uniqueStatuses.length > 0 && (
                         <div className="relative shrink-0">
-                            <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ'].length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                            <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
                                 <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ 
-                                {hiddenValues['สถานะ'].length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
                                 <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
                             </button>
                             {activeFilterDropdown === 'status' && (
@@ -602,13 +605,42 @@
                                     <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
                                         <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                                             <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                            {hiddenValues['สถานะ'].length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                            {hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
                                         </div>
                                         <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                             {uniqueStatuses.map(status => (
                                                 <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                    <input type="checkbox" checked={!hiddenValues['สถานะ'].includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                    <input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
                                                     <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {uniqueWebsites.length > 0 && (
+                        <div className="relative shrink-0">
+                            <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
+                                {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                            </button>
+                            {activeFilterDropdown === 'website' && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                    <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                            <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                            {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                        </div>
+                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                            {uniqueWebsites.map(web => (
+                                                <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                    <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                    <span className="text-[13px] font-semibold text-gray-700">{web}</span>
                                                 </label>
                                             ))}
                                         </div>
@@ -686,7 +718,7 @@
                                           <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
                                               <h4 className="text-[17px] font-bold text-gray-800 flex items-center">
                                                   <Icon name="CheckSquare" size={20} className="mr-2 text-brand" />
-                                                  เช็คลิสต์คอนเทรต์
+                                                  เช็คลิสต์คอนเทนต์
                                               </h4>
                                               <button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors"><Icon name="X" size={14} /></button>
                                           </div>
@@ -749,7 +781,7 @@
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('startupup_hiddenValues_const');
-            return saved ? JSON.parse(saved) : { 'สถานะ': [] };
+            return saved ? JSON.parse(saved) : { 'สถานะ': [], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
             const saved = localStorage.getItem('startupup_visibleColumns_const');
@@ -763,10 +795,12 @@
         
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
+        const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
         const filteredData = validSheetData.filter(row => {
             const rowStatus = safeTrim(row['สถานะ']);
             if (hiddenValues['สถานะ']?.includes(rowStatus)) return false;
+            if (hiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
             
             if (searchQuery) {
                 const query = searchQuery.toLowerCase();
@@ -933,9 +967,9 @@
                         {/* 3. สถานะบ้าน */}
                         {uniqueStatuses.length > 0 && (
                             <div className="relative shrink-0">
-                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ'].length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
                                     <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ 
-                                    {hiddenValues['สถานะ'].length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                    {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
                                     <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
                                 </button>
                                 {activeFilterDropdown === 'status' && (
@@ -944,13 +978,43 @@
                                         <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
                                             <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                                                 <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                                {hiddenValues['สถานะ'].length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                                {hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
                                             </div>
                                             <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                                 {uniqueStatuses.map(status => (
                                                     <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                        <input type="checkbox" checked={!hiddenValues['สถานะ'].includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                        <input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
                                                         <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 4. Website Filter */}
+                        {uniqueWebsites.length > 0 && (
+                            <div className="relative shrink-0">
+                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
+                                    {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                    <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                </button>
+                                {activeFilterDropdown === 'website' && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                            </div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {uniqueWebsites.map(web => (
+                                                    <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                        <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                        <span className="text-[13px] font-semibold text-gray-700">{web}</span>
                                                     </label>
                                                 ))}
                                             </div>
@@ -1086,7 +1150,7 @@
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('startupup_hiddenValues_post');
-            return saved ? JSON.parse(saved) : { 'สถานะ': [] };
+            return saved ? JSON.parse(saved) : { 'สถานะ': [], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
             const saved = localStorage.getItem('startupup_visibleColumns_post');
@@ -1100,6 +1164,7 @@
         
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'ประวัติการโพสต์'];
         const uniqueStatuses = [...new Set(baseSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
+        const uniqueWebsites = [...new Set(baseSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
         const toggleColumn = (col) => setVisibleColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
         const toggleHideValue = (column, value) => {
@@ -1264,6 +1329,7 @@
                 if (!combined.includes(searchQuery.toLowerCase())) return false;
             }
             if (hiddenValues['สถานะ']?.includes(safeTrim(row['สถานะ']))) return false;
+            if (hiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
             return true;
         });
 
@@ -1342,9 +1408,9 @@
 
                         {viewMode === 'all' && uniqueStatuses.length > 0 && (
                             <div className="relative shrink-0">
-                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ'].length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
                                     <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะบ้าน 
-                                    {hiddenValues['สถานะ'].length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                    {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
                                     <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
                                 </button>
                                 {activeFilterDropdown === 'status' && (
@@ -1360,6 +1426,36 @@
                                                     <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
                                                         <input type="checkbox" checked={!hiddenValues['สถานะ'].includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
                                                         <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Website Filter Button */}
+                        {viewMode === 'all' && uniqueWebsites.length > 0 && (
+                            <div className="relative shrink-0">
+                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
+                                    {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                    <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                </button>
+                                {activeFilterDropdown === 'website' && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                            </div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {uniqueWebsites.map(web => (
+                                                    <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                        <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                        <span className="text-[13px] font-semibold text-gray-700">{web}</span>
                                                     </label>
                                                 ))}
                                             </div>
@@ -1610,7 +1706,7 @@
 
     const AiChatView = ({ sheetData, contentChecklists }) => {
       const [messages, setMessages] = useState([
-        { role: 'ai', text: 'สวัสดีค่า! น้อง Up 👧🏻 ยินดีให้บริการค่ะ 💕\n\nพี่ๆ สามารถถามข้อมูลโครงการบ้าน หรือให้ Up ช่วยสรุปงานจากระบบได้เลยนะคะ เช่น:\n- "มีบ้านหลังไหนยังไม่ได้ทำคลิปแนวตั้งบ้างคะ?"\n- "ขอแผนที่ของบ้านรังสิตหน่อย"\n- "ช่วยสรุปบ้านที่สถานะว่างให้ดูในรูปแบบตารางหน่อยค่ะ"' }
+        { role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }
       ]);
       const [input, setInput] = useState('');
       const [isLoading, setIsLoading] = useState(false);
@@ -1682,47 +1778,67 @@ ${JSON.stringify(contextData)}
           systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
-        const callAPI = async (model, key) => {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+        // ฟังก์ชันยิง API แบบไม่มีคีย์ (สำหรับทดสอบในเว็บนี้)
+        const tryCanvasMode = async () => {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            
-            if (!response.ok) {
-                // เปลี่ยนมาใช้ response.text() แทน json() เพื่อป้องกัน Error: Unexpected end of input
-                const errText = await response.text(); 
-                throw new Error(`HTTP ${response.status}: ${errText}`);
+            if (!res.ok) throw new Error(`Canvas Mode Failed: ${res.status}`);
+            return await res.json();
+        };
+
+        // ฟังก์ชันยิง API แบบใส่คีย์ (สำหรับขึ้น Vercel)
+        const tryVercelMode = async () => {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${myApiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`Vercel Mode Failed: ${res.status} ${errText}`);
             }
-            
-            const data = await response.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text;
+            return await res.json();
         };
 
         const fetchWithRetry = async (attempt = 0) => {
             const delays = [1000, 2000, 4000, 8000, 16000];
             try {
-                let aiText = null;
+                let data;
                 try {
-                    // ก๊อกที่ 1: ลองยิงแบบหน้าต่างจำลอง (Canvas) ก่อน (ไม่ใช้คีย์ + โมเดล Preview)
-                    aiText = await callAPI("gemini-2.5-flash-preview-09-2025", "");
-                } catch (err1) {
-                    console.log("Canvas mode failed, switching to Public Vercel mode...");
-                    // ก๊อกที่ 2: ถ้ารันบน Vercel (ก๊อกแรกจะพัง) ให้สลับมาใช้ API Key จริง + โมเดลปกติ
-                    aiText = await callAPI("gemini-1.5-flash", myApiKey);
+                    // ก๊อกที่ 1: ลองใช้โหมดหน้าต่างจำลอง (Canvas)
+                    data = await tryCanvasMode();
+                } catch (e1) {
+                    console.log(e1.message, "-> Switching to API Key mode.");
+                    // ก๊อกที่ 2: ถ้ารันบน Vercel (ก๊อกแรกพัง) ให้ใช้คีย์จริง
+                    if (!myApiKey || myApiKey.trim() === "") {
+                        throw new Error("No API Key provided for public mode.");
+                    }
+                    data = await tryVercelMode();
                 }
-                
+
+                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (aiText) {
                     setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
                 } else {
-                    throw new Error("AI return empty text");
+                    throw new Error("Empty text from AI");
                 }
             } catch (error) {
                 console.error("AI Fetch Error:", error);
+                
+                // ตรวจสอบว่าเป็น Error เกี่ยวกับ API Key โดยตรงหรือไม่ (เช่น 401, 403)
+                if (error.message.includes("401") || error.message.includes("403") || error.message.includes("API_KEY_INVALID")) {
+                    setMessages(prev => [...prev, { role: 'ai', text: "⚠️ ข้อผิดพลาด: API Key ไม่ถูกต้อง หรือถูกจำกัดสิทธิ์การใช้งานค่ะ รบกวนตรวจสอบ API Key อีกครั้งนะคะ 🥺" }]);
+                    setIsLoading(false);
+                    return;
+                }
+
                 if (attempt < delays.length) {
                     setTimeout(() => fetchWithRetry(attempt + 1), delays[attempt]);
                 } else {
-                    setMessages(prev => [...prev, { role: 'ai', text: "ขออภัยด้วยค่ะ ระบบเครือข่าย AI มีปัญหา หรือ API Key อาจไม่ถูกต้อง รบกวนพี่ๆ ลองถามน้อง Up ใหม่อีกครั้งนะคะ 🥺" }]);
+                    setMessages(prev => [...prev, { role: 'ai', text: "ขออภัยด้วยค่ะ ระบบเครือข่าย AI มีปัญหา รบกวนพี่ๆ ลองถามน้อง Up ใหม่อีกครั้งนะคะ 🥺" }]);
                 }
             }
         };
@@ -1786,7 +1902,7 @@ ${JSON.stringify(contextData)}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if(e.key === 'Enter') handleSend(); }}
-                placeholder="พิมพ์ถามน้อง Up ได้เลยค่ะ (เช่น บ้านหลังไหนยังไม่ได้ทำคลิปบ้าง?)..." 
+                placeholder="พิมพ์ข้อความที่นี่..." 
                 disabled={isLoading}
                 className="w-full pl-5 pr-14 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none text-[14px] focus:border-brand focus:ring-2 focus:ring-brand/10 transition-all disabled:opacity-50" 
               />
@@ -2219,7 +2335,7 @@ ${JSON.stringify(contextData)}
               
               <div className="mb-8 relative max-w-md shrink-0">
                  <Icon name="Search" size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                 <input type="text" placeholder="ค้นหาชื่อโครงการ, ทำเล..." value={houseSearchQuery} onChange={(e) => setHouseSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand transition-all text-sm shadow-sm" />
+                 <input type="text" placeholder="ค้นหาชื่อโครงการ, ผู้รับผิดชอบ..." value={houseSearchQuery} onChange={(e) => setHouseSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand transition-all text-sm shadow-sm" />
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
