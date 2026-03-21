@@ -1705,25 +1705,60 @@
         );
     };
 
-    const AiChatView = ({ sheetData, contentChecklists }) => {
-      const [messages, setMessages] = useState([
-        { role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }
-      ]);
+    // รับ state messages มาจาก App เพื่อไม่ให้แชทหายเวลาสลับหน้า
+    const AiChatView = ({ sheetData, contentChecklists, messages, setMessages }) => {
       const [input, setInput] = useState('');
       const [isLoading, setIsLoading] = useState(false);
       const chatEndRef = React.useRef(null);
+      const inputRef = React.useRef(null); // เพิ่ม Ref สำหรับช่อง input
 
+      // เลื่อนจอลงอัตโนมัติ
       React.useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, [messages]);
+      }, [messages, isLoading]);
+
+      // ระบบโฟกัสช่องพิมพ์อัตโนมัติเมื่อ AI ตอบเสร็จ
+      React.useEffect(() => {
+        if (!isLoading && inputRef.current) {
+            inputRef.current.focus();
+        }
+      }, [isLoading]);
+
+      // 1. เตรียมข้อมูลพื้นฐานไว้ก่อน
+      const validData = React.useMemo(() => {
+          return sheetData.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
+      }, [sheetData]);
+
+      // 2. สร้าง Dictionary สำหรับเก็บลิงก์ยาวๆ แยกไว้ต่างหาก เพื่อไม่ให้เปลือง Token (เปลี่ยนไปใช้ ID อ้างอิง)
+      const globalUrlMap = React.useMemo(() => {
+          const map = {};
+          validData.forEach((row) => {
+              const mapUrl = (safeTrim(row['Location']) || safeTrim(row['Map']) || safeTrim(row['แผนที่']) || safeTrim(row['โลเคชั่น'])).replace(/\|/g, '');
+              const webUrl = safeTrim(row['Website']).replace(/\|/g, '');
+              if (mapUrl) map[`[M_${row.id}]`] = mapUrl;
+              if (webUrl) map[`[W_${row.id}]`] = webUrl;
+          });
+          return map;
+      }, [validData]);
 
       // ใช้ไลบรารี marked ช่วยแปลงข้อความเป็น HTML อย่างปลอดภัย
       const renderFormattedText = (text) => {
+        let processedText = text;
+        // แปลงรหัส [M_ID], [W_ID] กลับเป็นลิงก์คลิกได้
+        const idRegex = /\[(M|W)_([^\]]+)\]/g;
+        processedText = processedText.replace(idRegex, (match) => {
+            const url = globalUrlMap[match];
+            if (url) {
+                return match.startsWith('[M') ? `[📍 แผนที่](${url})` : `[🌐 ลิงก์โพสต์](${url})`;
+            }
+            return match;
+        });
+
         if (window.marked) {
-            const rawMarkup = window.marked.parse(text);
+            const rawMarkup = window.marked.parse(processedText);
             return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: rawMarkup }} />;
         }
-        return <div className="whitespace-pre-wrap">{text}</div>;
+        return <div className="whitespace-pre-wrap">{processedText}</div>;
       };
 
       const handleSend = async () => {
@@ -1736,24 +1771,75 @@
         setMessages(newMessages);
         setIsLoading(true);
 
-        const validData = sheetData.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
-        
-        // 1. ระบบกรองข้อมูลอัจฉริยะ: ถ้าไม่ถามถึงบ้านที่ขาย/ฝากขาย จะตัดทิ้งทั้งหมดเพื่อประหยัดโควต้า Token (ลดขนาดได้ 70-80%)
+        // ระบบกรองข้อมูลอัจฉริยะ (ขั้นเด็ดขาด)
         const queryLower = userQuery.toLowerCase();
         const wantsSold = queryLower.includes('ขายแล้ว') || queryLower.includes('โอนแล้ว');
         const wantsConsign = queryLower.includes('ฝากขาย');
+        const wantsAll = queryLower.includes('ทั้งหมด') || queryLower.includes('ทุกสถานะ');
 
-        // 2. แปลงข้อมูลเป็นรูปแบบ CSV (ใช้ | กั้น) ซึ่งใช้ Token น้อยกว่า JSON มหาศาล
-        const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคา|แผนที่|โพสต์|แนวตั้ง|แนวนอน|รูป|ASMR";
-        const csvRows = validData
-            .filter(row => {
-                const status = safeTrim(row['สถานะ']).toLowerCase();
-                const web = safeTrim(row['Website']).toLowerCase();
-                if (!wantsSold && (status.includes('ขายแล้ว') || status.includes('โอนแล้ว'))) return false;
-                if (!wantsConsign && (status.includes('ฝากขาย') || web.includes('ฝากขาย'))) return false;
-                return true;
-            })
-            .map(row => {
+        // ตัดเนื้อร้ายทิ้ง: เอาบ้านที่ขายแล้ว/ฝากขาย ออกจากระบบ 100% ตั้งแต่ต้นน้ำ 
+        // แต่ถ้าผู้ใช้เจาะจงถามหา (wantsSold, wantsConsign, wantsAll) ถึงจะอนุญาตให้เอามาคำนวณ
+        let aiActiveData = validData.filter(row => {
+            const st = safeTrim(row['สถานะ']).toLowerCase();
+            const web = safeTrim(row['Website']).toLowerCase();
+            
+            // ลบคำว่า "ขายด่วน" ออกจากหมวดนี้ เพราะขายด่วนคือยังขายไม่เสร็จ
+            const isSold = st.includes('ขายแล้ว') || st.includes('โอนแล้ว');
+            const isConsign = st.includes('ฝากขาย') || web.includes('ฝากขาย');
+
+            if (wantsAll) return true; // ถ้าถาม "ทั้งหมด" ให้แสดงทุกอย่าง
+            if (isSold && !wantsSold) return false; // ถ้าเป็นบ้านขายแล้ว และไม่ได้ถามหา ให้ซ่อนทันที
+            if (isConsign && !wantsConsign) return false; // ถ้าเป็นบ้านฝากขาย และไม่ได้ถามหา ให้ซ่อนทันที
+
+            return true;
+        });
+
+        // คำนวณสถิติพื้นฐานป้อนให้ AI "จากข้อมูลที่กรองแล้วเท่านั้น" เพื่อให้ตัวเลขเป๊ะ 100%
+        const statusCounts = aiActiveData.reduce((acc, row) => {
+            const st = safeTrim(row['สถานะ']) || 'ไม่มีสถานะ';
+            acc[st] = (acc[st] || 0) + 1;
+            return acc;
+        }, {});
+        const summaryStats = Object.entries(statusCounts).map(([k, v]) => `- สถานะ "${k}": ${v} หลัง`).join('\n');
+        const totalActiveHouses = aiActiveData.length;
+
+        const dataScopeText = (wantsSold || wantsConsign || wantsAll)
+            ? "ดึงข้อมูลทุกสถานะมาให้แล้ว (รวมบ้านขายแล้ว/ฝากขาย)"
+            : "ซ่อนบ้านที่ขายแล้วและฝากขาย (แสดงเฉพาะบ้านพร้อมขาย/กำลังทำ)";
+
+        // ระบบตัดลดข้อมูลอัจฉริยะ ป้องกัน API Limit เต็ม 100% (ลดการใช้ Token ลง 90%)
+        let needsDetailData = false;
+        let finalRows = [];
+
+        // 1. เช็คว่าถามหาข้อมูลเฉพาะเจาะจงไหม (หาจาก Keyword)
+        const stopWords = ['มีกี่', 'กี่หลัง', 'ทั้งหมด', 'ขอดู', 'รายชื่อ', 'ตาราง', 'บ้าน', 'ขอ', 'หน่อย', 'ครับ', 'ค่ะ', 'อะไรบ้าง', 'มีอะไรบ้าง'];
+        const keywords = queryLower.split(' ').filter(w => w.length > 2 && !stopWords.includes(w));
+        
+        // 2. เช็คว่าตั้งใจขอดูตาราง/รายชื่อไหม
+        const wantsList = ['ขอดู', 'รายชื่อ', 'ตาราง', 'มีหลังไหนบ้าง', 'รายละเอียด'].some(w => queryLower.includes(w));
+
+        if (keywords.length > 0) {
+            needsDetailData = true;
+            // กรองเอาเฉพาะบ้านที่มีคำตรงกับที่ค้นหา
+            finalRows = aiActiveData.filter(row => {
+                const str = `${row['หมู่บ้าน']} ${row['บ้านเลขที่']} ${row['ซอย']} ${row['ทำเล']}`.toLowerCase();
+                return keywords.some(k => str.includes(k));
+            });
+        } else if (wantsList) {
+            needsDetailData = true;
+            finalRows = [...aiActiveData]; 
+        }
+
+        // 3. จำกัดการส่งตารางข้อมูลให้ AI อ่านไม่เกิน 20 หลังต่อครั้ง
+        const MAX_ROWS = 20;
+        const isTruncated = finalRows.length > MAX_ROWS;
+        finalRows = finalRows.slice(0, MAX_ROWS);
+
+        // แปลงข้อมูลเป็น CSV (ทำเฉพาะตอนที่จำเป็นต้องใช้ตารางเท่านั้น ถ้าถามแค่จำนวนจะไม่แปลงให้เปลือง Token)
+        let csvData = "(ไม่ได้ดึงรายชื่อมาในรอบนี้เพื่อประหยัดพลังงาน หากต้องการดูรายชื่อบ้านให้พิมพ์คำว่า 'ขอดูรายชื่อ' หรือระบุชื่อโครงการนะคะ)";
+        if (needsDetailData && finalRows.length > 0) {
+            const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคา|แผนที่|โพสต์|แนวตั้ง|แนวนอน|รูป|ASMR";
+            const csvRows = finalRows.map((row) => {
                 const cl = contentChecklists[row.id] || {};
                 const p = safeTrim(row['หมู่บ้าน']).replace(/\|/g, '');
                 const no = safeTrim(row['บ้านเลขที่']).replace(/\|/g, '');
@@ -1761,36 +1847,51 @@
                 const loc = safeTrim(row['ทำเล']).replace(/\|/g, '');
                 const st = safeTrim(row['สถานะ']).replace(/\|/g, '');
                 const pr = (safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])).replace(/\|/g, '');
-                const map = (safeTrim(row['Location']) || safeTrim(row['Map']) || safeTrim(row['แผนที่']) || safeTrim(row['โลเคชั่น'])).replace(/\|/g, '');
-                const web = safeTrim(row['Website']).replace(/\|/g, '');
-                const v = cl.main_vertical ? 'ทำแล้ว' : 'ยัง';
-                const h = cl.main_horizontal ? 'ทำแล้ว' : 'ยัง';
-                const ph = cl.main_photo ? 'ทำแล้ว' : 'ยัง';
-                const asmr = cl.sub_dir_asmr ? 'ทำแล้ว' : 'ยัง';
                 
-                return `${p}|${no}|${s}|${loc}|${st}|${pr}|${map}|${web}|${v}|${h}|${ph}|${asmr}`;
+                // ใช้รหัสอ้างอิงแทนเพื่อลดขนาด Token
+                const mapId = globalUrlMap[`[M_${row.id}]`] ? `[M_${row.id}]` : '-';
+                const webId = globalUrlMap[`[W_${row.id}]`] ? `[W_${row.id}]` : '-';
+                
+                const v = cl.main_vertical ? 'Y' : 'N';
+                const h = cl.main_horizontal ? 'Y' : 'N';
+                const ph = cl.main_photo ? 'Y' : 'N';
+                const asmr = cl.sub_dir_asmr ? 'Y' : 'N';
+                
+                return `${p}|${no}|${s}|${loc}|${st}|${pr}|${mapId}|${webId}|${v}|${h}|${ph}|${asmr}`;
             });
+            csvData = headers + '\n' + csvRows.join('\n') + (isTruncated ? '\n... (ข้อมูลยาวเกินไป แสดงให้ดูแค่ 20 หลัง หากหาไม่เจอให้ระบุชื่อโครงการให้ชัดเจน)' : '');
+        } else if (needsDetailData && finalRows.length === 0) {
+            csvData = "ไม่พบข้อมูลบ้านที่ตรงกับคำค้นหา";
+        }
 
-        const csvData = headers + '\n' + csvRows.join('\n');
+        // อัปเกรดความฉลาดและความเป็นผู้หญิง 100%
+        const systemPrompt = `คุณคือ 'น้อง Up' AI ผู้ช่วยบริษัท Startup Up (คุณเป็นผู้หญิง 100%)
+บุคลิก: น่ารัก สดใส สุภาพ พูดจาไพเราะ เป็นกันเอง สั้นๆ กระชับ
+คำแทนตัวเอง: ให้ใช้คำว่า "น้อง Up" หรือ "หนู" เท่านั้น **ห้ามใช้คำว่า "ผม" หรือ "ฉัน" เด็ดขาด**
+คำลงท้าย: ใช้ "ค่ะ" หรือ "นะคะ" เสมอ มีอีโมจินิดหน่อย
 
-        // System Prompt น้อง Up (น่ารัก สดใส ฉลาด)
-        const systemPrompt = `คุณคือ AI ผู้ช่วยอัจฉริยะประจำบริษัทอสังหาริมทรัพย์ชื่อ 'Startup Up' ชื่อของคุณคือ 'น้อง Up' (เป็นผู้หญิง)
-บุคลิก: น่ารัก สดใส สุภาพ พูดจาไพเราะ (ลงท้ายด้วย 'ค่ะ' หรือ 'นะคะ') เป็นกันเอง ตอบคำถามอย่างเป็นธรรมชาติ สั้นๆ กระชับ และใช้อีโมจิพอประมาณเพื่อความน่ารัก
-หน้าที่: ตอบคำถามพนักงานโดยอ้างอิงจากฐานข้อมูลโครงการ (รูปแบบ CSV แบ่งด้วย |) ด้านล่างนี้เท่านั้น
+หน้าที่: ตอบคำถามด้วยข้อมูลด้านล่างเท่านั้น ห้ามมั่วข้อมูล
+Y=ทำแล้ว, N=ยังไม่ทำ
+
+📊 ข้อมูลสถิติภาพรวม (ข้อมูลความแม่นยำสูง ยึดตัวเลขจากส่วนนี้เป็นหลักได้เลย):
+ขอบเขตข้อมูลขณะนี้: ${dataScopeText}
+มีบ้านในรายการทั้งหมด: ${totalActiveHouses} หลัง
+แยกตามสถานะดังนี้:
+${summaryStats}
 
 กฏเหล็ก:
-1. การแสดงผลให้อ่านง่าย: หากต้องแสดงรายการบ้านหลายหลัง ให้ใช้รูปแบบตาราง Markdown เสมอ 
-2. การให้ลิงก์และแผนที่: ให้สร้างเป็น Markdown Link เสมอในรูปแบบ [คลิกที่นี่เพื่อดูแผนที่](url) หรือ [ลิงก์ข้อมูล](url)
-3. หากคำถามไม่เกี่ยวกับข้อมูลที่มี ให้ตอบอย่างสุภาพว่าไม่ทราบข้อมูลส่วนนี้ค่ะ
-4. ห้ามแต่งข้อมูลขึ้นมาเองเด็ดขาด
-5. ทุกครั้งที่กล่าวถึงข้อมูลบ้าน หรือตารางสรุปรายการบ้าน **ต้องระบุ "ซอย" (ถ้ามี) คู่กับโครงการและบ้านเลขที่เสมอ**
+1. หากถามแค่ "จำนวน" หรือ "กี่หลัง" ให้ตอบสั้นๆ ทันที ไม่ต้องสร้างตารางลิสต์รายชื่อ (ดูจากข้อมูลสถิติภาพรวมได้เลย)
+2. หากพี่ๆ ถามถึงบ้านขายแล้ว แต่ขอบเขตข้อมูลบอกว่า "ซ่อนบ้านขายแล้ว" ให้ตอบไปน่ารักๆ ว่า "หนูซ่อนข้อมูลบ้านขายแล้วไว้ค่ะ รบกวนพี่พิมพ์คำว่า 'ขายแล้ว' ในประโยคคำถาม เพื่อให้หนูดึงข้อมูลมาให้นะคะ"
+3. ใช้ตาราง Markdown เฉพาะเมื่อมีข้อมูลตารางส่งไปให้และถูกสั่งให้ "ลิสต์รายชื่อ" หรือ "ขอดูหน่อย"
+4. ถ้าระบุลิงก์ ให้พิมพ์รหัส (เช่น [M_xx] หรือ [W_xx]) ออกมาตรงๆ ระบบจะแปลงเป็นลิงก์ให้เอง
+5. ต้องระบุ "ซอย" คู่กับโครงการและบ้านเลขที่เสมอ
 
-ฐานข้อมูล (CSV):
+ข้อมูลรายหลัง (ถ้าไม่ได้ขอ จะถูกซ่อนเพื่อประหยัดพลังงาน):
 ${csvData}
 `;
 
-        // 3. ป้องกันแชทล้นโควต้า โดยส่งไปแค่ประวัติแชท 6 ข้อความล่าสุด
-        const recentMessages = newMessages.slice(-6);
+        // ป้องกันแชทล้น ส่งแค่ 2 ข้อความล่าสุดเท่านั้น (ประหยัด Token)
+        const recentMessages = newMessages.slice(-2);
         const apiMessages = [
             { role: 'system', content: systemPrompt },
             ...recentMessages.map(msg => ({
@@ -1806,7 +1907,7 @@ ${csvData}
             const g3 = "fhXgl4IYLQD75WABrnNe";
             const groqKey = g1 + g2 + g3;
 
-            // 4. เปลี่ยนโมเดลเป็น llama-3.1-8b-instant ที่เร็วกว่าและให้โควต้าฟรี (TPM) ที่สูงกว่า
+            // ยิงไปที่ Llama ตัวท็อปก่อน
             const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -1814,7 +1915,7 @@ ${csvData}
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: "llama-3.1-8b-instant",
+                    model: "llama-3.3-70b-versatile",
                     messages: apiMessages,
                     temperature: 0.3,
                     max_tokens: 1500
@@ -1822,6 +1923,34 @@ ${csvData}
             });
             
             if (!response.ok) {
+                // ถ้ารุ่นท็อป Limit เต็ม ให้สลับไปรุ่นสำรองที่ทาง Groq ยังรองรับอยู่
+                if (response.status === 413 || response.status === 429) {
+                     console.log("Switching to fallback model with higher rate limits...");
+                     const fbResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${groqKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            model: "llama-3.1-8b-instant", // เปลี่ยนเป็นรุ่นมาตรฐานที่ Groq บังคับให้ใช้
+                            messages: apiMessages,
+                            temperature: 0.3,
+                            max_tokens: 1500
+                        })
+                    });
+                    if (!fbResponse.ok) {
+                        const errText = await fbResponse.text(); 
+                        throw new Error(`Fallback HTTP ${fbResponse.status}: ${errText}`);
+                    }
+                    const data = await fbResponse.json();
+                    const aiText = data.choices?.[0]?.message?.content;
+                    if (aiText) {
+                        setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
                 const errText = await response.text(); 
                 throw new Error(`HTTP ${response.status}: ${errText}`);
             }
@@ -1838,11 +1967,11 @@ ${csvData}
             console.error("Groq AI Fetch Error:", error);
             
             if (error.message.includes("401")) {
-                setMessages(prev => [...prev, { role: 'ai', text: `⚠️ น้อง Up ทำงานไม่ได้ค่ะ เนื่องจาก API Key ของ Groq ไม่ถูกต้อง รบกวนพี่ๆ ตรวจสอบ Key อีกครั้งนะคะ 🥺\n\n*(Error: ${error.message})*` }]);
-            } else if (error.message.includes("429") || error.message.includes("413")) {
-                setMessages(prev => [...prev, { role: 'ai', text: `⚠️ ข้อมูลในระบบเยอะเกินไป หรือระบบตอบไม่ทันแล้วค่ะ รบกวนพี่ๆ ถามคำถามให้แคบลง หรือรอสักครู่แล้วค่อยถามใหม่นะคะ 🥺\n\n*(Error: ${error.message})*` }]);
+                setMessages(prev => [...prev, { role: 'ai', text: `⚠️ น้อง Up ทำงานไม่ได้ค่ะ เนื่องจาก API Key ไม่ถูกต้อง รบกวนตรวจสอบ Key อีกครั้งนะคะ 🥺` }]);
+            } else if (error.message.includes("429") || error.message.includes("413") || error.message.includes("rate_limit")) {
+                setMessages(prev => [...prev, { role: 'ai', text: `⚠️ โควต้าการประมวลผลเต็มชั่วคราวค่ะ รบกวนพี่ๆ รอสัก 1 นาทีแล้วลองถามใหม่นะคะ หรือจะกด F5 เพื่อเริ่มคุยใหม่ก็ได้ค่ะ 🥺` }]);
             } else {
-                setMessages(prev => [...prev, { role: 'ai', text: `ขออภัยด้วยค่ะ ระบบเครือข่าย AI มีปัญหา รบกวนพี่ๆ ลองถามน้อง Up ใหม่อีกครั้งนะคะ 🥺\n\n**รายละเอียด:**\n\`${error.message}\`` }]);
+                setMessages(prev => [...prev, { role: 'ai', text: `ขออภัยด้วยค่ะ ระบบเครือข่าย AI มีปัญหา รบกวนพี่ๆ ลองถามน้อง Up ใหม่อีกครั้งนะคะ 🥺` }]);
             }
         } finally {
             setIsLoading(false);
@@ -1900,6 +2029,7 @@ ${csvData}
           <div className="p-4 md:p-5 bg-white border-t border-gray-100 shrink-0">
             <div className="relative flex items-center max-w-4xl mx-auto">
               <input 
+                ref={inputRef}
                 type="text" 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -2450,6 +2580,11 @@ ${csvData}
       // House Gallery States
       const [houses, setHouses] = useState([]);
       
+      // AI Chat State (ย้ายมาไว้ที่ App เพื่อไม่ให้แชทหายเวลาสลับหน้า)
+      const [aiMessages, setAiMessages] = useState([
+        { role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }
+      ]);
+      
       // Google Sheet Data States
       const [sheetData, setSheetData] = useState([]);
       const [sheetError, setSheetError] = useState(null);
@@ -2960,7 +3095,7 @@ ${csvData}
             {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} />}
             {activeApp === 'company' && <CompanyInfo />}
             {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
-            {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} />}
+            {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
           </div>
 
           {/* Global Modals */}
