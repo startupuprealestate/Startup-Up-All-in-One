@@ -425,86 +425,89 @@
                 </div>
             </div>
 
+            {/* กล่องซ้อน 2 ชั้น เพื่อล็อกการเลื่อนทะแยงมุมบนมือถือ */}
             <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-              <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                <table className="w-full text-left border-collapse min-w-max">
-                  <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                    <tr>
-                      <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
-                      {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
-                    
-                    {filteredData.map((row, idx) => {
-                      const statusVal = safeTrim(row['สถานะ']);
-                      const style = getRowStyleClasses(statusVal);
-                      const checklist = contentChecklists[row.id] || {};
-                      const hasOther = !!checklist['other_checked'];
-                      const completedTasks = taskOptions.filter(opt => checklist[opt.key]).length + (hasOther ? 1 : 0);
-                      const totalTasks = taskOptions.length + (hasOther ? 1 : 0);
-                      const isComplete = completedTasks > 0 && completedTasks === totalTasks;
+              <div className="flex-1 w-full overflow-x-auto overflow-y-hidden custom-scrollbar flex flex-col">
+                <div className="flex-1 w-max min-w-full overflow-y-auto overflow-x-hidden custom-scrollbar bg-white" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                      <tr>
+                        <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
+                        {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                      
+                      {filteredData.map((row, idx) => {
+                        const statusVal = safeTrim(row['สถานะ']);
+                        const style = getRowStyleClasses(statusVal);
+                        const checklist = contentChecklists[row.id] || {};
+                        const hasOther = !!checklist['other_checked'];
+                        const completedTasks = taskOptions.filter(opt => checklist[opt.key]).length + (hasOther ? 1 : 0);
+                        const totalTasks = taskOptions.length + (hasOther ? 1 : 0);
+                        const isComplete = completedTasks > 0 && completedTasks === totalTasks;
 
-                      return (
-                        <React.Fragment key={row.id}>
-                          <tr className={`border-b cursor-pointer transition-colors ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
-                            <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
-                            {visibleColumns.map(col => {
-                                let content = null;
-                                if (col === 'หมู่บ้าน') {
-                                    const badgeContent = isComplete ? <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold shadow-sm"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span> : <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
-                                    content = <div className="flex items-center">{badgeContent}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
-                                } else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                } else { content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; }
-                                return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
-                            })}
-                          </tr>
-                          {expandedRowId === row.id && (
-                              <tr className="border-b border-gray-100 bg-gray-50/50">
-                                  <td colSpan={visibleColumns.length + 1} className="p-0 border border-gray-200">
-                                      <div className="p-6 md:p-8 bg-white border-l-4 border-brand shadow-inner w-full my-2 mx-4 rounded-xl max-w-[96%]">
-                                          <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                                              <h4 className="text-[17px] font-bold text-gray-800 flex items-center"><Icon name="CheckSquare" size={20} className="mr-2 text-brand" />เช็คลิสต์คอนเทนต์</h4>
-                                              <button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><Icon name="X" size={14} /></button>
-                                          </div>
-                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-                                              <div className="bg-brand/5 p-5 rounded-[16px] border border-brand/10">
-                                                  <h5 className="font-bold text-brand mb-4 flex items-center"><Icon name="Video" size={18} className="mr-2"/> งานหลัก</h5>
-                                                  <div className="space-y-4">
-                                                      <CheckboxItem rowId={row.id} taskKey="main_vertical" label="คลิปแนวตั้ง" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <CheckboxItem rowId={row.id} taskKey="main_horizontal" label="คลิปแนวนอน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <CheckboxItem rowId={row.id} taskKey="main_person" label="คลิปมีคน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <CheckboxItem rowId={row.id} taskKey="main_photo" label="ถ่ายรูป" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                  </div>
-                                              </div>
-                                              <div className="bg-blue-50/50 p-5 rounded-[16px] border border-blue-100">
-                                                  <h5 className="font-bold text-blue-800 mb-4 flex items-center"><Icon name="FileSignature" size={18} className="mr-2"/> งานรอง (คอนเท้น)</h5>
-                                                  <h6 className="text-[11px] font-bold text-blue-500 uppercase mb-3 bg-blue-100 px-2 py-1 rounded w-max">DIRECT</h6>
-                                                  <div className="space-y-4 mb-6 pl-1">
-                                                      <CheckboxItem rowId={row.id} taskKey="sub_dir_before_after" label="Before/After" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <CheckboxItem rowId={row.id} taskKey="sub_dir_asmr" label="เทสบ้าน / Asmr" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <CheckboxItem rowId={row.id} taskKey="sub_dir_facility" label="Facility (ทำเล) ไลฟ์สไตล์" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                  </div>
-                                                  <h6 className="text-[11px] font-bold text-blue-500 uppercase mb-3 bg-blue-100 px-2 py-1 rounded w-max">INDIRECT</h6>
-                                                  <div className="space-y-4 pl-1">
-                                                      <CheckboxItem rowId={row.id} taskKey="sub_indir_startup" label="ช่วง Startup อัพความพร้อม" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <CheckboxItem rowId={row.id} taskKey="sub_indir_qa" label="ตอบคอมเมนต์ / QA" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                      <OtherCheckboxItem rowId={row.id} checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
-                                                  </div>
-                                              </div>
-                                          </div>
-                                      </div>
-                                  </td>
-                              </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                    {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
-                  </tbody>
-                </table>
+                        return (
+                          <React.Fragment key={row.id}>
+                            <tr className={`border-b cursor-pointer transition-colors ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
+                              <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
+                              {visibleColumns.map(col => {
+                                  let content = null;
+                                  if (col === 'หมู่บ้าน') {
+                                      const badgeContent = isComplete ? <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold shadow-sm"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span> : <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
+                                      content = <div className="flex items-center">{badgeContent}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
+                                  } else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                  } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                  } else { content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; }
+                                  return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+                              })}
+                            </tr>
+                            {expandedRowId === row.id && (
+                                <tr className="border-b border-gray-100 bg-gray-50/50">
+                                    <td colSpan={visibleColumns.length + 1} className="p-0 border border-gray-200">
+                                        <div className="p-6 md:p-8 bg-white border-l-4 border-brand shadow-inner w-full my-2 mx-4 rounded-xl max-w-[96%]">
+                                            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                                                <h4 className="text-[17px] font-bold text-gray-800 flex items-center"><Icon name="CheckSquare" size={20} className="mr-2 text-brand" />เช็คลิสต์คอนเทนต์</h4>
+                                                <button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><Icon name="X" size={14} /></button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                                                <div className="bg-brand/5 p-5 rounded-[16px] border border-brand/10">
+                                                    <h5 className="font-bold text-brand mb-4 flex items-center"><Icon name="Video" size={18} className="mr-2"/> งานหลัก</h5>
+                                                    <div className="space-y-4">
+                                                        <CheckboxItem rowId={row.id} taskKey="main_vertical" label="คลิปแนวตั้ง" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <CheckboxItem rowId={row.id} taskKey="main_horizontal" label="คลิปแนวนอน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <CheckboxItem rowId={row.id} taskKey="main_person" label="คลิปมีคน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <CheckboxItem rowId={row.id} taskKey="main_photo" label="ถ่ายรูป" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                    </div>
+                                                </div>
+                                                <div className="bg-blue-50/50 p-5 rounded-[16px] border border-blue-100">
+                                                    <h5 className="font-bold text-blue-800 mb-4 flex items-center"><Icon name="FileSignature" size={18} className="mr-2"/> งานรอง (คอนเท้น)</h5>
+                                                    <h6 className="text-[11px] font-bold text-blue-500 uppercase mb-3 bg-blue-100 px-2 py-1 rounded w-max">DIRECT</h6>
+                                                    <div className="space-y-4 mb-6 pl-1">
+                                                        <CheckboxItem rowId={row.id} taskKey="sub_dir_before_after" label="Before/After" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <CheckboxItem rowId={row.id} taskKey="sub_dir_asmr" label="เทสบ้าน / Asmr" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <CheckboxItem rowId={row.id} taskKey="sub_dir_facility" label="Facility (ทำเล) ไลฟ์สไตล์" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                    </div>
+                                                    <h6 className="text-[11px] font-bold text-blue-500 uppercase mb-3 bg-blue-100 px-2 py-1 rounded w-max">INDIRECT</h6>
+                                                    <div className="space-y-4 pl-1">
+                                                        <CheckboxItem rowId={row.id} taskKey="sub_indir_startup" label="ช่วง Startup อัพความพร้อม" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <CheckboxItem rowId={row.id} taskKey="sub_indir_qa" label="ตอบคอมเมนต์ / QA" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                        <OtherCheckboxItem rowId={row.id} checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                      {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -682,55 +685,59 @@
                     </div>
                </div>
 
+               {/* กล่องซ้อน 2 ชั้น เพื่อล็อกการเลื่อนทะแยงมุมบนมือถือ */}
                <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                 <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                   <table className="w-full text-left border-collapse min-w-max">
-                      <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                        <tr>
-                          <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
-                          {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
-                        {filteredData.map((row, idx) => {
-                          const statusVal = safeTrim(row['สถานะ']);
-                          const style = getRowStyleClasses(statusVal);
-                          const prog = constructionProgress[row.id] || {};
+                 <div className="flex-1 w-full overflow-x-auto overflow-y-hidden custom-scrollbar flex flex-col">
+                   <div className="flex-1 w-max min-w-full overflow-y-auto overflow-x-hidden custom-scrollbar bg-white" style={{ WebkitOverflowScrolling: 'touch' }}>
+                     <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                          <tr>
+                            <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
+                            {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                          
+                          {sortedData.map((row, idx) => {
+                            const statusVal = safeTrim(row['สถานะ']);
+                            const style = getRowStyleClasses(statusVal);
+                            const prog = constructionProgress[row.id] || {};
 
-                          return (
-                              <tr key={row.id || idx} className={`border-b cursor-pointer transition-colors ${style.row}`}>
-                                  <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
-                                  {visibleColumns.map(col => {
-                                      let content = null;
-                                      if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
-                                      else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                      else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
-                                      else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
-                                      else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
-                                      else if (col === 'การตรวจงาน') {
-                                          const count = prog.inspectionCount || 0;
-                                          content = (
-                                              <div className="flex items-center space-x-3">
-                                                  <div className="flex items-center bg-white rounded-lg p-1 border border-gray-200">
-                                                      <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} disabled={count === 0} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-red-500 disabled:opacity-40"><Icon name="Minus" size={14} /></button>
-                                                      <span className="w-8 text-center text-[14px] font-extrabold text-brand">{count}</span>
-                                                      <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-brand"><Icon name="Plus" size={14} /></button>
-                                                  </div>
-                                                  {count > 0 ? <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">ตรวจครั้งที่ {count}</span> : <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">ยังไม่ได้ตรวจ</span>}
-                                              </div>
-                                          );
-                                      }
-                                      else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                      else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
-                                      return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
-                                  })}
-                              </tr>
-                          )
-                        })}
-                        {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
-                      </tbody>
-                   </table>
+                            return (
+                                <tr key={row.id || idx} className={`border-b cursor-pointer transition-colors ${style.row}`}>
+                                    <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
+                                    {visibleColumns.map(col => {
+                                        let content = null;
+                                        if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
+                                        else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                        else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
+                                        else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
+                                        else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
+                                        else if (col === 'การตรวจงาน') {
+                                            const count = prog.inspectionCount || 0;
+                                            content = (
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="flex items-center bg-white rounded-lg p-1 border border-gray-200">
+                                                        <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} disabled={count === 0} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-red-500 disabled:opacity-40"><Icon name="Minus" size={14} /></button>
+                                                        <span className="w-8 text-center text-[14px] font-extrabold text-brand">{count}</span>
+                                                        <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-brand"><Icon name="Plus" size={14} /></button>
+                                                    </div>
+                                                    {count > 0 ? <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">ตรวจครั้งที่ {count}</span> : <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">ยังไม่ได้ตรวจ</span>}
+                                                </div>
+                                            );
+                                        }
+                                        else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                        else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
+                                        return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+                                    })}
+                                </tr>
+                            )
+                          })}
+                          {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
+                        </tbody>
+                     </table>
+                   </div>
                  </div>
                </div>
 
@@ -997,6 +1004,7 @@
                                 </div>
                             )}
 
+                            {/* Website Filter Button */}
                             {viewMode === 'all' && uniqueWebsites.length > 0 && (
                                 <div className="relative shrink-0 w-full sm:w-auto">
                                     <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
@@ -1093,90 +1101,92 @@
                    </div>
                ) : (
                    <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                     <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                       <table className="w-full text-left border-collapse min-w-max">
-                          <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                            <tr>
-                              <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
-                              {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                            </tr>
-                          </thead>
-                          <tbody>
-                              {visibleColumns.length === 0 && filteredAllData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
-                              {filteredAllData.map((row, idx) => {
-                                  const statusVal = safeTrim(row['สถานะ']);
-                                  const style = getRowStyleClasses(statusVal);
+                     <div className="flex-1 w-full overflow-x-auto overflow-y-hidden custom-scrollbar flex flex-col">
+                       <div className="flex-1 w-max min-w-full overflow-y-auto overflow-x-hidden custom-scrollbar bg-white" style={{ WebkitOverflowScrolling: 'touch' }}>
+                         <table className="w-full text-left border-collapse">
+                            <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                              <tr>
+                                <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
+                                {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                              </tr>
+                            </thead>
+                            <tbody>
+                                {visibleColumns.length === 0 && filteredAllData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                                {filteredAllData.map((row, idx) => {
+                                    const statusVal = safeTrim(row['สถานะ']);
+                                    const style = getRowStyleClasses(statusVal);
 
-                                  return (
-                                      <tr key={row.id || idx} className={`border-b border-gray-50 transition-all duration-200 ${style.row}`}>
-                                          <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
-                                          {visibleColumns.map(col => {
-                                              let content = null;
-                                              if (col === 'หมู่บ้าน') {
-                                                  content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
-                                              }
-                                              else if (col === 'บ้านเลขที่' || col === 'ซอย') {
-                                                  content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                              }
-                                              else if (col === 'สถานะบ้าน') {
-                                                  content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                              }
-                                              else if (col === 'ประวัติการโพสต์') {
-                                                  const postData = postTracking[row.id] || {};
-                                                  const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
-                                                  const proj = safeTrim(row['หมู่บ้าน']);
-                                                  const hNo = safeTrim(row['บ้านเลขที่']);
-                                                  let combined = `${proj} ${hNo}`.trim();
-                                                  
-                                                  content = (
-                                                      <div className="flex flex-col gap-2 py-1">
-                                                          {records.length > 0 ? (
-                                                              <div className="flex flex-wrap gap-1.5 max-w-[300px]">
-                                                                  {records.map(([assigneeName, dateStr]) => {
-                                                                      const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
-                                                                      return (
-                                                                          <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
-                                                                              <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
-                                                                              <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                                                                                  <Icon name="X" size={10} />
-                                                                              </button>
-                                                                          </span>
-                                                                      );
-                                                                  })}
-                                                              </div>
-                                                          ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
-                                                          
-                                                          <div className="relative mt-1">
-                                                              <button onClick={() => setPostMenuOpen(postMenuOpen === row.id ? null : row.id)} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 transition-colors w-fit flex items-center shadow-sm"><Icon name="Plus" size={10} className="mr-1"/> บันทึกโพสต์</button>
-                                                              {postMenuOpen === row.id && (
-                                                                  <>
-                                                                      <div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
-                                                                      <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
-                                                                          <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครเป็นคนโพสต์วันนี้?</span>
-                                                                          {allAssigneesList.map(name => {
-                                                                              const isAlreadyChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
-                                                                              return (
-                                                                                  <button key={name} onClick={() => { handleTogglePost(row.id, !isAlreadyChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between text-left px-3 py-2 text-[12px] font-bold rounded-lg transition-colors ${isAlreadyChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10 hover:text-brand'}`}>
-                                                                                      {name} {isAlreadyChecked && <Icon name="Check" size={12} />}
-                                                                                  </button>
-                                                                              )
-                                                                          })}
-                                                                      </div>
-                                                                  </>
-                                                              )}
-                                                          </div>
-                                                      </div>
-                                                  );
-                                              }
-                                              else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
-                                              return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
-                                          })}
-                                      </tr>
-                                  )
-                              })}
-                              {baseSheetData.length === 0 && <tr><td colSpan={10} className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลจาก Google Sheet</td></tr>}
-                          </tbody>
-                       </table>
+                                    return (
+                                        <tr key={row.id || idx} className={`border-b border-gray-50 transition-all duration-200 ${style.row}`}>
+                                            <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
+                                            {visibleColumns.map(col => {
+                                                let content = null;
+                                                if (col === 'หมู่บ้าน') {
+                                                    content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
+                                                }
+                                                else if (col === 'บ้านเลขที่' || col === 'ซอย') {
+                                                    content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                                }
+                                                else if (col === 'สถานะบ้าน') {
+                                                    content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                                }
+                                                else if (col === 'ประวัติการโพสต์') {
+                                                    const postData = postTracking[row.id] || {};
+                                                    const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
+                                                    const proj = safeTrim(row['หมู่บ้าน']);
+                                                    const hNo = safeTrim(row['บ้านเลขที่']);
+                                                    let combined = `${proj} ${hNo}`.trim();
+                                                    
+                                                    content = (
+                                                        <div className="flex flex-col gap-2 py-1">
+                                                            {records.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-1.5 max-w-[300px]">
+                                                                    {records.map(([assigneeName, dateStr]) => {
+                                                                        const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
+                                                                        return (
+                                                                            <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
+                                                                                <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
+                                                                                <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                                                                    <Icon name="X" size={10} />
+                                                                                </button>
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
+                                                            
+                                                            <div className="relative mt-1">
+                                                                <button onClick={() => setPostMenuOpen(postMenuOpen === row.id ? null : row.id)} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 transition-colors w-fit flex items-center shadow-sm"><Icon name="Plus" size={10} className="mr-1"/> บันทึกโพสต์</button>
+                                                                {postMenuOpen === row.id && (
+                                                                    <>
+                                                                        <div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
+                                                                        <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
+                                                                            <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครเป็นคนโพสต์วันนี้?</span>
+                                                                            {allAssigneesList.map(name => {
+                                                                                const isAlreadyChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
+                                                                                return (
+                                                                                    <button key={name} onClick={() => { handleTogglePost(row.id, !isAlreadyChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between text-left px-3 py-2 text-[12px] font-bold rounded-lg transition-colors ${isAlreadyChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10 hover:text-brand'}`}>
+                                                                                        {name} {isAlreadyChecked && <Icon name="Check" size={12} />}
+                                                                                    </button>
+                                                                                )
+                                                                            })}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
+                                                return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+                                            })}
+                                        </tr>
+                                    )
+                                })}
+                                {baseSheetData.length === 0 && <tr><td colSpan={10} className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลจาก Google Sheet</td></tr>}
+                            </tbody>
+                         </table>
+                       </div>
                      </div>
                    </div>
                )}
@@ -1921,7 +1931,7 @@
         if (!isFirebaseLoaded) return;
         const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
         const eventsToDelete = events.filter(ev => ev.date.startsWith(monthPrefix));
-        try { await Promise.all(eventsToDelete.map(ev => window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", ev.id)))); } catch (error) {}
+        try { await Promise.all(eventsToDelete.map(ev => window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", id)))); } catch (error) {}
         setIsDeleteMonthModalOpen(false);
       };
 
@@ -2052,64 +2062,66 @@
               </div>
             </div>
 
-            <div className="flex-1 relative overflow-hidden bg-white p-0">
-               <div className="absolute inset-0 overflow-auto custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                   <table className="w-full text-center border-collapse min-w-max">
-                     <thead className="sticky top-0 z-20 shadow-sm bg-white">
-                       <tr>
-                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
-                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
-                         {Array.from({ length: daysInMonth }).map((_, i) => (
-                           <th key={i} className={`border border-gray-200 bg-[#f3f4f6] p-1 text-[11px] font-bold ${[0, 6].includes(new Date(year, month, i + 1).getDay()) ? 'text-red-500' : 'text-gray-600'}`}>
-                             {['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][new Date(year, month, i + 1).getDay()]}
-                           </th>
-                         ))}
-                       </tr>
-                       <tr>
-                         {Array.from({ length: daysInMonth }).map((_, i) => {
-                           const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
-                           return (
-                             <th key={`d-${i}`} className={`border border-gray-200 p-1 text-[11px] font-bold ${isToday ? 'bg-brand text-white' : 'bg-[#f3f4f6] text-gray-600'}`}>
-                               {i+1}-{['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][month]}
-                             </th>
-                           )
-                         })}
-                       </tr>
-                     </thead>
-                     <tbody>
-                       {departments.map((dept) => (
-                         <React.Fragment key={dept.id}>
+            <div className="flex-1 relative overflow-hidden bg-white p-0 flex flex-col">
+               <div className="flex-1 w-full overflow-x-auto overflow-y-hidden custom-scrollbar flex flex-col">
+                   <div className="flex-1 w-max min-w-full overflow-y-auto overflow-x-hidden custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                       <table className="w-full text-center border-collapse">
+                         <thead className="sticky top-0 z-20 shadow-sm bg-white">
                            <tr>
-                             <td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td>
+                             <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
+                             <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
+                             {Array.from({ length: daysInMonth }).map((_, i) => (
+                               <th key={i} className={`border border-gray-200 bg-[#f3f4f6] p-1 text-[11px] font-bold ${[0, 6].includes(new Date(year, month, i + 1).getDay()) ? 'text-red-500' : 'text-gray-600'}`}>
+                                 {['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][new Date(year, month, i + 1).getDay()]}
+                               </th>
+                             ))}
                            </tr>
-                           {dept.members.map((emp, idx) => (
-                             <tr key={emp} className="hover:bg-gray-50 transition-colors">
-                               <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
-                               <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
-                               {Array.from({ length: daysInMonth }).map((_, i) => {
-                                 const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
-                                 const cellEv = events.filter(ev => ev.assignee === emp && ev.date === dStr && (ev.type === 'holiday' || ev.type === 'leave' || ev.type === 'public_holiday'));
-                                 
-                                 let bg = '', label = '';
-                                 if(cellEv.length){
-                                   if(cellEv.some(e=>e.type==='public_holiday')) { bg = 'bg-[#eab308] text-white'; label='ขัตฤกษ์'; }
-                                   else if(cellEv.some(e=>e.type==='holiday')) { bg = 'bg-[#ef4444] text-white'; label='หยุด'; }
-                                   else if(cellEv.some(e=>e.type==='leave')) { bg = 'bg-[#f97316] text-white'; label='ลา'; }
-                                 }
-                                 const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
-                                 const todayHighlightClass = isToday && !bg ? 'bg-green-50/50' : '';
-                                 return (
-                                   <td key={`c-${emp}-${i}`} onClick={() => { cellEv.length ? (setSelectedDayString(dStr), setIsDayViewOpen(true)) : handleOpenModal(i+1, null, emp, 'holiday') }} className={`border border-gray-200 p-0 cursor-pointer hover:bg-gray-100 transition-colors h-8 min-w-[40px] ${todayHighlightClass}`}>
-                                     {label && <div className={`w-full h-full flex items-center justify-center text-[10px] font-bold ${bg}`}>{label}</div>}
-                                   </td>
-                                 )
-                               })}
-                             </tr>
+                           <tr>
+                             {Array.from({ length: daysInMonth }).map((_, i) => {
+                               const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+                               return (
+                                 <th key={`d-${i}`} className={`border border-gray-200 p-1 text-[11px] font-bold ${isToday ? 'bg-brand text-white' : 'bg-[#f3f4f6] text-gray-600'}`}>
+                                   {i+1}-{['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][month]}
+                                 </th>
+                               )
+                             })}
+                           </tr>
+                         </thead>
+                         <tbody>
+                           {departments.map((dept) => (
+                             <React.Fragment key={dept.id}>
+                               <tr>
+                                 <td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td>
+                               </tr>
+                               {dept.members.map((emp, idx) => (
+                                 <tr key={emp} className="hover:bg-gray-50 transition-colors">
+                                   <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
+                                   <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
+                                   {Array.from({ length: daysInMonth }).map((_, i) => {
+                                     const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+                                     const cellEv = events.filter(ev => ev.assignee === emp && ev.date === dStr && (ev.type === 'holiday' || ev.type === 'leave' || ev.type === 'public_holiday'));
+                                     
+                                     let bg = '', label = '';
+                                     if(cellEv.length){
+                                       if(cellEv.some(e=>e.type==='public_holiday')) { bg = 'bg-[#eab308] text-white'; label='ขัตฤกษ์'; }
+                                       else if(cellEv.some(e=>e.type==='holiday')) { bg = 'bg-[#ef4444] text-white'; label='หยุด'; }
+                                       else if(cellEv.some(e=>e.type==='leave')) { bg = 'bg-[#f97316] text-white'; label='ลา'; }
+                                     }
+                                     const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+                                     const todayHighlightClass = isToday && !bg ? 'bg-green-50/50' : '';
+                                     return (
+                                       <td key={`c-${emp}-${i}`} onClick={() => { cellEv.length ? (setSelectedDayString(dStr), setIsDayViewOpen(true)) : handleOpenModal(i+1, null, emp, 'holiday') }} className={`border border-gray-200 p-0 cursor-pointer hover:bg-gray-100 transition-colors h-8 min-w-[40px] ${todayHighlightClass}`}>
+                                         {label && <div className={`w-full h-full flex items-center justify-center text-[10px] font-bold ${bg}`}>{label}</div>}
+                                       </td>
+                                     )
+                                   })}
+                                 </tr>
+                               ))}
+                             </React.Fragment>
                            ))}
-                         </React.Fragment>
-                       ))}
-                     </tbody>
-                   </table>
+                         </tbody>
+                       </table>
+                   </div>
                </div>
             </div>
           </div>
@@ -2399,9 +2411,7 @@
             {isDeleteMonthModalOpen && (
               <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Icon name="Trash" size={24}/>
-                  </div>
+                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
                   <h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลเดือนนี้</h3>
                   <p className="text-sm text-gray-500 mb-5 leading-relaxed">หากต้องการลบ ให้พิมพ์ <b>"ลบข้อมูล"</b></p>
                   <input type="text" value={deleteMonthText} onChange={(e) => setDeleteMonthText(e.target.value)} placeholder="ลบข้อมูล" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-5 outline-none focus:border-red-500 text-center font-bold text-sm" />
