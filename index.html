@@ -1738,47 +1738,62 @@
 
         const validData = sheetData.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
         
-        const contextData = validData.map(row => {
-            const cl = contentChecklists[row.id] || {};
-            return {
-                "โครงการ": safeTrim(row['หมู่บ้าน']),
-                "บ้านเลขที่": safeTrim(row['บ้านเลขที่']),
-                "ซอย": safeTrim(row['ซอย']),
-                "ทำเล": safeTrim(row['ทำเล']),
-                "สถานะบ้าน": safeTrim(row['สถานะ']),
-                "ราคา": safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']),
-                "ลิงก์แผนที่ (Location)": safeTrim(row['Location']) || safeTrim(row['Map']) || safeTrim(row['แผนที่']) || safeTrim(row['โลเคชั่น']) || '',
-                "ลิงก์โพสต์ข้อมูล": safeTrim(row['Website']),
-                "เช็คลิสต์งานคอนเทนต์": {
-                    "คลิปแนวตั้ง": cl.main_vertical ? 'ทำเสร็จแล้ว' : 'ยังไม่ทำ',
-                    "คลิปแนวนอน": cl.main_horizontal ? 'ทำเสร็จแล้ว' : 'ยังไม่ทำ',
-                    "ถ่ายรูป": cl.main_photo ? 'ทำเสร็จแล้ว' : 'ยังไม่ทำ',
-                    "เทสบ้าน / Asmr": cl.sub_dir_asmr ? 'ทำเสร็จแล้ว' : 'ยังไม่ทำ'
-                }
-            };
-        });
+        // 1. ระบบกรองข้อมูลอัจฉริยะ: ถ้าไม่ถามถึงบ้านที่ขาย/ฝากขาย จะตัดทิ้งทั้งหมดเพื่อประหยัดโควต้า Token (ลดขนาดได้ 70-80%)
+        const queryLower = userQuery.toLowerCase();
+        const wantsSold = queryLower.includes('ขายแล้ว') || queryLower.includes('โอนแล้ว');
+        const wantsConsign = queryLower.includes('ฝากขาย');
+
+        // 2. แปลงข้อมูลเป็นรูปแบบ CSV (ใช้ | กั้น) ซึ่งใช้ Token น้อยกว่า JSON มหาศาล
+        const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคา|แผนที่|โพสต์|แนวตั้ง|แนวนอน|รูป|ASMR";
+        const csvRows = validData
+            .filter(row => {
+                const status = safeTrim(row['สถานะ']).toLowerCase();
+                const web = safeTrim(row['Website']).toLowerCase();
+                if (!wantsSold && (status.includes('ขายแล้ว') || status.includes('โอนแล้ว'))) return false;
+                if (!wantsConsign && (status.includes('ฝากขาย') || web.includes('ฝากขาย'))) return false;
+                return true;
+            })
+            .map(row => {
+                const cl = contentChecklists[row.id] || {};
+                const p = safeTrim(row['หมู่บ้าน']).replace(/\|/g, '');
+                const no = safeTrim(row['บ้านเลขที่']).replace(/\|/g, '');
+                const s = safeTrim(row['ซอย']).replace(/\|/g, '');
+                const loc = safeTrim(row['ทำเล']).replace(/\|/g, '');
+                const st = safeTrim(row['สถานะ']).replace(/\|/g, '');
+                const pr = (safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])).replace(/\|/g, '');
+                const map = (safeTrim(row['Location']) || safeTrim(row['Map']) || safeTrim(row['แผนที่']) || safeTrim(row['โลเคชั่น'])).replace(/\|/g, '');
+                const web = safeTrim(row['Website']).replace(/\|/g, '');
+                const v = cl.main_vertical ? 'ทำแล้ว' : 'ยัง';
+                const h = cl.main_horizontal ? 'ทำแล้ว' : 'ยัง';
+                const ph = cl.main_photo ? 'ทำแล้ว' : 'ยัง';
+                const asmr = cl.sub_dir_asmr ? 'ทำแล้ว' : 'ยัง';
+                
+                return `${p}|${no}|${s}|${loc}|${st}|${pr}|${map}|${web}|${v}|${h}|${ph}|${asmr}`;
+            });
+
+        const csvData = headers + '\n' + csvRows.join('\n');
 
         // System Prompt น้อง Up (น่ารัก สดใส ฉลาด)
         const systemPrompt = `คุณคือ AI ผู้ช่วยอัจฉริยะประจำบริษัทอสังหาริมทรัพย์ชื่อ 'Startup Up' ชื่อของคุณคือ 'น้อง Up' (เป็นผู้หญิง)
-บุคลิกและนิสัย: น่ารัก สดใส สุภาพ พูดจาไพเราะ (ลงท้ายด้วย 'ค่ะ' หรือ 'นะคะ') เป็นกันเอง ตอบคำถามอย่างเป็นธรรมชาติ สั้นๆ กระชับ และใช้อีโมจิพอประมาณเพื่อความน่ารัก (ไม่รกตา)
-หน้าที่: ตอบคำถามพนักงานโดยอ้างอิงจากฐานข้อมูลโครงการปัจจุบันที่ให้มาในรูปแบบ JSON ด้านล่างนี้เท่านั้น
+บุคลิก: น่ารัก สดใส สุภาพ พูดจาไพเราะ (ลงท้ายด้วย 'ค่ะ' หรือ 'นะคะ') เป็นกันเอง ตอบคำถามอย่างเป็นธรรมชาติ สั้นๆ กระชับ และใช้อีโมจิพอประมาณเพื่อความน่ารัก
+หน้าที่: ตอบคำถามพนักงานโดยอ้างอิงจากฐานข้อมูลโครงการ (รูปแบบ CSV แบ่งด้วย |) ด้านล่างนี้เท่านั้น
 
-กฏเหล็กที่ต้องทำตามอย่างเคร่งครัด:
-1. การกรองข้อมูลเริ่มต้น: หากผู้ใช้ถามถึงบ้านโดยรวม "ห้าม" นำเสนอข้อมูลบ้านที่มีสถานะเป็น "ขายแล้ว" หรือ "ฝากขาย" เด็ดขาด (ให้มองข้ามไปเลย) ยกเว้น ผู้ใช้จะเจาะจงถามหาบ้านที่ขายแล้วหรือฝากขายโดยตรง
-2. การแสดงผลให้อ่านง่าย: หากต้องแสดงรายการบ้านหลายหลัง ให้ใช้รูปแบบตาราง Markdown เสมอ เพื่อให้อ่านง่าย สบายตา
-3. การให้ลิงก์และแผนที่: หากมีการขอแผนที่หรือลิงก์ ให้ดึงข้อมูลจาก "ลิงก์แผนที่ (Location)" หรือ "ลิงก์โพสต์ข้อมูล" โดยต้องสร้างเป็น Markdown Link เสมอในรูปแบบ [คลิกที่นี่เพื่อดูแผนที่](url) หรือ [ลิงก์ข้อมูล](url) (หากไม่มีลิงก์ให้บอกว่า ไม่มีข้อมูลลิงก์ค่ะ)
-4. หากคำถามไม่เกี่ยวกับข้อมูลที่มี ให้ตอบอย่างสุภาพและน่ารักว่าไม่ทราบข้อมูลส่วนนี้ค่ะ
-5. ห้ามแต่งข้อมูลขึ้นมาเองเด็ดขาด
-6. การระบุรายละเอียดบ้าน: ทุกครั้งที่กล่าวถึงข้อมูลบ้าน หรือสร้างตารางสรุปรายการบ้าน **ต้องระบุข้อมูล "ซอย" (ถ้ามี) ควบคู่กับโครงการและบ้านเลขที่เสมอ** เพื่อให้พนักงานทราบตำแหน่งที่ชัดเจน
+กฏเหล็ก:
+1. การแสดงผลให้อ่านง่าย: หากต้องแสดงรายการบ้านหลายหลัง ให้ใช้รูปแบบตาราง Markdown เสมอ 
+2. การให้ลิงก์และแผนที่: ให้สร้างเป็น Markdown Link เสมอในรูปแบบ [คลิกที่นี่เพื่อดูแผนที่](url) หรือ [ลิงก์ข้อมูล](url)
+3. หากคำถามไม่เกี่ยวกับข้อมูลที่มี ให้ตอบอย่างสุภาพว่าไม่ทราบข้อมูลส่วนนี้ค่ะ
+4. ห้ามแต่งข้อมูลขึ้นมาเองเด็ดขาด
+5. ทุกครั้งที่กล่าวถึงข้อมูลบ้าน หรือตารางสรุปรายการบ้าน **ต้องระบุ "ซอย" (ถ้ามี) คู่กับโครงการและบ้านเลขที่เสมอ**
 
-ฐานข้อมูลโครงการบ้านปัจจุบัน (JSON):
-${JSON.stringify(contextData)}
+ฐานข้อมูล (CSV):
+${csvData}
 `;
 
-        // จัดเตรียมรูปแบบแชทให้ตรงตามมาตรฐาน OpenAI/Groq API (มี Role: system, user, assistant)
+        // 3. ป้องกันแชทล้นโควต้า โดยส่งไปแค่ประวัติแชท 6 ข้อความล่าสุด
+        const recentMessages = newMessages.slice(-6);
         const apiMessages = [
             { role: 'system', content: systemPrompt },
-            ...newMessages.map(msg => ({
+            ...recentMessages.map(msg => ({
                 role: msg.role === 'ai' ? 'assistant' : 'user',
                 content: msg.text
             }))
@@ -1791,7 +1806,7 @@ ${JSON.stringify(contextData)}
             const g3 = "fhXgl4IYLQD75WABrnNe";
             const groqKey = g1 + g2 + g3;
 
-            // เชื่อมต่อ Groq API โดยตรง (ใช้โมเดล LLaMA 3.3 70B ที่เก่งภาษาไทยและรวดเร็ว)
+            // 4. เปลี่ยนโมเดลเป็น llama-3.1-8b-instant ที่เร็วกว่าและให้โควต้าฟรี (TPM) ที่สูงกว่า
             const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -1799,9 +1814,9 @@ ${JSON.stringify(contextData)}
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
+                    model: "llama-3.1-8b-instant",
                     messages: apiMessages,
-                    temperature: 0.5,
+                    temperature: 0.3,
                     max_tokens: 1500
                 })
             });
@@ -1824,8 +1839,8 @@ ${JSON.stringify(contextData)}
             
             if (error.message.includes("401")) {
                 setMessages(prev => [...prev, { role: 'ai', text: `⚠️ น้อง Up ทำงานไม่ได้ค่ะ เนื่องจาก API Key ของ Groq ไม่ถูกต้อง รบกวนพี่ๆ ตรวจสอบ Key อีกครั้งนะคะ 🥺\n\n*(Error: ${error.message})*` }]);
-            } else if (error.message.includes("429")) {
-                setMessages(prev => [...prev, { role: 'ai', text: `⚠️ ตอนนี้น้อง Up ตอบไม่ทันแล้วค่ะ (Limit Rate) รบกวนพี่ๆ รอสักครู่แล้วค่อยถามใหม่นะคะ 🥺\n\n*(Error: ${error.message})*` }]);
+            } else if (error.message.includes("429") || error.message.includes("413")) {
+                setMessages(prev => [...prev, { role: 'ai', text: `⚠️ ข้อมูลในระบบเยอะเกินไป หรือระบบตอบไม่ทันแล้วค่ะ รบกวนพี่ๆ ถามคำถามให้แคบลง หรือรอสักครู่แล้วค่อยถามใหม่นะคะ 🥺\n\n*(Error: ${error.message})*` }]);
             } else {
                 setMessages(prev => [...prev, { role: 'ai', text: `ขออภัยด้วยค่ะ ระบบเครือข่าย AI มีปัญหา รบกวนพี่ๆ ลองถามน้อง Up ใหม่อีกครั้งนะคะ 🥺\n\n**รายละเอียด:**\n\`${error.message}\`` }]);
             }
