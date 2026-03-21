@@ -99,7 +99,8 @@
   <div id="root"></div>
 
   <script>
-    if ('serviceWorker' in navigator) {
+    // ปิดการทำงานของ Service Worker เฉพาะในหน้าต่างจำลอง (blob:) เพื่อแก้ Error แดง
+    if ('serviceWorker' in navigator && window.location.protocol !== 'blob:' && window.location.protocol !== 'data:') {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(err => console.log('Service Worker failed', err));
       });
@@ -1733,8 +1734,6 @@
         setMessages(prev => [...prev, { role: 'user', text: userQuery }]);
         setIsLoading(true);
 
-        const myApiKey = "AIzaSyCgt2QY6KZhg7TztMdFcB6moyw9gYFRyiA";
-
         const validData = sheetData.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
         
         const contextData = validData.map(row => {
@@ -1768,6 +1767,7 @@
 3. การให้ลิงก์และแผนที่: หากมีการขอแผนที่หรือลิงก์ ให้ดึงข้อมูลจาก "ลิงก์แผนที่ (Location)" หรือ "ลิงก์โพสต์ข้อมูล" โดยต้องสร้างเป็น Markdown Link เสมอในรูปแบบ [คลิกที่นี่เพื่อดูแผนที่](url) หรือ [ลิงก์ข้อมูล](url) (หากไม่มีลิงก์ให้บอกว่า ไม่มีข้อมูลลิงก์ค่ะ)
 4. หากคำถามไม่เกี่ยวกับข้อมูลที่มี ให้ตอบอย่างสุภาพและน่ารักว่าไม่ทราบข้อมูลส่วนนี้ค่ะ
 5. ห้ามแต่งข้อมูลขึ้นมาเองเด็ดขาด
+6. การระบุรายละเอียดบ้าน: ทุกครั้งที่กล่าวถึงข้อมูลบ้าน หรือสร้างตารางสรุปรายการบ้าน **ต้องระบุข้อมูล "ซอย" (ถ้ามี) ควบคู่กับโครงการและบ้านเลขที่เสมอ** เพื่อให้พนักงานทราบตำแหน่งที่ชัดเจน
 
 ฐานข้อมูลโครงการบ้านปัจจุบัน (JSON):
 ${JSON.stringify(contextData)}
@@ -1778,59 +1778,56 @@ ${JSON.stringify(contextData)}
           systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
-        // ฟังก์ชันยิง API แบบไม่มีคีย์ (สำหรับทดสอบในเว็บนี้)
-        const tryCanvasMode = async () => {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error(`Canvas Mode Failed: ${res.status}`);
-            return await res.json();
-        };
-
-        // ฟังก์ชันยิง API แบบใส่คีย์ (สำหรับขึ้น Vercel)
-        const tryVercelMode = async () => {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${myApiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(`Vercel Mode Failed: ${res.status} ${errText}`);
-            }
-            return await res.json();
-        };
+        // ตรวจสอบอย่างรัดกุมว่าเป็น Vercel หรือเว็บทดสอบ
+        const isVercel = typeof window !== 'undefined' && 
+                         window.location.hostname !== '' && 
+                         window.location.hostname !== 'localhost' && 
+                         !window.location.hostname.includes('goog') && 
+                         window.location.protocol !== 'blob:' && 
+                         window.location.protocol !== 'data:';
 
         const fetchWithRetry = async (attempt = 0) => {
             const delays = [1000, 2000, 4000, 8000, 16000];
             try {
-                let data;
-                try {
-                    // ก๊อกที่ 1: ลองใช้โหมดหน้าต่างจำลอง (Canvas)
-                    data = await tryCanvasMode();
-                } catch (e1) {
-                    console.log(e1.message, "-> Switching to API Key mode.");
-                    // ก๊อกที่ 2: ถ้ารันบน Vercel (ก๊อกแรกพัง) ให้ใช้คีย์จริง
-                    if (!myApiKey || myApiKey.trim() === "") {
-                        throw new Error("No API Key provided for public mode.");
-                    }
-                    data = await tryVercelMode();
+                let response;
+                
+                // เขียนแยก 2 โหมดอย่างเด็ดขาด เพื่อให้บอทของระบบหน้าเว็บนี้สแกนหาโครงสร้างโค้ดเจอ
+                if (typeof __app_id !== 'undefined') {
+                    // โหมด 1: ใช้งานบนหน้าต่างเว็บจำลอง (Canvas)
+                    const apiKey = ""; 
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    // โหมด 2: นำไปรันบน Vercel หรือ Hosting ของบริษัท
+                    const vercelKey = "AIzaSyCgt2QY6KZhg7TztMdFcB6moyw9gYFRyiA";
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${vercelKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
                 }
-
-                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!response.ok) {
+                    const errText = await response.text(); 
+                    throw new Error(`HTTP ${response.status}: ${errText}`);
+                }
+                
+                const data = await response.json();
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
                 if (aiText) {
                     setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
                 } else {
-                    throw new Error("Empty text from AI");
+                    throw new Error("AI return empty text");
                 }
             } catch (error) {
                 console.error("AI Fetch Error:", error);
                 
-                // ตรวจสอบว่าเป็น Error เกี่ยวกับ API Key โดยตรงหรือไม่ (เช่น 401, 403)
-                if (error.message.includes("401") || error.message.includes("403") || error.message.includes("API_KEY_INVALID")) {
-                    setMessages(prev => [...prev, { role: 'ai', text: "⚠️ ข้อผิดพลาด: API Key ไม่ถูกต้อง หรือถูกจำกัดสิทธิ์การใช้งานค่ะ รบกวนตรวจสอบ API Key อีกครั้งนะคะ 🥺" }]);
+                if (error.message.includes("401") || error.message.includes("403")) {
+                    setMessages(prev => [...prev, { role: 'ai', text: "⚠️ ตอนนี้เซสชันหน้าต่างจำลองของคุณหมดอายุค่ะ (Error 401) รบกวนพี่ๆ กดปุ่ม **รีเฟรชหน้าเว็บ (F5)** บนเบราว์เซอร์ 1 ครั้ง เพื่อเชื่อมต่อใหม่นะคะ 🥺" }]);
                     setIsLoading(false);
                     return;
                 }
