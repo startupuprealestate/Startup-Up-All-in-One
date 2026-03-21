@@ -1781,68 +1781,42 @@ ${JSON.stringify(contextData)}
         const fetchWithRetry = async (attempt = 0) => {
             const delays = [1000, 2000, 4000, 8000, 16000];
             try {
-                let aiText = null;
+                let response;
                 
-                // เช็คสภาพแวดล้อมให้ชัวร์ 100%
+                // เช็คให้ชัวร์ 100% ว่ารันบนเว็บทดสอบ (Canvas) หรือเว็บจริง (Vercel)
                 const isCanvas = typeof window !== 'undefined' && 
                     (window.location.protocol === 'blob:' || window.location.hostname.includes('goog') || window.location.hostname === '');
 
                 if (isCanvas) {
-                    // โหมด 1: ใช้งานบนหน้าต่างเว็บจำลอง (Canvas) - ใช้คีย์ว่าง
+                    // โหมด 1: ใช้งานบนหน้าต่างเว็บจำลอง (Canvas)
                     const apiKey = ""; 
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!response.ok) {
-                        const errText = await response.text(); 
-                        throw new Error(`HTTP ${response.status}: ${errText}`);
-                    }
-                    const data = await response.json();
-                    aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
                 } else {
-                    // โหมด 2: นำไปรันบน Vercel หรือ Hosting
-                    const k1 = "AIzaSyCuoj4DY";
-                    const k2 = "F14PTC5I5reWXT";
-                    const k3 = "WQtZC-EYBc60";
+                    // โหมด 2: นำไปรันบน Vercel หรือ Hosting ของบริษัท
+                    const k1 = "AIzaSyCuoj4DY";       
+                    const k2 = "F14PTC5I5reWXT";     
+                    const k3 = "WQtZC-EYBc60";      
                     const vercelKey = k1 + k2 + k3;
                     
-                    // 🌟 ระบบค้นหาโมเดลที่ใช้ได้อัตโนมัติ (ถ้ารุ่นแรกพัง จะเปลี่ยนรุ่นยิงใหม่ทันที)
-                    const fallbackModels = [
-                        "gemini-1.5-flash-latest", 
-                        "gemini-1.5-flash", 
-                        "gemini-1.5-pro-latest",
-                        "gemini-1.5-pro"
-                    ];
-                    let lastError = "";
-                    
-                    for (const mod of fallbackModels) {
-                        try {
-                            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mod}:generateContent?key=${vercelKey}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(payload)
-                            });
-                            
-                            if (response.ok) {
-                                const data = await response.json();
-                                aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                                if (aiText) break; // ถ้าได้คำตอบแล้ว ให้ออกจากลูปค้นหาโมเดลเลย
-                            } else {
-                                lastError = await response.text();
-                                console.warn(`[Vercel] Model ${mod} failed:`, lastError);
-                            }
-                        } catch (err) {
-                            lastError = err.message;
-                            console.warn(`[Vercel] Network error with ${mod}:`, err.message);
-                        }
-                    }
-                    
-                    if (!aiText) {
-                        throw new Error(`Vercel API Failed: ${lastError}`);
-                    }
+                    // ⚠️ บังคับใช้โมเดล gemini-1.5-flash เท่านั้น (ห้ามเปลี่ยนเป็น pro เพราะคีย์ฟรีบางตัวไม่รองรับ)
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${vercelKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
                 }
+                
+                if (!response.ok) {
+                    const errText = await response.text(); 
+                    throw new Error(`HTTP ${response.status}: ${errText}`);
+                }
+                
+                const data = await response.json();
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
                 
                 if (aiText) {
                     setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
@@ -1852,9 +1826,9 @@ ${JSON.stringify(contextData)}
             } catch (error) {
                 console.error("AI Fetch Error:", error);
                 
-                // แยก Error ให้เห็นชัดเจน
+                // แจ้งเตือน Error ชัดเจน เพื่อให้รู้ว่าพังเพราะอะไร
                 if (error.message.includes("400") || error.message.includes("API_KEY_INVALID")) {
-                    setMessages(prev => [...prev, { role: 'ai', text: `⚠️ น้อง Up ขออภัยค่ะ API Key ของคุณผิดพลาด หรืออาจยังไม่ได้เปิดใช้งาน Generative Language API รบกวนเช็คอีกครั้งนะคะ 🥺\n\n*(Error: ${error.message})*` }]);
+                    setMessages(prev => [...prev, { role: 'ai', text: `⚠️ น้อง Up ไม่สามารถทำงานได้ค่ะ เนื่องจาก API Key ผิดพลาด หรือถูกระงับ รบกวนตรวจสอบ Key ใหม่อีกครั้งนะคะ 🥺\n\n*(Error: ${error.message})*` }]);
                     setIsLoading(false);
                     return;
                 }
