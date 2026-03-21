@@ -971,7 +971,7 @@
                             {viewMode === 'all' && uniqueStatuses.length > 0 && (
                                 <div className="relative shrink-0 w-full sm:w-auto">
                                     <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
-                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะบ้าน {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>} <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>} <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
                                     </button>
                                     {activeFilterDropdown === 'status' && (
                                         <>
@@ -989,7 +989,6 @@
                                 </div>
                             )}
 
-                            {/* Website Filter Button */}
                             {viewMode === 'all' && uniqueWebsites.length > 0 && (
                                 <div className="relative shrink-0 w-full sm:w-auto">
                                     <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
@@ -1013,7 +1012,7 @@
                         </div>
                         
                         {viewMode === 'all' && (
-                            <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-4 xl:pt-0 xl:pl-4">
+                            <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
                                 {visibleColumns.map((col, idx) => (
                                     <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
                                 ))}
@@ -1084,90 +1083,92 @@
                    </div>
                ) : (
                    <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                     <div className="overflow-auto custom-scrollbar flex-1 relative strict-scroll">
-                       <table className="w-full text-left border-collapse min-w-max">
-                          <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                            <tr>
-                              <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
-                              {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                            </tr>
-                          </thead>
-                          <tbody>
-                              {visibleColumns.length === 0 && filteredAllData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
-                              {filteredAllData.map((row, idx) => {
-                                  const statusVal = safeTrim(row['สถานะ']);
-                                  const style = getRowStyleClasses(statusVal);
+                     <div className="overflow-x-auto overflow-y-hidden w-full flex-1 flex flex-col horizontal-scrollbar">
+                       <div className="overflow-y-auto overflow-x-hidden custom-scrollbar flex-1 w-max min-w-full relative">
+                         <table className="w-full text-left border-collapse min-w-max">
+                           <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                             <tr>
+                               <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r border-gray-100">ลำดับ</th>
+                               {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                             </tr>
+                           </thead>
+                           <tbody>
+                               {visibleColumns.length === 0 && filteredAllData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                               {filteredAllData.map((row, idx) => {
+                                   const statusVal = safeTrim(row['สถานะ']);
+                                   const style = getRowStyleClasses(statusVal);
 
-                                  return (
-                                      <tr key={row.id || idx} className={`border-b border-gray-50 transition-all duration-200 ${style.row}`}>
-                                          <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
-                                          {visibleColumns.map(col => {
-                                              let content = null;
-                                              if (col === 'หมู่บ้าน') {
-                                                  content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
-                                              }
-                                              else if (col === 'บ้านเลขที่' || col === 'ซอย') {
-                                                  content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                              }
-                                              else if (col === 'สถานะบ้าน') {
-                                                  content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                              }
-                                              else if (col === 'ประวัติการโพสต์') {
-                                                  const postData = postTracking[row.id] || {};
-                                                  const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
-                                                  const proj = safeTrim(row['หมู่บ้าน']);
-                                                  const hNo = safeTrim(row['บ้านเลขที่']);
-                                                  let combined = `${proj} ${hNo}`.trim();
-                                                  
-                                                  content = (
-                                                      <div className="flex flex-col gap-2 py-1">
-                                                          {records.length > 0 ? (
-                                                              <div className="flex flex-wrap gap-1.5 max-w-[300px]">
-                                                                  {records.map(([assigneeName, dateStr]) => {
-                                                                      const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
-                                                                      return (
-                                                                          <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
-                                                                              <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
-                                                                              <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                                                                                  <Icon name="X" size={10} />
-                                                                              </button>
-                                                                          </span>
-                                                                      );
-                                                                  })}
-                                                              </div>
-                                                          ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
-                                                          
-                                                          <div className="relative mt-1">
-                                                              <button onClick={() => setPostMenuOpen(postMenuOpen === row.id ? null : row.id)} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 transition-colors w-fit flex items-center shadow-sm"><Icon name="Plus" size={10} className="mr-1"/> บันทึกโพสต์</button>
-                                                              {postMenuOpen === row.id && (
-                                                                  <>
-                                                                      <div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
-                                                                      <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
-                                                                          <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครเป็นคนโพสต์วันนี้?</span>
-                                                                          {allAssigneesList.map(name => {
-                                                                              const isAlreadyChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
-                                                                              return (
-                                                                                  <button key={name} onClick={() => { handleTogglePost(row.id, !isAlreadyChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between text-left px-3 py-2 text-[12px] font-bold rounded-lg transition-colors ${isAlreadyChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10 hover:text-brand'}`}>
-                                                                                      {name} {isAlreadyChecked && <Icon name="Check" size={12} />}
-                                                                                  </button>
-                                                                              )
-                                                                          })}
-                                                                      </div>
-                                                                  </>
-                                                              )}
-                                                          </div>
-                                                      </div>
-                                                  );
-                                              }
-                                              else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
-                                              return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
-                                          })}
-                                      </tr>
-                                  )
-                              })}
-                              {baseSheetData.length === 0 && <tr><td colSpan={10} className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลจาก Google Sheet</td></tr>}
-                          </tbody>
-                       </table>
+                                   return (
+                                       <tr key={row.id || idx} className={`border-b border-gray-50 transition-all duration-200 ${style.row}`}>
+                                           <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400">{idx + 1}</td>
+                                           {visibleColumns.map(col => {
+                                               let content = null;
+                                               if (col === 'หมู่บ้าน') {
+                                                   content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
+                                               }
+                                               else if (col === 'บ้านเลขที่' || col === 'ซอย') {
+                                                   content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                               }
+                                               else if (col === 'สถานะบ้าน') {
+                                                   content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                               }
+                                               else if (col === 'ประวัติการโพสต์') {
+                                                   const postData = postTracking[row.id] || {};
+                                                   const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
+                                                   const proj = safeTrim(row['หมู่บ้าน']);
+                                                   const hNo = safeTrim(row['บ้านเลขที่']);
+                                                   let combined = `${proj} ${hNo}`.trim();
+                                                   
+                                                   content = (
+                                                       <div className="flex flex-col gap-2 py-1">
+                                                           {records.length > 0 ? (
+                                                               <div className="flex flex-wrap gap-1.5 max-w-[300px]">
+                                                                   {records.map(([assigneeName, dateStr]) => {
+                                                                       const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
+                                                                       return (
+                                                                           <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
+                                                                               <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
+                                                                               <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                                                                   <Icon name="X" size={10} />
+                                                                               </button>
+                                                                           </span>
+                                                                       );
+                                                                   })}
+                                                               </div>
+                                                           ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
+                                                           
+                                                           <div className="relative mt-1">
+                                                               <button onClick={() => setPostMenuOpen(postMenuOpen === row.id ? null : row.id)} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 transition-colors w-fit flex items-center shadow-sm"><Icon name="Plus" size={10} className="mr-1"/> บันทึกโพสต์</button>
+                                                               {postMenuOpen === row.id && (
+                                                                   <>
+                                                                       <div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
+                                                                       <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
+                                                                           <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครเป็นคนโพสต์วันนี้?</span>
+                                                                           {allAssigneesList.map(name => {
+                                                                               const isAlreadyChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
+                                                                               return (
+                                                                                   <button key={name} onClick={() => { handleTogglePost(row.id, !isAlreadyChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between text-left px-3 py-2 text-[12px] font-bold rounded-lg transition-colors ${isAlreadyChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10 hover:text-brand'}`}>
+                                                                                       {name} {isAlreadyChecked && <Icon name="Check" size={12} />}
+                                                                                   </button>
+                                                                               )
+                                                                           })}
+                                                                       </div>
+                                                                   </>
+                                                               )}
+                                                           </div>
+                                                       </div>
+                                                   );
+                                               }
+                                               else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
+                                               return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+                                           })}
+                                       </tr>
+                                   )
+                               })}
+                               {baseSheetData.length === 0 && <tr><td colSpan={10} className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลจาก Google Sheet</td></tr>}
+                           </tbody>
+                         </table>
+                       </div>
                      </div>
                    </div>
                )}
