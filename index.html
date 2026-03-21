@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Startup Up All-in-One</title>
   
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#0b3d1b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Startup Up">
@@ -103,7 +103,6 @@
   <div id="root"></div>
 
   <script>
-    // ปิดการทำงานของ Service Worker เฉพาะในหน้าต่างจำลอง (blob:) เพื่อแก้ Error แดง
     if ('serviceWorker' in navigator && window.location.protocol !== 'blob:' && window.location.protocol !== 'data:') {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(err => console.log('Service Worker failed', err));
@@ -112,7 +111,7 @@
   </script>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef, useMemo } = React;
     
     const Icon = ({ name, size = 20, className = '', ...props }) => {
       const icons = {
@@ -198,9 +197,6 @@
     const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
     const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
-    // ==========================================
-    // HELPER FUNCTIONS
-    // ==========================================
     const compressImage = (file) => {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -439,6 +435,7 @@
         const [searchQuery, setSearchQuery] = useState('');
         const [isRefreshing, setIsRefreshing] = useState(false);
         const [expandedRowId, setExpandedRowId] = useState(null);
+        const [showFilters, setShowFilters] = useState(false);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('startupup_hiddenValues');
@@ -523,146 +520,156 @@
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 flex flex-col xl:flex-row items-start xl:items-center relative z-20">
-                <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0">ตัวจัดการข้อมูล:</span>
-                
-                <div className="flex flex-wrap gap-2.5 shrink-0">
-                    <div className="relative shrink-0">
-                        <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <input 
-                            type="text" 
-                            placeholder="ค้นหาโครงการ, เลขที่..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"
-                        />
+            <div className="bg-white p-4 xl:p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 relative z-20">
+                <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+                    <div className="flex items-center text-[14px] font-bold text-gray-700">
+                        <Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล
                     </div>
-
-                    {/* ตัวกรอง: หางานที่ยังไม่ได้ทำ */}
-                    <div className="relative shrink-0">
-                        <button onClick={() => { setIsTaskFilterOpen(!isTaskFilterOpen); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center justify-between min-w-[200px] px-4 py-2 bg-white border ${pendingTaskFilter ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-300 text-gray-700 hover:border-brand'} rounded-xl text-[13px] font-bold transition-all shadow-sm`}>
-                            <div className="flex items-center">
-                                <Icon name="ListTodo" size={14} className={`mr-1.5 ${pendingTaskFilter ? 'text-red-500' : 'text-gray-400'}`} />
-                                {pendingTaskFilter ? `${taskOptions.find(o => o.key === pendingTaskFilter)?.label} (ที่ยังไม่ทำ)` : 'หางานที่ยังไม่ได้ทำ'}
-                            </div>
-                            {pendingTaskFilter && (
-                                <span onClick={(e) => { e.stopPropagation(); setPendingTaskFilter(''); }} className="ml-2 w-5 h-5 flex items-center justify-center bg-red-200 hover:bg-red-300 text-red-700 rounded-full cursor-pointer transition-colors">
-                                    <Icon name="X" size={12} />
-                                </span>
-                            )}
-                            {!pendingTaskFilter && <Icon name={isTaskFilterOpen ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />}
-                        </button>
-                        {isTaskFilterOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setIsTaskFilterOpen(false)}></div>
-                                <div className="absolute top-full left-0 mt-2 w-[280px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[400px]">
-                                    <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">กรองบ้านที่ยังไม่ได้ทำสิ่งนี้...</div>
-                                    <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                        <label className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                            <input type="radio" name="taskFilter" checked={pendingTaskFilter === ''} onChange={() => { setPendingTaskFilter(''); setIsTaskFilterOpen(false); }} className="mr-3 w-4 h-4 accent-brand cursor-pointer" />
-                                            <span className={`text-[13px] font-semibold ${pendingTaskFilter === '' ? 'text-brand' : 'text-gray-700'}`}>แสดงบ้านทั้งหมด</span>
-                                        </label>
-                                        <div className="border-t border-gray-100 my-1"></div>
-                                        {taskOptions.map(opt => (
-                                            <label key={opt.key} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                <input type="radio" name="taskFilter" checked={pendingTaskFilter === opt.key} onChange={() => { setPendingTaskFilter(opt.key); setIsTaskFilterOpen(false); }} className="mr-3 w-4 h-4 accent-brand cursor-pointer" />
-                                                <span className={`text-[13px] font-semibold ${pendingTaskFilter === opt.key ? 'text-brand' : 'text-gray-700'}`}>{opt.label}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                    <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500">
+                        <Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} />
                     </div>
-
-                    <div className="relative shrink-0">
-                        <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setIsTaskFilterOpen(false); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm">
-                            <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
-                        </button>
-                        {isDropdownOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                                <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                    <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
-                                    <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                        {allColumns.map(col => (
-                                            <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                <input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                <span className="text-[13px] font-semibold text-gray-700">{col}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    {uniqueStatuses.length > 0 && (
-                        <div className="relative shrink-0">
-                            <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ 
-                                {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
-                                <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                            </button>
-                            {activeFilterDropdown === 'status' && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                    <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                            <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                            {hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
-                                        </div>
-                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                            {uniqueStatuses.map(status => (
-                                                <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                    <input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                    <span className="text-[13px] font-semibold text-gray-700">{status}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {uniqueWebsites.length > 0 && (
-                        <div className="relative shrink-0">
-                            <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
-                                {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
-                                <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                            </button>
-                            {activeFilterDropdown === 'website' && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                    <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                            <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                            {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
-                                        </div>
-                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                            {uniqueWebsites.map(web => (
-                                                <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                    <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                    <span className="text-[13px] font-semibold text-gray-700">{web}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
                 </div>
 
-                <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                    {visibleColumns.map((col, idx) => (
-                        <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
-                            <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
-                            <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
-                        </span>
-                    ))}
+                <div className={`flex-col xl:flex-row items-start xl:items-center w-full ${showFilters ? 'flex mt-4' : 'hidden xl:flex'}`}>
+                    <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0 hidden xl:block">ตัวจัดการข้อมูล:</span>
+                    
+                    <div className="flex flex-wrap gap-2.5 shrink-0 w-full xl:w-auto">
+                        <div className="relative shrink-0 w-full sm:w-auto">
+                            <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <input 
+                                type="text" 
+                                placeholder="ค้นหาโครงการ, เลขที่..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"
+                            />
+                        </div>
+
+                        <div className="relative shrink-0 w-full sm:w-auto">
+                            <button onClick={() => { setIsTaskFilterOpen(!isTaskFilterOpen); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center justify-between w-full sm:min-w-[200px] px-4 py-2 bg-white border ${pendingTaskFilter ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-300 text-gray-700 hover:border-brand'} rounded-xl text-[13px] font-bold transition-all shadow-sm`}>
+                                <div className="flex items-center">
+                                    <Icon name="ListTodo" size={14} className={`mr-1.5 ${pendingTaskFilter ? 'text-red-500' : 'text-gray-400'}`} />
+                                    {pendingTaskFilter ? `${taskOptions.find(o => o.key === pendingTaskFilter)?.label} (ที่ยังไม่ทำ)` : 'หางานที่ยังไม่ได้ทำ'}
+                                </div>
+                                {pendingTaskFilter && (
+                                    <span onClick={(e) => { e.stopPropagation(); setPendingTaskFilter(''); }} className="ml-2 w-5 h-5 flex items-center justify-center bg-red-200 hover:bg-red-300 text-red-700 rounded-full cursor-pointer transition-colors">
+                                        <Icon name="X" size={12} />
+                                    </span>
+                                )}
+                                {!pendingTaskFilter && <Icon name={isTaskFilterOpen ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />}
+                            </button>
+                            {isTaskFilterOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsTaskFilterOpen(false)}></div>
+                                    <div className="absolute top-full left-0 mt-2 w-[280px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[400px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">กรองบ้านที่ยังไม่ได้ทำสิ่งนี้...</div>
+                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                            <label className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                <input type="radio" name="taskFilter" checked={pendingTaskFilter === ''} onChange={() => { setPendingTaskFilter(''); setIsTaskFilterOpen(false); }} className="mr-3 w-4 h-4 accent-brand cursor-pointer" />
+                                                <span className={`text-[13px] font-semibold ${pendingTaskFilter === '' ? 'text-brand' : 'text-gray-700'}`}>แสดงบ้านทั้งหมด</span>
+                                            </label>
+                                            <div className="border-t border-gray-100 my-1"></div>
+                                            {taskOptions.map(opt => (
+                                                <label key={opt.key} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                    <input type="radio" name="taskFilter" checked={pendingTaskFilter === opt.key} onChange={() => { setPendingTaskFilter(opt.key); setIsTaskFilterOpen(false); }} className="mr-3 w-4 h-4 accent-brand cursor-pointer" />
+                                                    <span className={`text-[13px] font-semibold ${pendingTaskFilter === opt.key ? 'text-brand' : 'text-gray-700'}`}>{opt.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="relative shrink-0 w-full sm:w-auto">
+                            <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setIsTaskFilterOpen(false); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-full sm:w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm">
+                                <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
+                            </button>
+                            {isDropdownOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                                    <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
+                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                            {allColumns.map(col => (
+                                                <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                    <input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                    <span className="text-[13px] font-semibold text-gray-700">{col}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {uniqueStatuses.length > 0 && (
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ 
+                                    {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                    <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                </button>
+                                {activeFilterDropdown === 'status' && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                {hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                            </div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {uniqueStatuses.map(status => (
+                                                    <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                        <input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                        <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {uniqueWebsites.length > 0 && (
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsTaskFilterOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
+                                    {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                    <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                </button>
+                                {activeFilterDropdown === 'website' && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                            </div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {uniqueWebsites.map(web => (
+                                                    <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                        <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                        <span className="text-[13px] font-semibold text-gray-700">{web}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
+                        {visibleColumns.map((col, idx) => (
+                            <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
+                                <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
+                                <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </div>
 
@@ -783,6 +790,7 @@
         const [sortBy, setSortBy] = useState('default');
         const [searchQuery, setSearchQuery] = useState('');
         const [isRefreshing, setIsRefreshing] = useState(false);
+        const [showFilters, setShowFilters] = useState(false);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('startupup_hiddenValues_const');
@@ -909,133 +917,143 @@
                  </div>
                </div>
 
-               <div className="bg-white p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 flex flex-col xl:flex-row items-start xl:items-center relative z-20">
-                    <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0">ตัวจัดการข้อมูล:</span>
-                    <div className="flex flex-wrap gap-2.5 shrink-0">
-                        <div className="relative shrink-0">
-                            <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <input 
-                                type="text" 
-                                placeholder="ค้นหาโครงการ, เลขที่..." 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"
-                            />
+               <div className="bg-white p-4 xl:p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 relative z-20">
+                    <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+                        <div className="flex items-center text-[14px] font-bold text-gray-700">
+                            <Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล
                         </div>
-                        {/* 1. เรียงตาม */}
-                        <div className="relative shrink-0">
-                            <button onClick={() => { setIsSortDropdownOpen(!isSortDropdownOpen); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center justify-between min-w-[200px] px-4 py-2 bg-white border ${sortBy !== 'default' ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                <div className="flex items-center"><Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> {sortOptions.find(o => o.value === sortBy)?.label || 'เรียงตาม...'}</div>
-                                <Icon name={isSortDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                            </button>
-                            {isSortDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsSortDropdownOpen(false)}></div>
-                                    <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                        <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">เลือกการจัดเรียง</div>
-                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                            {sortOptions.map(opt => (
-                                                <label key={opt.value} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                    <input type="radio" name="sortOption" checked={sortBy === opt.value} onChange={() => { setSortBy(opt.value); setIsSortDropdownOpen(false); }} className="mr-3 w-4 h-4 accent-brand cursor-pointer" />
-                                                    <span className={`text-[13px] font-semibold ${sortBy === opt.value ? 'text-brand' : 'text-gray-700'}`}>{opt.label}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
+                        <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500">
+                            <Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} />
                         </div>
-
-                        {/* 2. เลือกคอลัมน์ */}
-                        <div className="relative shrink-0">
-                            <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setIsSortDropdownOpen(false); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm">
-                                <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
-                            </button>
-                            {isDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                                    <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                        <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
-                                        <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                            {allColumns.map(col => (
-                                                <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                    <input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                    <span className="text-[13px] font-semibold text-gray-700">{col}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        {/* 3. สถานะบ้าน */}
-                        {uniqueStatuses.length > 0 && (
-                            <div className="relative shrink-0">
-                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ 
-                                    {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
-                                    <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                                </button>
-                                {activeFilterDropdown === 'status' && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                                {hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
-                                            </div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {uniqueStatuses.map(status => (
-                                                    <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                        <input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                        <span className="text-[13px] font-semibold text-gray-700">{status}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {/* 4. Website Filter */}
-                        {uniqueWebsites.length > 0 && (
-                            <div className="relative shrink-0">
-                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
-                                    {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
-                                    <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                                </button>
-                                {activeFilterDropdown === 'website' && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                                {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
-                                            </div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {uniqueWebsites.map(web => (
-                                                    <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                        <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                        <span className="text-[13px] font-semibold text-gray-700">{web}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
                     </div>
-                    <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                        {visibleColumns.map((col, idx) => (
-                            <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
-                                <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
-                                <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
-                            </span>
-                        ))}
+
+                    <div className={`flex-col xl:flex-row items-start xl:items-center w-full ${showFilters ? 'flex mt-4' : 'hidden xl:flex'}`}>
+                        <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0 hidden xl:block">ตัวจัดการข้อมูล:</span>
+                        
+                        <div className="flex flex-wrap gap-2.5 shrink-0 w-full xl:w-auto">
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาโครงการ, เลขที่..." 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"
+                                />
+                            </div>
+                            
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <button onClick={() => { setIsSortDropdownOpen(!isSortDropdownOpen); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center justify-between w-full sm:min-w-[200px] px-4 py-2 bg-white border ${sortBy !== 'default' ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                    <div className="flex items-center"><Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> {sortOptions.find(o => o.value === sortBy)?.label || 'เรียงตาม...'}</div>
+                                    <Icon name={isSortDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                </button>
+                                {isSortDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setIsSortDropdownOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">เลือกการจัดเรียง</div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {sortOptions.map(opt => (
+                                                    <label key={opt.value} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                        <input type="radio" name="sortOption" checked={sortBy === opt.value} onChange={() => { setSortBy(opt.value); setIsSortDropdownOpen(false); }} className="mr-3 w-4 h-4 accent-brand cursor-pointer" />
+                                                        <span className={`text-[13px] font-semibold ${sortBy === opt.value ? 'text-brand' : 'text-gray-700'}`}>{opt.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setIsSortDropdownOpen(false); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-full sm:w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm">
+                                    <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
+                                </button>
+                                {isDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {allColumns.map(col => (
+                                                    <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                        <input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                        <span className="text-[13px] font-semibold text-gray-700">{col}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {uniqueStatuses.length > 0 && (
+                                <div className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ 
+                                        {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                        <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    </button>
+                                    {activeFilterDropdown === 'status' && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                    {hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                                </div>
+                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                    {uniqueStatuses.map(status => (
+                                                        <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                            <input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                            <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {uniqueWebsites.length > 0 && (
+                                <div className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
+                                        {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                        <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    </button>
+                                    {activeFilterDropdown === 'website' && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                    {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                                </div>
+                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                    {uniqueWebsites.map(web => (
+                                                        <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                            <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                            <span className="text-[13px] font-semibold text-gray-700">{web}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-4 xl:pt-0 xl:pl-4">
+                            {visibleColumns.map((col, idx) => (
+                                <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
+                                    <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
+                                    <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
+                                </span>
+                            ))}
+                        </div>
                     </div>
                </div>
 
@@ -1152,6 +1170,7 @@
         const [houseToSkip, setHouseToSkip] = useState(null);
         const [isDeleteHistoryModalOpen, setIsDeleteHistoryModalOpen] = useState(false);
         const [historyToDelete, setHistoryToDelete] = useState(null);
+        const [showFilters, setShowFilters] = useState(false);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('startupup_hiddenValues_post');
@@ -1373,113 +1392,126 @@
                     </button>
                </div>
 
-               <div className="bg-white p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 flex flex-col xl:flex-row items-start xl:items-center relative z-20">
-                    <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0">ตัวจัดการข้อมูล:</span>
-                    <div className="flex flex-wrap gap-2.5 shrink-0">
-                        <div className="relative shrink-0">
-                            <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <input 
-                                type="text" 
-                                placeholder="ค้นหาหมู่บ้าน, เลขที่..." 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"
-                            />
+               <div className="bg-white p-4 xl:p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 relative z-20">
+                    <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+                        <div className="flex items-center text-[14px] font-bold text-gray-700">
+                            <Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล
+                        </div>
+                        <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500">
+                            <Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} />
+                        </div>
+                    </div>
+
+                    <div className={`flex-col xl:flex-row items-start xl:items-center w-full ${showFilters ? 'flex mt-4' : 'hidden xl:flex'}`}>
+                        <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0 hidden xl:block">ตัวจัดการข้อมูล:</span>
+                        
+                        <div className="flex flex-wrap gap-2.5 shrink-0 w-full xl:w-auto">
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหาหมู่บ้าน, เลขที่..." 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"
+                                />
+                            </div>
+                            
+                            {viewMode === 'all' && (
+                                <div className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-full sm:w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm">
+                                        <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
+                                    </button>
+                                    {isDropdownOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
+                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                    {allColumns.map(col => (
+                                                        <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                            <input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                            <span className="text-[13px] font-semibold text-gray-700">{col}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {viewMode === 'all' && uniqueStatuses.length > 0 && (
+                                <div className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะบ้าน 
+                                        {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
+                                        <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    </button>
+                                    {activeFilterDropdown === 'status' && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                    {hiddenValues['สถานะ'].length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                                </div>
+                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                    {uniqueStatuses.map(status => (
+                                                        <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                            <input type="checkbox" checked={!hiddenValues['สถานะ'].includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                            <span className="text-[13px] font-semibold text-gray-700">{status}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Website Filter Button */}
+                            {viewMode === 'all' && uniqueWebsites.length > 0 && (
+                                <div className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
+                                        {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
+                                        <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    </button>
+                                    {activeFilterDropdown === 'website' && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                                                    <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
+                                                    {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
+                                                </div>
+                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                    {uniqueWebsites.map(web => (
+                                                        <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
+                                                            <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
+                                                            <span className="text-[13px] font-semibold text-gray-700">{web}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         
                         {viewMode === 'all' && (
-                            <div className="relative shrink-0">
-                                <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-[200px] px-4 py-2 bg-gray-50 border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm">
-                                    <Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
-                                </button>
-                                {isDropdownOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {allColumns.map(col => (
-                                                    <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                        <input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                        <span className="text-[13px] font-semibold text-gray-700">{col}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {viewMode === 'all' && uniqueStatuses.length > 0 && (
-                            <div className="relative shrink-0">
-                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะบ้าน 
-                                    {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>}
-                                    <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                                </button>
-                                {activeFilterDropdown === 'status' && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                                {hiddenValues['สถานะ'].length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
-                                            </div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {uniqueStatuses.map(status => (
-                                                    <label key={status} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                        <input type="checkbox" checked={!hiddenValues['สถานะ'].includes(status)} onChange={() => toggleHideValue('สถานะ', status)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                        <span className="text-[13px] font-semibold text-gray-700">{status}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Website Filter Button */}
-                        {viewMode === 'all' && uniqueWebsites.length > 0 && (
-                            <div className="relative shrink-0">
-                                <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} className={`flex items-center justify-between px-4 py-2 bg-white border ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : 'border-gray-300'} hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 transition-all shadow-sm`}>
-                                    <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website 
-                                    {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md leading-none">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>}
-                                    <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                                </button>
-                                {activeFilterDropdown === 'website' && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                                                <span className="text-[12px] font-bold text-gray-500">ติ๊กออกเพื่อซ่อนข้อมูล</span>
-                                                {hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}
-                                            </div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {uniqueWebsites.map(web => (
-                                                    <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors">
-                                                        <input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand rounded cursor-pointer" />
-                                                        <span className="text-[13px] font-semibold text-gray-700">{web}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
+                            <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-4 xl:pt-0 xl:pl-4">
+                                {visibleColumns.map((col, idx) => (
+                                    <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
+                                        <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
+                                        <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
+                                    </span>
+                                ))}
                             </div>
                         )}
                     </div>
-                    {viewMode === 'all' && (
-                        <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                            {visibleColumns.map((col, idx) => (
-                                <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10">
-                                    <span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col}
-                                    <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500 transition-colors"><Icon name="X" size={12} /></button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
                </div>
 
                {viewMode === 'daily' ? (
@@ -2579,6 +2611,16 @@ ${promptAction}
       const [activeApp, setActiveApp] = useState('calendar');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+      // Splash Screen State
+      const [showSplash, setShowSplash] = useState(true);
+      const [splashFade, setSplashFade] = useState(false);
+
+      useEffect(() => {
+        const timer1 = setTimeout(() => setSplashFade(true), 2000);
+        const timer2 = setTimeout(() => setShowSplash(false), 2500);
+        return () => { clearTimeout(timer1); clearTimeout(timer2); };
+      }, []);
+
       // Calendar States
       const [currentDate, setCurrentDate] = useState(new Date());
       const [events, setEvents] = useState([]);
@@ -2613,7 +2655,7 @@ ${promptAction}
       // House Gallery States
       const [houses, setHouses] = useState([]);
       
-      // AI Chat State (ย้ายมาไว้ที่ App เพื่อไม่ให้แชทหายเวลาสลับหน้า)
+      // AI Chat State
       const [aiMessages, setAiMessages] = useState([
         { role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }
       ]);
@@ -3087,293 +3129,303 @@ ${promptAction}
       );
 
       return (
-        <div className="min-h-screen flex flex-col md:flex-row bg-background font-sans text-gray-800">
-          {/* Sidebar */}
-          <div className={`fixed md:static inset-y-0 left-0 z-40 w-[250px] bg-white border-r border-gray-200 shadow-sm md:shadow-none transform transition-transform duration-300 flex flex-col shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-            <div className="h-[120px] flex flex-col items-center justify-center bg-brand shrink-0">
-               <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-[65px] object-contain drop-shadow-sm" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
-               <div className="hidden flex-col items-center justify-center">
-                 <div className="text-[18px] font-bold tracking-widest text-[#d4af37]">STARTUP UP</div>
-                 <div className="text-[10px] tracking-widest uppercase opacity-80 mt-[-2px] text-white">Real Estate</div>
-               </div>
+        <>
+          {/* Splash Screen */}
+          {showSplash && (
+            <div className={`fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out ${splashFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-28 w-auto object-contain drop-shadow-lg mb-6 animate-pulse" />
+              <h1 className="text-white text-2xl md:text-3xl font-extrabold tracking-wider">Startup Up All in One</h1>
             </div>
-            <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-3">เมนูระบบ</div>
-              {MAIN_MENUS.map(menu => {
-                const isActive = activeApp === menu.id;
-                return (
-                  <button key={menu.id} onClick={() => { setActiveApp(menu.id); setSelectedUser('All'); setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${isActive ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}>
-                    <Icon name={menu.icon} size={20} className={`${isActive ? 'text-brand' : 'text-gray-400'}`} />
-                    <span className="text-[14px]">{menu.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          )}
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background relative">
-            <div className="flex items-center justify-between p-4 md:hidden bg-surface shadow-sm z-30 shrink-0 border-b border-gray-100 transition-colors">
-              <div className="flex items-center">
-                <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-gray-600"><Icon name={isSidebarOpen ? 'X' : 'Menu'} /></button>
-                <span className="font-bold text-brand text-lg ml-2">STARTUP UP</span>
-              </div>
-            </div>
-
-            {/* Routing for Active Tabs */}
-            {activeApp === 'calendar' && renderCalendarTab()}
-            {activeApp === 'holidays' && renderHolidayTab()}
-            {activeApp === 'content' && <ContentChecklist sheetData={sheetData} sheetError={sheetError} contentChecklists={contentChecklists} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
-            {activeApp === 'schedule' && <ConstructionSchedule sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
-            {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} />}
-            {activeApp === 'company' && <CompanyInfo />}
-            {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
-            {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
-          </div>
-
-          {/* Global Modals */}
-          {isModalOpen && (() => {
-             const btnColor = formData.type === 'holiday' ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : formData.type === 'leave' ? 'bg-[#ea580c] hover:bg-[#c2410c]' : formData.type === 'public_holiday' ? 'bg-[#eab308] hover:bg-[#ca8a04]' : 'bg-[#0b3d1b] hover:bg-[#166534]';
-             return (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                <div className="bg-surface rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
-                  <div className="flex justify-between items-center p-5 border-b border-gray-100">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                      <Icon name="CalendarIcon" className="mr-2 text-brand" size={20} />
-                      {editingEventId ? 'แก้ไขรายละเอียด' : 'เพิ่มรายละเอียด'}
-                    </h3>
-                    <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600"><Icon name="X" size={20}/></button>
-                  </div>
-                  
-                  <form onSubmit={handleSaveEvent} className="p-6 space-y-5">
-                    <div className="flex items-center space-x-4 border-b border-gray-100 pb-5">
-                      <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
-                        <input type="radio" checked={formData.type==='event'} onChange={()=>setFormData({...formData, type:'event'})} className="mr-2 w-4 h-4 accent-brand"/> กิจกรรม
-                      </label>
-                      <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
-                        <input type="radio" checked={formData.type==='holiday'} onChange={()=>setFormData({...formData, type:'holiday'})} className="mr-2 w-4 h-4 accent-gray-600"/> วันหยุด
-                      </label>
-                      <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
-                        <input type="radio" checked={formData.type==='leave'} onChange={()=>setFormData({...formData, type:'leave'})} className="mr-2 w-4 h-4 accent-gray-600"/> วันลางาน
-                      </label>
-                      <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
-                        <input type="radio" checked={formData.type==='public_holiday'} onChange={()=>setFormData({...formData, type:'public_holiday'})} className="mr-2 w-4 h-4 accent-gray-600"/> ขัตฤกษ์
-                      </label>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[13px] font-bold text-gray-600 mb-1.5">วันที่</label>
-                        <input type="date" required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700"/>
-                      </div>
-                      <div>
-                        <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ผู้รับผิดชอบ</label>
-                        <select required value={formData.assignee} onChange={e=>setFormData({...formData, assignee:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700">
-                          <option value="" disabled hidden>ระบุผู้รับผิดชอบ</option>
-                          {departments.map((dept) => <optgroup key={dept.id} label={`ทีม ${dept.id}`}>{dept.members.map(name => <option key={name}>{name}</option>)}</optgroup>)}
-                        </select>
-                      </div>
-                    </div>
-                    
-                    {formData.type === 'event' && (
-                      <>
-                        <div className="w-full">
-                          <label className="block text-[13px] font-bold text-gray-600 mb-1.5">เวลา (ชั่วโมง : นาที)</label>
-                          <div className="flex space-x-2 items-center">
-                            <select value={formData.hour} onChange={e=>setFormData({...formData, hour:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{HOURS.map(h=><option key={h}>{h}</option>)}</select>
-                            <span className="font-bold text-gray-400">:</span>
-                            <select value={formData.minute} onChange={e=>setFormData({...formData, minute:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{MINUTES.map(m=><option key={m}>{m}</option>)}</select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[13px] font-bold text-gray-600 mb-1.5">สิ่งที่ต้องทำ</label>
-                          <select required value={formData.activity} onChange={e=>setFormData({...formData, activity:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700">
-                            <option value="" disabled hidden>ระบุสิ่งที่ต้องทำ</option>
-                            {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
-                          </select>
-                        </div>
-                      </>
-                    )}
-                    
-                    <div>
-                      <label className="block text-[13px] font-bold text-gray-600 mb-1.5">หมายเหตุ / รายละเอียดเพิ่มเติม</label>
-                      <textarea rows="3" value={formData.note} onChange={e=>setFormData({...formData, note:e.target.value})} placeholder="กรุณาระบุรายละเอียด" className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 resize-none"></textarea>
-                    </div>
-                    
-                    <div className="flex justify-between pt-6 border-t border-gray-100">
-                      {editingEventId ? <button type="button" onClick={handleDeleteEvent} className="text-red-500 text-[14px] font-bold hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">ลบข้อมูล</button> : <div></div>}
-                      <div className="space-x-3 flex items-center">
-                        <button type="button" onClick={handleCloseModal} className="px-4 py-2.5 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ยกเลิก</button>
-                        <button type="submit" className={`px-5 py-2.5 text-[14px] font-bold text-white rounded-lg shadow-sm transition-all flex items-center ${btnColor}`}>
-                          <Icon name="Plus" size={16} className="mr-1.5" /> บันทึกข้อมูล
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              </div>
-             );
-          })()}
-
-          {/* ตารางแสดงรายละเอียดของวัน */}
-          {isDayViewOpen && selectedDayString && (() => {
-            const { normalEvents, holidays, leaves, publicHolidays } = getEventsForDay(selectedDayString);
-            let itemsToShow = normalEvents;
-            if (activeApp === 'holidays') itemsToShow = [...holidays, ...leaves, ...publicHolidays, ...normalEvents];
-            
-            const timeCounts = {};
-            itemsToShow.forEach(ev => { if (ev.type === 'event' && ev.time) { timeCounts[ev.time] = (timeCounts[ev.time] || 0) + 1; } });
-
-            return (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                 <div className="bg-surface rounded-2xl w-full max-w-4xl p-6 md:p-8 shadow-2xl flex flex-col border border-gray-100 relative">
-                   <button onClick={() => setIsDayViewOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
-                     <Icon name="X" size={18}/>
-                   </button>
-                   
-                   <div className="mb-6 border-b border-transparent">
-                     <div className="inline-block border-b-[3px] border-[#ef4444] pb-2 pr-4">
-                       <h3 className="text-xl md:text-2xl font-bold flex items-center text-brand">
-                         <Icon name="CalendarIcon" className="mr-3" size={24}/> 
-                         กิจกรรมประจำวันที่ {getFormattedDateThai(selectedDayString)}
-                       </h3>
-                     </div>
-                   </div>
-
-                   <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden">
-                     {itemsToShow.length > 0 ? (
-                       <table className="w-full text-left border-collapse">
-                         <thead>
-                           <tr className="bg-gray-50 border-b border-gray-100">
-                             <th className="p-4 text-[13px] font-bold text-gray-500 w-[120px]">เวลา</th>
-                             <th className="p-4 text-[13px] font-bold text-gray-500 w-[140px]">ผู้รับผิดชอบ</th>
-                             <th className="p-4 text-[13px] font-bold text-gray-500 w-[200px]">สิ่งที่ต้องทำ</th>
-                             <th className="p-4 text-[13px] font-bold text-gray-500">หมายเหตุ</th>
-                           </tr>
-                         </thead>
-                         <tbody>
-                           {itemsToShow.map((ev, idx) => {
-                             const isDuplicateTime = ev.type === 'event' && ev.time && timeCounts[ev.time] > 1;
-
-                             return (
-                               <tr key={ev.id || idx} onClick={() => {setIsDayViewOpen(false); handleOpenModal(null, ev)}} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors">
-                                 <td className="p-4 align-top">
-                                    {ev.type !== 'event' ? '-' : (
-                                       <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[13px] font-bold ${isDuplicateTime ? 'border border-[#ef4444] text-[#ef4444] bg-red-50' : 'text-gray-800'}`}>
-                                          {ev.time} น.
-                                       </span>
-                                    )}
-                                 </td>
-                                 <td className="p-4 align-top font-bold text-[14px] text-gray-700">{ev.assignee}</td>
-                                 <td className="p-4 align-top text-[14px] text-gray-700">
-                                    <div className="flex items-center">
-                                      {ev.type === 'public_holiday' ? <span className="text-yellow-600 font-bold">นักขัตฤกษ์</span>
-                                       : ev.type === 'holiday' ? <span className="text-red-500 font-bold">วันหยุด</span> 
-                                       : ev.type === 'leave' ? <span className="text-orange-500 font-bold">ลางาน</span>
-                                       : <><span className="mr-2">{getActivityIcon(ev.activity)}</span> {ev.activity}</>}
-                                    </div>
-                                 </td>
-                                 <td className="p-4 align-top text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">
-                                    {ev.note || '-'}
-                                 </td>
-                               </tr>
-                             );
-                           })}
-                         </tbody>
-                       </table>
-                     ) : (
-                       <div className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลในวันนี้</div>
-                     )}
-                   </div>
-                   
-                   <div className="mt-6 flex justify-end items-center space-x-4">
-                     <button onClick={() => setIsDayViewOpen(false)} className="px-4 py-2 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ปิด</button>
-                     <button onClick={() => {setIsDayViewOpen(false); handleOpenModal()}} className="px-5 py-2.5 text-[14px] font-bold bg-[#0b3d1b] text-white rounded-lg hover:bg-brandLight transition-colors flex items-center shadow-sm">
-                       <Icon name="Plus" size={16} className="mr-1.5" /> เพิ่มข้อมูล
-                     </button>
-                   </div>
+          <div className="min-h-screen flex flex-col md:flex-row bg-background font-sans text-gray-800">
+            {/* Sidebar */}
+            <div className={`fixed md:static inset-y-0 left-0 z-40 w-[250px] bg-white border-r border-gray-200 shadow-sm md:shadow-none transform transition-transform duration-300 flex flex-col shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+              <div className="h-[120px] flex flex-col items-center justify-center bg-brand shrink-0">
+                 <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-[65px] object-contain drop-shadow-sm" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                 <div className="hidden flex-col items-center justify-center">
+                   <div className="text-[18px] font-bold tracking-widest text-[#d4af37]">STARTUP UP</div>
+                   <div className="text-[10px] tracking-widest uppercase opacity-80 mt-[-2px] text-white">Real Estate</div>
                  </div>
               </div>
-            );
-          })()}
-
-          {/* Department Modals */}
-          {isAddDeptModalOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มทีมใหม่</h3>
-                <input type="text" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="ชื่อทีม..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" />
-                <div className="flex justify-end space-x-2">
-                  <button onClick={() => setIsAddDeptModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
-                  <button onClick={handleAddDept} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg hover:bg-brandLight transition-colors">บันทึก</button>
-                </div>
+              <div className="flex-1 overflow-y-auto py-5 px-3 space-y-1 custom-scrollbar">
+                <div className="text-[13px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-3 py-3 leading-[1.8]">เมนูระบบ</div>
+                {MAIN_MENUS.map(menu => {
+                  const isActive = activeApp === menu.id;
+                  return (
+                    <button key={menu.id} onClick={() => { setActiveApp(menu.id); setSelectedUser('All'); setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${isActive ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}>
+                      <Icon name={menu.icon} size={20} className={`${isActive ? 'text-brand' : 'text-gray-400'}`} />
+                      <span className="text-[14px]">{menu.label}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
-          )}
 
-          {isAddMemberModalOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มพนักงานทีม {targetDeptForMember}</h3>
-                <input type="text" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} placeholder="ชื่อพนักงาน..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" />
-                <div className="flex justify-end space-x-2">
-                  <button onClick={() => setIsAddMemberModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
-                  <button onClick={handleAddMember} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg hover:bg-brandLight transition-colors">บันทึก</button>
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background relative">
+              <div className="flex items-center justify-between p-4 md:hidden bg-surface shadow-sm z-30 shrink-0 border-b border-gray-100 transition-colors">
+                <div className="flex items-center">
+                  <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-gray-600"><Icon name={isSidebarOpen ? 'X' : 'Menu'} /></button>
+                  <span className="font-bold text-brand text-lg ml-2">STARTUP UP</span>
                 </div>
               </div>
-            </div>
-          )}
 
-          {isDeleteDeptModalOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon name="Trash" size={24}/>
+              {/* Routing for Active Tabs */}
+              {activeApp === 'calendar' && renderCalendarTab()}
+              {activeApp === 'holidays' && renderHolidayTab()}
+              {activeApp === 'content' && <ContentChecklist sheetData={sheetData} sheetError={sheetError} contentChecklists={contentChecklists} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
+              {activeApp === 'schedule' && <ConstructionSchedule sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
+              {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} />}
+              {activeApp === 'company' && <CompanyInfo />}
+              {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
+              {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
+            </div>
+
+            {/* Global Modals */}
+            {isModalOpen && (() => {
+               const btnColor = formData.type === 'holiday' ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : formData.type === 'leave' ? 'bg-[#ea580c] hover:bg-[#c2410c]' : formData.type === 'public_holiday' ? 'bg-[#eab308] hover:bg-[#ca8a04]' : 'bg-[#0b3d1b] hover:bg-[#166534]';
+               return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                  <div className="bg-surface rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
+                    <div className="flex justify-between items-center p-5 border-b border-gray-100">
+                      <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                        <Icon name="CalendarIcon" className="mr-2 text-brand" size={20} />
+                        {editingEventId ? 'แก้ไขรายละเอียด' : 'เพิ่มรายละเอียด'}
+                      </h3>
+                      <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600"><Icon name="X" size={20}/></button>
+                    </div>
+                    
+                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5">
+                      <div className="flex items-center space-x-4 border-b border-gray-100 pb-5">
+                        <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
+                          <input type="radio" checked={formData.type==='event'} onChange={()=>setFormData({...formData, type:'event'})} className="mr-2 w-4 h-4 accent-brand"/> กิจกรรม
+                        </label>
+                        <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
+                          <input type="radio" checked={formData.type==='holiday'} onChange={()=>setFormData({...formData, type:'holiday'})} className="mr-2 w-4 h-4 accent-gray-600"/> วันหยุด
+                        </label>
+                        <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
+                          <input type="radio" checked={formData.type==='leave'} onChange={()=>setFormData({...formData, type:'leave'})} className="mr-2 w-4 h-4 accent-gray-600"/> วันลางาน
+                        </label>
+                        <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
+                          <input type="radio" checked={formData.type==='public_holiday'} onChange={()=>setFormData({...formData, type:'public_holiday'})} className="mr-2 w-4 h-4 accent-gray-600"/> ขัตฤกษ์
+                        </label>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[13px] font-bold text-gray-600 mb-1.5">วันที่</label>
+                          <input type="date" required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700"/>
+                        </div>
+                        <div>
+                          <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ผู้รับผิดชอบ</label>
+                          <select required value={formData.assignee} onChange={e=>setFormData({...formData, assignee:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700">
+                            <option value="" disabled hidden>ระบุผู้รับผิดชอบ</option>
+                            {departments.map((dept) => <optgroup key={dept.id} label={`ทีม ${dept.id}`}>{dept.members.map(name => <option key={name}>{name}</option>)}</optgroup>)}
+                          </select>
+                        </div>
+                      </div>
+                      
+                      {formData.type === 'event' && (
+                        <>
+                          <div className="w-full">
+                            <label className="block text-[13px] font-bold text-gray-600 mb-1.5">เวลา (ชั่วโมง : นาที)</label>
+                            <div className="flex space-x-2 items-center">
+                              <select value={formData.hour} onChange={e=>setFormData({...formData, hour:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{HOURS.map(h=><option key={h}>{h}</option>)}</select>
+                              <span className="font-bold text-gray-400">:</span>
+                              <select value={formData.minute} onChange={e=>setFormData({...formData, minute:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{MINUTES.map(m=><option key={m}>{m}</option>)}</select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[13px] font-bold text-gray-600 mb-1.5">สิ่งที่ต้องทำ</label>
+                            <select required value={formData.activity} onChange={e=>setFormData({...formData, activity:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700">
+                              <option value="" disabled hidden>ระบุสิ่งที่ต้องทำ</option>
+                              {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
+                            </select>
+                          </div>
+                        </>
+                      )}
+                      
+                      <div>
+                        <label className="block text-[13px] font-bold text-gray-600 mb-1.5">หมายเหตุ / รายละเอียดเพิ่มเติม</label>
+                        <textarea rows="3" value={formData.note} onChange={e=>setFormData({...formData, note:e.target.value})} placeholder="กรุณาระบุรายละเอียด" className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 resize-none"></textarea>
+                      </div>
+                      
+                      <div className="flex justify-between pt-6 border-t border-gray-100">
+                        {editingEventId ? <button type="button" onClick={handleDeleteEvent} className="text-red-500 text-[14px] font-bold hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">ลบข้อมูล</button> : <div></div>}
+                        <div className="space-x-3 flex items-center">
+                          <button type="button" onClick={handleCloseModal} className="px-4 py-2.5 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ยกเลิก</button>
+                          <button type="submit" className={`px-5 py-2.5 text-[14px] font-bold text-white rounded-lg shadow-sm transition-all flex items-center ${btnColor}`}>
+                            <Icon name="Plus" size={16} className="mr-1.5" /> บันทึกข้อมูล
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">ลบทีม {deptToDelete}</h3>
-                <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบทีมนี้ใช่หรือไม่?</p>
-                <div className="flex justify-center space-x-2">
-                  <button onClick={() => setIsDeleteDeptModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
-                  <button onClick={handleDeleteDept} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ยืนยัน</button>
+               );
+            })()}
+
+            {/* ตารางแสดงรายละเอียดของวัน */}
+            {isDayViewOpen && selectedDayString && (() => {
+              const { normalEvents, holidays, leaves, publicHolidays } = getEventsForDay(selectedDayString);
+              let itemsToShow = normalEvents;
+              if (activeApp === 'holidays') itemsToShow = [...holidays, ...leaves, ...publicHolidays, ...normalEvents];
+              
+              const timeCounts = {};
+              itemsToShow.forEach(ev => { if (ev.type === 'event' && ev.time) { timeCounts[ev.time] = (timeCounts[ev.time] || 0) + 1; } });
+
+              return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                   <div className="bg-surface rounded-2xl w-full max-w-4xl p-6 md:p-8 shadow-2xl flex flex-col border border-gray-100 relative">
+                     <button onClick={() => setIsDayViewOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                       <Icon name="X" size={18}/>
+                     </button>
+                     
+                     <div className="mb-6 border-b border-transparent">
+                       <div className="inline-block border-b-[3px] border-[#ef4444] pb-2 pr-4">
+                         <h3 className="text-xl md:text-2xl font-bold flex items-center text-brand">
+                           <Icon name="CalendarIcon" className="mr-3" size={24}/> 
+                           กิจกรรมประจำวันที่ {getFormattedDateThai(selectedDayString)}
+                         </h3>
+                       </div>
+                     </div>
+
+                     <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden">
+                       {itemsToShow.length > 0 ? (
+                         <table className="w-full text-left border-collapse">
+                           <thead>
+                             <tr className="bg-gray-50 border-b border-gray-100">
+                               <th className="p-4 text-[13px] font-bold text-gray-500 w-[120px]">เวลา</th>
+                               <th className="p-4 text-[13px] font-bold text-gray-500 w-[140px]">ผู้รับผิดชอบ</th>
+                               <th className="p-4 text-[13px] font-bold text-gray-500 w-[200px]">สิ่งที่ต้องทำ</th>
+                               <th className="p-4 text-[13px] font-bold text-gray-500">หมายเหตุ</th>
+                             </tr>
+                           </thead>
+                           <tbody>
+                             {itemsToShow.map((ev, idx) => {
+                               const isDuplicateTime = ev.type === 'event' && ev.time && timeCounts[ev.time] > 1;
+
+                               return (
+                                 <tr key={ev.id || idx} onClick={() => {setIsDayViewOpen(false); handleOpenModal(null, ev)}} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors">
+                                   <td className="p-4 align-top">
+                                      {ev.type !== 'event' ? '-' : (
+                                         <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[13px] font-bold ${isDuplicateTime ? 'border border-[#ef4444] text-[#ef4444] bg-red-50' : 'text-gray-800'}`}>
+                                            {ev.time} น.
+                                         </span>
+                                      )}
+                                   </td>
+                                   <td className="p-4 align-top font-bold text-[14px] text-gray-700">{ev.assignee}</td>
+                                   <td className="p-4 align-top text-[14px] text-gray-700">
+                                      <div className="flex items-center">
+                                        {ev.type === 'public_holiday' ? <span className="text-yellow-600 font-bold">นักขัตฤกษ์</span>
+                                         : ev.type === 'holiday' ? <span className="text-red-500 font-bold">วันหยุด</span> 
+                                         : ev.type === 'leave' ? <span className="text-orange-500 font-bold">ลางาน</span>
+                                         : <><span className="mr-2">{getActivityIcon(ev.activity)}</span> {ev.activity}</>}
+                                      </div>
+                                   </td>
+                                   <td className="p-4 align-top text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                      {ev.note || '-'}
+                                   </td>
+                                 </tr>
+                               );
+                             })}
+                           </tbody>
+                         </table>
+                       ) : (
+                         <div className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลในวันนี้</div>
+                       )}
+                     </div>
+                     
+                     <div className="mt-6 flex justify-end items-center space-x-4">
+                       <button onClick={() => setIsDayViewOpen(false)} className="px-4 py-2 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ปิด</button>
+                       <button onClick={() => {setIsDayViewOpen(false); handleOpenModal()}} className="px-5 py-2.5 text-[14px] font-bold bg-[#0b3d1b] text-white rounded-lg hover:bg-brandLight transition-colors flex items-center shadow-sm">
+                         <Icon name="Plus" size={16} className="mr-1.5" /> เพิ่มข้อมูล
+                       </button>
+                     </div>
+                   </div>
+                </div>
+              );
+            })()}
+
+            {/* Department Modals */}
+            {isAddDeptModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มทีมใหม่</h3>
+                  <input type="text" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="ชื่อทีม..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" />
+                  <div className="flex justify-end space-x-2">
+                    <button onClick={() => setIsAddDeptModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                    <button onClick={handleAddDept} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg hover:bg-brandLight transition-colors">บันทึก</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {isDeleteMemberModalOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon name="User" size={24}/>
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">ลบรายชื่อ {memberToDelete}</h3>
-                <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบรายชื่อพนักงานนี้ออกจากระบบใช่หรือไม่?</p>
-                <div className="flex justify-center space-x-2">
-                  <button onClick={() => setIsDeleteMemberModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
-                  <button onClick={handleDeleteMember} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ยืนยัน</button>
+            {isAddMemberModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มพนักงานทีม {targetDeptForMember}</h3>
+                  <input type="text" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} placeholder="ชื่อพนักงาน..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" />
+                  <div className="flex justify-end space-x-2">
+                    <button onClick={() => setIsAddMemberModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg">ยกเลิก</button>
+                    <button onClick={handleAddMember} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg hover:bg-brandLight transition-colors">บันทึก</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {isDeleteMonthModalOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon name="Trash" size={24}/>
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลเดือนนี้</h3>
-                <p className="text-sm text-gray-500 mb-5 leading-relaxed">หากต้องการลบ ให้พิมพ์ <b>"ลบข้อมูล"</b></p>
-                <input type="text" value={deleteMonthText} onChange={(e) => setDeleteMonthText(e.target.value)} placeholder="ลบข้อมูล" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-5 outline-none focus:border-red-500 text-center font-bold text-sm" />
-                <div className="flex justify-center space-x-2">
-                  <button onClick={() => { setIsDeleteMonthModalOpen(false); setDeleteMonthText(''); }} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
-                  <button onClick={handleDeleteMonth} disabled={deleteMonthText !== 'ลบข้อมูล'} className={`px-5 py-2.5 text-sm font-bold text-white rounded-lg ${deleteMonthText === 'ลบข้อมูล' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300'}`}>ยืนยัน</button>
+            {isDeleteDeptModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="Trash" size={24}/>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">ลบทีม {deptToDelete}</h3>
+                  <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบทีมนี้ใช่หรือไม่?</p>
+                  <div className="flex justify-center space-x-2">
+                    <button onClick={() => setIsDeleteDeptModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
+                    <button onClick={handleDeleteDept} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ยืนยัน</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-        </div>
+            {isDeleteMemberModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="User" size={24}/>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">ลบรายชื่อ {memberToDelete}</h3>
+                  <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบรายชื่อพนักงานนี้ออกจากระบบใช่หรือไม่?</p>
+                  <div className="flex justify-center space-x-2">
+                    <button onClick={() => setIsDeleteMemberModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
+                    <button onClick={handleDeleteMember} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ยืนยัน</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isDeleteMonthModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="Trash" size={24}/>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลเดือนนี้</h3>
+                  <p className="text-sm text-gray-500 mb-5 leading-relaxed">หากต้องการลบ ให้พิมพ์ <b>"ลบข้อมูล"</b></p>
+                  <input type="text" value={deleteMonthText} onChange={(e) => setDeleteMonthText(e.target.value)} placeholder="ลบข้อมูล" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-5 outline-none focus:border-red-500 text-center font-bold text-sm" />
+                  <div className="flex justify-center space-x-2">
+                    <button onClick={() => { setIsDeleteMonthModalOpen(false); setDeleteMonthText(''); }} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
+                    <button onClick={handleDeleteMonth} disabled={deleteMonthText !== 'ลบข้อมูล'} className={`px-5 py-2.5 text-sm font-bold text-white rounded-lg ${deleteMonthText === 'ลบข้อมูล' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300'}`}>ยืนยัน</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </>
       );
     }
 
