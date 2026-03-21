@@ -1747,7 +1747,7 @@
           return map;
       }, [validData]);
 
-      // ใช้ไลบรารี marked ช่วยแปลงข้อความเป็น HTML อย่างปลอดภัย (อัปเดตให้รองรับลิงก์ Line Voom และซ่อนรหัสมั่ว)
+      // ใช้ไลบรารี marked ช่วยแปลงข้อความเป็น HTML อย่างปลอดภัย (เปิดหน้าใหม่แท็บใหม่)
       const renderFormattedText = (text) => {
         let processedText = text;
         // แปลงรหัส [M_ID], [W_ID], [V_ID] กลับเป็นลิงก์คลิกได้
@@ -1764,7 +1764,9 @@
         });
 
         if (window.marked) {
-            const rawMarkup = window.marked.parse(processedText);
+            let rawMarkup = window.marked.parse(processedText);
+            // บังคับให้ทุกลิงก์ที่สร้างจาก markdown เปิดในแท็บใหม่ (target="_blank")
+            rawMarkup = rawMarkup.replace(/<a href=/g, '<a target="_blank" rel="noopener noreferrer" href=');
             return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: rawMarkup }} />;
         }
         return <div className="whitespace-pre-wrap">{processedText}</div>;
@@ -1822,14 +1824,15 @@
 
         // 1. ถอดคำที่เป็น "ความต้องการ" ออกไปให้หมด เพื่อให้เหลือแค่ "ชื่อโครงการ" ที่แท้จริง (Search Keywords)
         let searchStr = queryLower;
-        const removeTerms = ['ขอ', 'หน่อย', 'ครับ', 'ค่ะ', 'แมพ', 'map', 'เว็บ', 'website', 'ไลน์วูม', 'voom', 'รูปภาพ', 'รูป', 'ภาพ', 'แผนที่', 'โลเคชั่น', 'location', 'ราคา', 'มีกี่', 'กี่หลัง', 'ทั้งหมด', 'ขอดู', 'รายชื่อ', 'ตาราง', 'รายละเอียด', 'บ้าน', 'ดู', 'ข้อมูล'];
+        // เพิ่มคำว่า ซอย, บ้านเลขที่ เข้าไปในกลุ่มลบทิ้ง เพื่อให้ได้แต่ชื่อโครงการบริสุทธิ์
+        const removeTerms = ['ขอ', 'หน่อย', 'ครับ', 'ค่ะ', 'แมพ', 'map', 'เว็บ', 'website', 'ไลน์วูม', 'voom', 'รูปภาพ', 'รูป', 'ภาพ', 'แผนที่', 'โลเคชั่น', 'location', 'ราคา', 'มีกี่', 'กี่หลัง', 'ทั้งหมด', 'ขอดู', 'รายชื่อ', 'ตาราง', 'รายละเอียด', 'บ้าน', 'ดู', 'ข้อมูล', 'หมู่บ้าน', 'โครงการ', 'ของ', 'ซอย', 'บ้านเลขที่', 'เลขที่'];
         
         removeTerms.forEach(term => {
             searchStr = searchStr.replace(new RegExp(term, 'g'), ' ');
         });
 
         // ได้คีย์เวิร์ดที่กรองแล้ว เช่น ["พฤกษา", "12"]
-        const keywords = searchStr.split(/\s+/).filter(w => w.length >= 2);
+        const keywords = searchStr.split(/\s+/).filter(w => w.length > 0);
         
         // 2. เช็คความต้องการอื่นๆ
         const wantsList = ['ขอดู', 'รายชื่อ', 'ตาราง', 'มีหลังไหนบ้าง', 'รายละเอียด'].some(w => queryLower.includes(w));
@@ -1843,18 +1846,38 @@
         if (keywords.length > 0 || needsSpecificInfo) {
             needsDetailData = true;
             if (keywords.length > 0) {
-                // ค้นหาแบบเป๊ะๆ 100% (คำต้องครบ)
-                finalRows = aiActiveData.filter(row => {
-                    const str = `${row['หมู่บ้าน']} ${row['บ้านเลขที่']} ${row['ซอย']} ${row['ทำเล']}`.toLowerCase();
-                    return keywords.every(k => str.includes(k)); 
-                });
-                
-                // ถ้าค้นหาแบบเป๊ะๆ ไม่เจอ ลองค้นหาแบบหย่อนยาน (บางคำตรงก็เอา)
-                if (finalRows.length === 0) {
-                     finalRows = aiActiveData.filter(row => {
-                        const str = `${row['หมู่บ้าน']} ${row['บ้านเลขที่']} ${row['ซอย']} ${row['ทำเล']}`.toLowerCase();
-                        return keywords.some(k => str.includes(k));
+                // ระบบค้นหาแบบให้คะแนน (Scoring System) อัจฉริยะ ป้องกันการนำซอยของหมู่บ้านอื่นมาปน 100%
+                let maxScore = 0;
+                let scoredRows = aiActiveData.map(row => {
+                    let score = 0;
+                    const projName = safeTrim(row['หมู่บ้าน']).toLowerCase();
+                    const houseNo = safeTrim(row['บ้านเลขที่']).toLowerCase();
+                    const soi = safeTrim(row['ซอย']).toLowerCase();
+                    
+                    keywords.forEach(k => {
+                        // ให้คะแนนความสำคัญ: เจอในชื่อหมู่บ้าน (คะแนนสูงมาก) > เลขที่บ้าน > ซอย
+                        if (projName.includes(k)) score += 100;
+                        else if (houseNo.includes(k)) score += 50;
+                        else if (soi.includes(k)) score += 10;
                     });
+                    
+                    // โบนัสพิเศษ: ถ้าคีย์เวิร์ดเรียงต่อกันแล้วตรงกับชื่อหมู่บ้าน (เช่น "พฤกษา"+"12" = "พฤกษา12")
+                    const projNoSpace = projName.replace(/\s+/g, '');
+                    const keywordsNoSpace = keywords.join('');
+                    if (keywordsNoSpace.length > 1 && projNoSpace.includes(keywordsNoSpace)) {
+                        score += 500;
+                    }
+                    
+                    if (score > maxScore) maxScore = score;
+                    return { ...row, _score: score };
+                });
+
+                // คัดกรองเอาเฉพาะแถวที่มีคะแนนสูงสุด (หรือห่างจากที่ 1 ไม่เกิน 10 คะแนน)
+                // เพื่อกำจัดหมู่บ้านอื่นที่บังเอิญมีซอยตรงกับเลขที่เราค้นหาออกไป
+                if (maxScore > 0) {
+                    finalRows = scoredRows.filter(row => row._score >= maxScore - 10);
+                } else {
+                    finalRows = [];
                 }
             } else {
                 finalRows = [...aiActiveData]; // กรณีที่ถามหาข้อมูลรวมๆ แต่ไม่มี keyword เฉพาะ
@@ -1869,10 +1892,10 @@
         const isTruncated = finalRows.length > MAX_ROWS;
         finalRows = finalRows.slice(0, MAX_ROWS);
 
-        // แปลงข้อมูลเป็น CSV (แยกราคาปกติ และ ราคา Sale ออกจากกัน และเพิ่มคอลัมน์ Line Voom)
+        // แปลงข้อมูลเป็น CSV (เปลี่ยนชื่อคอลัมน์ลิงก์เป็นภาษาอังกฤษ ให้ AI แยกแยะชัดเจน)
         let csvData = "(ไม่ได้ดึงรายชื่อมาในรอบนี้เพื่อประหยัดพลังงาน หากต้องการดูรายละเอียดของบ้านให้พิมพ์ชื่อโครงการเจาะจงนะคะ)";
         if (needsDetailData && finalRows.length > 0) {
-            const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคาปกติ(H)|ราคาSale|แผนที่(U)|เว็บไซต์(W)|รูป/Voom(V)|แนวตั้ง|แนวนอน|รูป|ASMR";
+            const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคาปกติ|ราคาSale|MapCode|WebCode|VoomCode|แนวตั้ง|แนวนอน|รูป|ASMR";
             const csvRows = finalRows.map((row) => {
                 const cl = contentChecklists[row.id] || {};
                 const p = safeTrim(row['หมู่บ้าน']).replace(/\|/g, '');
@@ -1919,10 +1942,10 @@ ${summaryStats}
 
 กฏเหล็ก (ต้องทำตามอย่างเคร่งครัด):
 1. การแจ้งราคา: หากพี่ๆ ถาม "ราคา" ให้หนูตอบมา 2 ราคาเสมอ คือ "ราคาปกติ" และตามด้วย "ราคา Sale" (ถ้าราคาไหนไม่มีข้อมูล ให้ขีด - ไว้)
-2. การให้ลิงก์: หนูต้องดึง "รหัสย่อ" จากตารางมาตอบให้ตรงกับสิ่งที่พี่ๆ ถาม ดังนี้:
-   - ถ้าถามหา "แผนที่", "แมพ", "Location" -> ให้คัดลอกรหัสจากคอลัมน์ "แผนที่(U)" (รหัสจะขึ้นต้นด้วย [M_xx])
-   - ถ้าถามหา "ไลน์วูม", "Line Voom", "รูปภาพ" -> ให้คัดลอกรหัสจากคอลัมน์ "รูป/Voom(V)" (รหัสจะขึ้นต้นด้วย [V_xx])
-   - ถ้าถามหา "เว็บ", "เว็บไซต์", "Website" -> ให้คัดลอกรหัสจากคอลัมน์ "เว็บไซต์(W)" (รหัสจะขึ้นต้นด้วย [W_xx])
+2. การให้ลิงก์: หนูต้องดึง "รหัสย่อ" จากตารางมาตอบให้ตรงกับสิ่งที่พี่ๆ ถาม (ห้ามสลับคอลัมน์กันเด็ดขาด):
+   - ถ้าถามหา "แผนที่", "แมพ", "Location" -> ให้คัดลอกรหัสจากคอลัมน์ "MapCode" เท่านั้น (รหัสจะขึ้นต้นด้วย [M_xx])
+   - ถ้าถามหา "ไลน์วูม", "Line Voom", "รูปภาพ" -> ให้คัดลอกรหัสจากคอลัมน์ "VoomCode" เท่านั้น (รหัสจะขึ้นต้นด้วย [V_xx])
+   - ถ้าถามหา "เว็บ", "เว็บไซต์", "Website" -> ให้คัดลอกรหัสจากคอลัมน์ "WebCode" เท่านั้น (รหัสจะขึ้นต้นด้วย [W_xx])
    
    🎯 **ข้อบังคับสำคัญมาก:** เวลาส่งลิงก์ หนูต้องบอกเสมอว่าลิงก์นั้นเป็นของบ้านหลังไหน (ต้องระบุ ชื่อโครงการ + บ้านเลขที่ + ซอย) 
    และ **ถ้าในโครงการนั้นมีหลายหลัง หนูต้องลิสต์ส่งมาให้ครบทุกหลังเลยนะคะ** ตัวอย่างการตอบ:
