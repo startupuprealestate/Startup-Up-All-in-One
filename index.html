@@ -2042,9 +2042,11 @@
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto custom-scrollbar horizontal-scrollbar strict-scroll bg-white p-0 relative">
-               <table className="w-full text-center border-collapse min-w-max">
-                 <thead className="sticky top-0 z-10 shadow-sm">
+            <div className="flex-1 relative overflow-hidden bg-white p-0">
+               <div className="absolute inset-0 overflow-x-auto overflow-y-hidden horizontal-scrollbar">
+                 <div className="h-full w-max min-w-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+                   <table className="w-full text-center border-collapse min-w-max">
+                     <thead className="sticky top-0 z-20 shadow-sm bg-white">
                    <tr>
                      <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
                      <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
@@ -2068,7 +2070,9 @@
                  <tbody>
                    {departments.map((dept) => (
                      <React.Fragment key={dept.id}>
-                       <tr><td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td></tr>
+                       <tr>
+                         <td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td>
+                       </tr>
                        {dept.members.map((emp, idx) => (
                          <tr key={emp} className="hover:bg-gray-50 transition-colors">
                            <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
@@ -2097,6 +2101,8 @@
                    ))}
                  </tbody>
                </table>
+              </div>
+             </div>
             </div>
           </div>
         </div>
