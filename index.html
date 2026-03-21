@@ -1729,29 +1729,38 @@
           return sheetData.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
       }, [sheetData]);
 
-      // 2. สร้าง Dictionary สำหรับเก็บลิงก์ยาวๆ แยกไว้ต่างหาก เพื่อไม่ให้เปลือง Token (เปลี่ยนไปใช้ ID อ้างอิง)
+      // 2. สร้าง Dictionary สำหรับเก็บลิงก์ยาวๆ แยกไว้ต่างหาก เพื่อไม่ให้เปลือง Token (เพิ่ม Line Voom)
       const globalUrlMap = React.useMemo(() => {
           const map = {};
           validData.forEach((row) => {
+              // ดึงข้อมูล Map (คอลัมน์ U)
               const mapUrl = (safeTrim(row['Location']) || safeTrim(row['Map']) || safeTrim(row['แผนที่']) || safeTrim(row['โลเคชั่น'])).replace(/\|/g, '');
-              const webUrl = safeTrim(row['Website']).replace(/\|/g, '');
+              // ดึงข้อมูล Website (คอลัมน์ W)
+              const webUrl = (safeTrim(row['Website']) || safeTrim(row['เว็บไซต์']) || safeTrim(row['เว็บ'])).replace(/\|/g, '');
+              // ดึงข้อมูล Line Voom / รูปภาพ (คอลัมน์ V)
+              const voomUrl = (safeTrim(row['Line Voom']) || safeTrim(row['Line voom']) || safeTrim(row['ไลน์วูม']) || safeTrim(row['รูปภาพ']) || safeTrim(row['รูป'])).replace(/\|/g, '');
+
               if (mapUrl) map[`[M_${row.id}]`] = mapUrl;
               if (webUrl) map[`[W_${row.id}]`] = webUrl;
+              if (voomUrl) map[`[V_${row.id}]`] = voomUrl;
           });
           return map;
       }, [validData]);
 
-      // ใช้ไลบรารี marked ช่วยแปลงข้อความเป็น HTML อย่างปลอดภัย
+      // ใช้ไลบรารี marked ช่วยแปลงข้อความเป็น HTML อย่างปลอดภัย (อัปเดตให้รองรับลิงก์ Line Voom และซ่อนรหัสมั่ว)
       const renderFormattedText = (text) => {
         let processedText = text;
-        // แปลงรหัส [M_ID], [W_ID] กลับเป็นลิงก์คลิกได้
-        const idRegex = /\[(M|W)_([^\]]+)\]/g;
-        processedText = processedText.replace(idRegex, (match) => {
+        // แปลงรหัส [M_ID], [W_ID], [V_ID] กลับเป็นลิงก์คลิกได้
+        const idRegex = /\[(M|W|V)_([^\]]+)\]/g;
+        processedText = processedText.replace(idRegex, (match, type) => {
             const url = globalUrlMap[match];
             if (url) {
-                return match.startsWith('[M') ? `[📍 แผนที่](${url})` : `[🌐 ลิงก์โพสต์](${url})`;
+                if (type === 'M') return `[📍 แผนที่](${url})`;
+                if (type === 'W') return `[🌐 เว็บไซต์](${url})`;
+                if (type === 'V') return `[🖼️ Line Voom (รูปภาพ)](${url})`;
             }
-            return match;
+            // ถ้า AI แอบแต่งรหัสเอง หรือไม่มีข้อมูลในระบบ ให้เนียนโชว์ว่าไม่มีข้อมูล
+            return '*(ยังไม่มีข้อมูลลิงก์ค่ะ)*'; 
         });
 
         if (window.marked) {
@@ -1811,20 +1820,45 @@
         let needsDetailData = false;
         let finalRows = [];
 
-        // 1. เช็คว่าถามหาข้อมูลเฉพาะเจาะจงไหม (หาจาก Keyword)
-        const stopWords = ['มีกี่', 'กี่หลัง', 'ทั้งหมด', 'ขอดู', 'รายชื่อ', 'ตาราง', 'บ้าน', 'ขอ', 'หน่อย', 'ครับ', 'ค่ะ', 'อะไรบ้าง', 'มีอะไรบ้าง'];
-        const keywords = queryLower.split(' ').filter(w => w.length > 2 && !stopWords.includes(w));
+        // 1. ถอดคำที่เป็น "ความต้องการ" ออกไปให้หมด เพื่อให้เหลือแค่ "ชื่อโครงการ" ที่แท้จริง (Search Keywords)
+        let searchStr = queryLower;
+        const removeTerms = ['ขอ', 'หน่อย', 'ครับ', 'ค่ะ', 'แมพ', 'map', 'เว็บ', 'website', 'ไลน์วูม', 'voom', 'รูปภาพ', 'รูป', 'ภาพ', 'แผนที่', 'โลเคชั่น', 'location', 'ราคา', 'มีกี่', 'กี่หลัง', 'ทั้งหมด', 'ขอดู', 'รายชื่อ', 'ตาราง', 'รายละเอียด', 'บ้าน', 'ดู', 'ข้อมูล'];
         
-        // 2. เช็คว่าตั้งใจขอดูตาราง/รายชื่อไหม
-        const wantsList = ['ขอดู', 'รายชื่อ', 'ตาราง', 'มีหลังไหนบ้าง', 'รายละเอียด'].some(w => queryLower.includes(w));
+        removeTerms.forEach(term => {
+            searchStr = searchStr.replace(new RegExp(term, 'g'), ' ');
+        });
 
-        if (keywords.length > 0) {
+        // ได้คีย์เวิร์ดที่กรองแล้ว เช่น ["พฤกษา", "12"]
+        const keywords = searchStr.split(/\s+/).filter(w => w.length >= 2);
+        
+        // 2. เช็คความต้องการอื่นๆ
+        const wantsList = ['ขอดู', 'รายชื่อ', 'ตาราง', 'มีหลังไหนบ้าง', 'รายละเอียด'].some(w => queryLower.includes(w));
+        const wantsMap = ['แมพ', 'map', 'แผนที่', 'โลเคชั่น', 'location'].some(w => queryLower.includes(w));
+        const wantsVoom = ['ไลน์วูม', 'voom', 'รูป', 'ภาพ'].some(w => queryLower.includes(w));
+        const wantsWeb = ['เว็บ', 'website'].some(w => queryLower.includes(w));
+        const wantsPrice = ['ราคา'].some(w => queryLower.includes(w));
+
+        const needsSpecificInfo = wantsMap || wantsVoom || wantsWeb || wantsPrice;
+
+        if (keywords.length > 0 || needsSpecificInfo) {
             needsDetailData = true;
-            // กรองเอาเฉพาะบ้านที่มีคำตรงกับที่ค้นหา
-            finalRows = aiActiveData.filter(row => {
-                const str = `${row['หมู่บ้าน']} ${row['บ้านเลขที่']} ${row['ซอย']} ${row['ทำเล']}`.toLowerCase();
-                return keywords.some(k => str.includes(k));
-            });
+            if (keywords.length > 0) {
+                // ค้นหาแบบเป๊ะๆ 100% (คำต้องครบ)
+                finalRows = aiActiveData.filter(row => {
+                    const str = `${row['หมู่บ้าน']} ${row['บ้านเลขที่']} ${row['ซอย']} ${row['ทำเล']}`.toLowerCase();
+                    return keywords.every(k => str.includes(k)); 
+                });
+                
+                // ถ้าค้นหาแบบเป๊ะๆ ไม่เจอ ลองค้นหาแบบหย่อนยาน (บางคำตรงก็เอา)
+                if (finalRows.length === 0) {
+                     finalRows = aiActiveData.filter(row => {
+                        const str = `${row['หมู่บ้าน']} ${row['บ้านเลขที่']} ${row['ซอย']} ${row['ทำเล']}`.toLowerCase();
+                        return keywords.some(k => str.includes(k));
+                    });
+                }
+            } else {
+                finalRows = [...aiActiveData]; // กรณีที่ถามหาข้อมูลรวมๆ แต่ไม่มี keyword เฉพาะ
+            }
         } else if (wantsList) {
             needsDetailData = true;
             finalRows = [...aiActiveData]; 
@@ -1835,10 +1869,10 @@
         const isTruncated = finalRows.length > MAX_ROWS;
         finalRows = finalRows.slice(0, MAX_ROWS);
 
-        // แปลงข้อมูลเป็น CSV (ทำเฉพาะตอนที่จำเป็นต้องใช้ตารางเท่านั้น ถ้าถามแค่จำนวนจะไม่แปลงให้เปลือง Token)
-        let csvData = "(ไม่ได้ดึงรายชื่อมาในรอบนี้เพื่อประหยัดพลังงาน หากต้องการดูรายชื่อบ้านให้พิมพ์คำว่า 'ขอดูรายชื่อ' หรือระบุชื่อโครงการนะคะ)";
+        // แปลงข้อมูลเป็น CSV (แยกราคาปกติ และ ราคา Sale ออกจากกัน และเพิ่มคอลัมน์ Line Voom)
+        let csvData = "(ไม่ได้ดึงรายชื่อมาในรอบนี้เพื่อประหยัดพลังงาน หากต้องการดูรายละเอียดของบ้านให้พิมพ์ชื่อโครงการเจาะจงนะคะ)";
         if (needsDetailData && finalRows.length > 0) {
-            const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคา|แผนที่|โพสต์|แนวตั้ง|แนวนอน|รูป|ASMR";
+            const headers = "โครงการ|เลขที่|ซอย|ทำเล|สถานะ|ราคาปกติ(H)|ราคาSale|แผนที่(U)|เว็บไซต์(W)|รูป/Voom(V)|แนวตั้ง|แนวนอน|รูป|ASMR";
             const csvRows = finalRows.map((row) => {
                 const cl = contentChecklists[row.id] || {};
                 const p = safeTrim(row['หมู่บ้าน']).replace(/\|/g, '');
@@ -1846,25 +1880,29 @@
                 const s = safeTrim(row['ซอย']).replace(/\|/g, '');
                 const loc = safeTrim(row['ทำเล']).replace(/\|/g, '');
                 const st = safeTrim(row['สถานะ']).replace(/\|/g, '');
-                const pr = (safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])).replace(/\|/g, '');
+                
+                // แยกราคาเป็น 2 คอลัมน์
+                const prNormal = safeTrim(row['ราคา']).replace(/\|/g, '') || '-';
+                const prSale = safeTrim(row['ราคา sale']).replace(/\|/g, '') || '-';
                 
                 // ใช้รหัสอ้างอิงแทนเพื่อลดขนาด Token
                 const mapId = globalUrlMap[`[M_${row.id}]`] ? `[M_${row.id}]` : '-';
                 const webId = globalUrlMap[`[W_${row.id}]`] ? `[W_${row.id}]` : '-';
+                const voomId = globalUrlMap[`[V_${row.id}]`] ? `[V_${row.id}]` : '-';
                 
                 const v = cl.main_vertical ? 'Y' : 'N';
                 const h = cl.main_horizontal ? 'Y' : 'N';
                 const ph = cl.main_photo ? 'Y' : 'N';
                 const asmr = cl.sub_dir_asmr ? 'Y' : 'N';
                 
-                return `${p}|${no}|${s}|${loc}|${st}|${pr}|${mapId}|${webId}|${v}|${h}|${ph}|${asmr}`;
+                return `${p}|${no}|${s}|${loc}|${st}|${prNormal}|${prSale}|${mapId}|${webId}|${voomId}|${v}|${h}|${ph}|${asmr}`;
             });
             csvData = headers + '\n' + csvRows.join('\n') + (isTruncated ? '\n... (ข้อมูลยาวเกินไป แสดงให้ดูแค่ 20 หลัง หากหาไม่เจอให้ระบุชื่อโครงการให้ชัดเจน)' : '');
         } else if (needsDetailData && finalRows.length === 0) {
             csvData = "ไม่พบข้อมูลบ้านที่ตรงกับคำค้นหา";
         }
 
-        // อัปเกรดความฉลาดและความเป็นผู้หญิง 100%
+        // อัปเกรดความฉลาดและความเป็นผู้หญิง 100% พร้อมล็อกเป้าคอลัมน์ลิงก์ให้เป๊ะๆ
         const systemPrompt = `คุณคือ 'น้อง Up' AI ผู้ช่วยบริษัท Startup Up (คุณเป็นผู้หญิง 100%)
 บุคลิก: น่ารัก สดใส สุภาพ พูดจาไพเราะ เป็นกันเอง สั้นๆ กระชับ
 คำแทนตัวเอง: ให้ใช้คำว่า "น้อง Up" หรือ "หนู" เท่านั้น **ห้ามใช้คำว่า "ผม" หรือ "ฉัน" เด็ดขาด**
@@ -1873,18 +1911,23 @@
 หน้าที่: ตอบคำถามด้วยข้อมูลด้านล่างเท่านั้น ห้ามมั่วข้อมูล
 Y=ทำแล้ว, N=ยังไม่ทำ
 
-📊 ข้อมูลสถิติภาพรวม (ข้อมูลความแม่นยำสูง ยึดตัวเลขจากส่วนนี้เป็นหลักได้เลย):
+📊 ข้อมูลสถิติภาพรวม:
 ขอบเขตข้อมูลขณะนี้: ${dataScopeText}
 มีบ้านในรายการทั้งหมด: ${totalActiveHouses} หลัง
 แยกตามสถานะดังนี้:
 ${summaryStats}
 
-กฏเหล็ก:
-1. หากถามแค่ "จำนวน" หรือ "กี่หลัง" ให้ตอบสั้นๆ ทันที ไม่ต้องสร้างตารางลิสต์รายชื่อ (ดูจากข้อมูลสถิติภาพรวมได้เลย)
-2. หากพี่ๆ ถามถึงบ้านขายแล้ว แต่ขอบเขตข้อมูลบอกว่า "ซ่อนบ้านขายแล้ว" ให้ตอบไปน่ารักๆ ว่า "หนูซ่อนข้อมูลบ้านขายแล้วไว้ค่ะ รบกวนพี่พิมพ์คำว่า 'ขายแล้ว' ในประโยคคำถาม เพื่อให้หนูดึงข้อมูลมาให้นะคะ"
-3. ใช้ตาราง Markdown เฉพาะเมื่อมีข้อมูลตารางส่งไปให้และถูกสั่งให้ "ลิสต์รายชื่อ" หรือ "ขอดูหน่อย"
-4. ถ้าระบุลิงก์ ให้พิมพ์รหัส (เช่น [M_xx] หรือ [W_xx]) ออกมาตรงๆ ระบบจะแปลงเป็นลิงก์ให้เอง
-5. ต้องระบุ "ซอย" คู่กับโครงการและบ้านเลขที่เสมอ
+กฏเหล็ก (ต้องทำตามอย่างเคร่งครัด):
+1. การแจ้งราคา: หากพี่ๆ ถาม "ราคา" ให้หนูตอบมา 2 ราคาเสมอ คือ "ราคาปกติ" และตามด้วย "ราคา Sale" (ถ้าราคาไหนไม่มีข้อมูล ให้ขีด - ไว้)
+2. การให้ลิงก์: หนูต้องดึง "รหัสย่อ" จากตารางมาตอบให้ตรงกับสิ่งที่พี่ๆ ถาม ดังนี้:
+   - ถ้าถามหา "แผนที่", "แมพ", "Location" -> ให้คัดลอกรหัสจากคอลัมน์ "แผนที่(U)" (รหัสจะขึ้นต้นด้วย [M_xx])
+   - ถ้าถามหา "ไลน์วูม", "Line Voom", "รูปภาพ" -> ให้คัดลอกรหัสจากคอลัมน์ "รูป/Voom(V)" (รหัสจะขึ้นต้นด้วย [V_xx])
+   - ถ้าถามหา "เว็บ", "เว็บไซต์", "Website" -> ให้คัดลอกรหัสจากคอลัมน์ "เว็บไซต์(W)" (รหัสจะขึ้นต้นด้วย [W_xx])
+   (หนูแค่พิมพ์รหัสนั้นออกมาตรงๆ เดี๋ยวระบบจะแปลงเป็นปุ่มให้เอง)
+3. การจัดการข้อมูลที่ไม่มี: ถ้ารหัสในตารางเป็นเครื่องหมาย "-" แปลว่าไม่มีข้อมูล ให้ตอบพี่ๆ ว่า "ตอนนี้ยังไม่มีข้อมูลลิงก์ส่วนนี้ค่ะ" **ห้ามพิมพ์รหัสที่แต่งขึ้นมาเองเด็ดขาด**
+4. หากถามแค่ "จำนวน" ให้ตอบสั้นๆ ทันที ไม่ต้องสร้างตารางลิสต์รายชื่อ (ดูจากข้อมูลสถิติภาพรวมได้เลย)
+5. หากพี่ๆ ถามถึงบ้านขายแล้ว แต่ขอบเขตข้อมูลบอกว่า "ซ่อนบ้านขายแล้ว" ให้ตอบไปน่ารักๆ ว่า "หนูซ่อนข้อมูลบ้านขายแล้วไว้ค่ะ รบกวนพี่พิมพ์คำว่า 'ขายแล้ว' ในประโยคคำถาม เพื่อให้หนูดึงข้อมูลมาให้นะคะ"
+6. ต้องระบุ "ซอย" คู่กับโครงการและบ้านเลขที่เสมอ
 
 ข้อมูลรายหลัง (ถ้าไม่ได้ขอ จะถูกซ่อนเพื่อประหยัดพลังงาน):
 ${csvData}
