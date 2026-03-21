@@ -27,7 +27,17 @@
     }
   </script>
   <style>
-    body { -webkit-font-smoothing: antialiased; background-color: #f9fafb; }
+    /* ล็อกหน้าจอหลักไม่ให้ขยับหรือเด้งดึ๋ง 100% (เหมือนแอปจริง) */
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden !important; 
+      overscroll-behavior: none !important;
+      background-color: #f9fafb;
+      -webkit-font-smoothing: antialiased;
+      margin: 0; padding: 0;
+    }
+    #root { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 10px; }
@@ -49,6 +59,7 @@
     .markdown-body p:last-child { margin-bottom: 0; }
     .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.5rem; }
     .markdown-body ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 0.5rem; }
+    
     @keyframes initPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     .init-splash { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background-color: #0b3d1b; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .init-logo { height: 7rem; width: auto; object-fit: contain; animation: initPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
@@ -77,51 +88,6 @@
   </script>
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
-    
-    // --- HOOK ล็อกแกนการเลื่อน (ป้องกันจอเลื่อนทะแยงมั่วบนมือถือ) ---
-    const useStrictScroll = () => {
-        const scrollRef = useRef(null);
-        useEffect(() => {
-            const el = scrollRef.current;
-            if (!el) return;
-            let startX = 0, startY = 0, isScrollingX = false, isScrollingY = false;
-
-            const onTouchStart = (e) => {
-                if (e.touches.length === 1) {
-                    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-                    isScrollingX = false; isScrollingY = false;
-                    el.style.overflowX = 'auto'; el.style.overflowY = 'auto';
-                }
-            };
-            const onTouchMove = (e) => {
-                if (e.touches.length === 1 && !isScrollingX && !isScrollingY) {
-                    const dx = Math.abs(e.touches[0].clientX - startX);
-                    const dy = Math.abs(e.touches[0].clientY - startY);
-                    if (dx > 5 || dy > 5) {
-                        if (dx > dy) { isScrollingX = true; el.style.overflowY = 'hidden'; } 
-                        else { isScrollingY = true; el.style.overflowX = 'hidden'; }
-                    }
-                }
-            };
-            const onTouchEnd = () => {
-                el.style.overflowX = 'auto'; el.style.overflowY = 'auto';
-                isScrollingX = false; isScrollingY = false;
-            };
-
-            el.addEventListener('touchstart', onTouchStart, { passive: true });
-            el.addEventListener('touchmove', onTouchMove, { passive: true });
-            el.addEventListener('touchend', onTouchEnd, { passive: true });
-            el.addEventListener('touchcancel', onTouchEnd, { passive: true });
-
-            return () => {
-                el.removeEventListener('touchstart', onTouchStart);
-                el.removeEventListener('touchmove', onTouchMove);
-                el.removeEventListener('touchend', onTouchEnd);
-                el.removeEventListener('touchcancel', onTouchEnd);
-            };
-        }, []);
-        return scrollRef;
-    };
 
     const Icon = ({ name, size = 20, className = '', ...props }) => {
       const icons = {
@@ -316,7 +282,6 @@
 
     // --- TAB COMPONENTS ---
     const ContentChecklist = ({ sheetData, sheetError, contentChecklists, isFirebaseLoaded, setManualRefreshKey }) => {
-        const tableScrollRef = useStrictScroll();
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isTaskFilterOpen, setIsTaskFilterOpen] = useState(false); const [pendingTaskFilter, setPendingTaskFilter] = useState(''); 
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -349,19 +314,18 @@
         const toggleHideValue = (col, val) => setHiddenValues(p => { const arr = p[col] || []; return { ...p, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] }; });
 
         return (
-          <div className="flex-1 p-4 md:p-8 overflow-auto flex flex-col h-full bg-background text-gray-800">
-            <div className="flex justify-between items-center mb-6 shrink-0">
+          <div className="flex-1 p-3 md:p-6 overflow-hidden flex flex-col h-full bg-background text-gray-800">
+            <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
               <div>
                 <div className="flex items-center gap-3">
-                    <h2 className="text-[22px] font-bold flex items-center text-gray-800"><Icon name="CheckSquare" className="mr-3 text-brand" size={26}/> เช็คลิสต์คอนเทนต์บ้าน</h2>
+                    <h2 className="text-[20px] md:text-[22px] font-bold flex items-center text-gray-800"><Icon name="CheckSquare" className="mr-2 md:mr-3 text-brand" size={24}/> เช็คลิสต์คอนเทนต์บ้าน</h2>
                     {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{filteredData.length} รายการ</span></div>}
                     <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                 </div>
-                <p className="text-gray-500 text-[13px] mt-1">ข้อมูลเชื่อมต่อตรงจาก Google Sheet</p>
               </div>
             </div>
 
-            <div className="bg-white p-4 xl:p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 relative z-20">
+            <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
                 <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
                     <div className="flex items-center text-[14px] font-bold text-gray-700"><Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล</div>
                     <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500"><Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} /></div>
@@ -462,7 +426,7 @@
             </div>
 
             <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-              <div ref={tableScrollRef} className="overflow-auto custom-scrollbar flex-1 relative bg-white">
+              <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <table className="w-full text-left border-collapse min-w-max">
                   <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                     <tr>
@@ -548,7 +512,6 @@
     };
 
     const ConstructionSchedule = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
-        const tableScrollRef = useStrictScroll();
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -557,7 +520,6 @@
         const [isRefreshing, setIsRefreshing] = useState(false);
         const [showFilters, setShowFilters] = useState(false);
         
-        // เพิ่ม State สำหรับจัดการประวัติ
         const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
         const [historyToDelete, setHistoryToDelete] = useState(null);
 
@@ -614,10 +576,10 @@
         };
 
         return (
-            <div className="flex-1 p-4 md:p-8 overflow-auto bg-background flex flex-col h-full">
-               <div className="flex justify-between items-center mb-6 shrink-0">
+            <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
+               <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-[22px] font-bold text-gray-800 flex items-center"><Icon name="Home" className="mr-3 text-brand" size={26}/> สถานะบ้าน(ยังไม่เสร็จ)</h2>
+                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="Home" className="mr-2 md:mr-3 text-brand" size={24}/> สถานะบ้าน(ยังไม่เสร็จ)</h2>
                         {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{sortedData.length} รายการ</span></div>}
                         <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                         <button onClick={() => setIsHistoryModalOpen(true)} className="ml-1 px-3 py-1.5 text-brand bg-brand/10 border border-brand/20 rounded-lg shadow-sm hover:bg-brand/20 transition-all font-bold text-[13px] flex items-center">
@@ -626,7 +588,7 @@
                     </div>
                </div>
 
-               <div className="bg-white p-4 xl:p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 relative z-20">
+               <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
                     <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
                         <div className="flex items-center text-[14px] font-bold text-gray-700"><Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล</div>
                         <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500"><Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} /></div>
@@ -721,7 +683,7 @@
                </div>
 
                <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                 <div ref={tableScrollRef} className="overflow-auto custom-scrollbar flex-1 relative bg-white">
+                 <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                    <table className="w-full text-left border-collapse min-w-max">
                       <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                         <tr>
@@ -839,7 +801,6 @@
     };
 
     const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded }) => {
-        const tableScrollRef = useStrictScroll();
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
@@ -968,21 +929,21 @@
         });
 
         return (
-            <div className="flex-1 p-4 md:p-8 overflow-auto bg-background flex flex-col h-full">
-               <div className="flex justify-between items-center mb-6 shrink-0">
+            <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
+               <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-[22px] font-bold text-gray-800 flex items-center"><Icon name="FileSignature" className="mr-3 text-brand" size={26}/> {viewMode === 'daily' ? `ตารางโพสต์ประจำวัน ที่ ${assignmentDisplayStr}` : 'ประวัติโพสต์บ้านทั้งหมด'}</h2>
+                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="FileSignature" className="mr-2 md:mr-3 text-brand" size={24}/> {viewMode === 'daily' ? `ตารางโพสต์ประจำวัน ที่ ${assignmentDisplayStr}` : 'ประวัติโพสต์บ้านทั้งหมด'}</h2>
                         {viewMode === 'all' && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{filteredAllData.length} รายการ</span></div>}
                         <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                     </div>
                </div>
 
-               <div className="flex bg-gray-100 p-1.5 rounded-xl w-fit mb-6 shrink-0 shadow-sm border border-gray-200">
-                    <button onClick={() => setViewMode('daily')} className={`flex items-center px-6 py-2.5 rounded-lg text-[14px] font-bold transition-all ${viewMode === 'daily' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="ListTodo" size={16} className="mr-2" /> กระดานจ่ายงานวันนี้</button>
-                    <button onClick={() => setViewMode('all')} className={`flex items-center px-6 py-2.5 rounded-lg text-[14px] font-bold transition-all ${viewMode === 'all' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="Building" size={16} className="mr-2" /> บ้านทั้งหมด (ประวัติโพสต์)</button>
+               <div className="flex bg-gray-100 p-1.5 rounded-xl w-fit mb-4 md:mb-6 shrink-0 shadow-sm border border-gray-200">
+                    <button onClick={() => setViewMode('daily')} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all ${viewMode === 'daily' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="ListTodo" size={16} className="mr-2" /> กระดานจ่ายงานวันนี้</button>
+                    <button onClick={() => setViewMode('all')} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all ${viewMode === 'all' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="Building" size={16} className="mr-2" /> บ้านทั้งหมด (ประวัติโพสต์)</button>
                </div>
 
-               <div className="bg-white p-4 xl:p-5 rounded-[20px] border border-gray-100 shadow-sm mb-6 shrink-0 relative z-20">
+               <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
                     <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
                         <div className="flex items-center text-[14px] font-bold text-gray-700"><Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล</div>
                         <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500"><Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} /></div>
@@ -1059,7 +1020,7 @@
                         </div>
                         
                         {viewMode === 'all' && (
-                            <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-4 xl:pt-0 xl:pl-4">
+                            <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
                                 {visibleColumns.map((col, idx) => (
                                     <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
                                 ))}
@@ -1069,7 +1030,8 @@
                </div>
 
                {viewMode === 'daily' ? (
-                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-6">
+                   <div className="flex-1 overflow-y-auto custom-scrollbar pb-10" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {scheduleData.map((assignee, idx) => {
                             const completedCount = assignee.houses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
                             const avatarClass = getAvatarColor(assignee.name);
@@ -1127,10 +1089,11 @@
                                 </div>
                             );
                         })}
+                     </div>
                    </div>
                ) : (
                    <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                     <div ref={tableScrollRef} className="overflow-auto custom-scrollbar flex-1 relative bg-white">
+                     <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                        <table className="w-full text-left border-collapse min-w-max">
                           <thead className="sticky top-0 z-10 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                             <tr>
@@ -1429,13 +1392,13 @@
       };
 
       return (
-      <div className="flex-1 flex flex-col p-4 md:p-8 h-full overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col p-3 md:p-8 h-full overflow-hidden bg-background">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center shrink-0">
           <Icon name="MessageCircle" className="mr-3 text-brand" size={26} /> น้อง Up (AI ผู้ช่วยบริษัท)
         </h2>
         <div className="flex-1 bg-surface rounded-2xl shadow-subtle border border-gray-100 flex flex-col overflow-hidden relative">
           
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-gray-50/50">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-gray-50/50" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex items-start ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'ai' && <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center mr-3 shrink-0 shadow-sm text-lg font-bold">Up</div>}
@@ -1470,7 +1433,7 @@
     };
 
     const CompanyInfo = () => (
-      <div className="flex-1 p-6 md:p-8 overflow-auto bg-background">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
          <h2 className="text-2xl font-bold text-gray-800 mb-8">ข้อมูลบริษัท</h2>
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {['ระเบียบการลา', 'โครงสร้างคอมมิชชัน', 'แบบฟอร์มเบิกจ่าย', 'ติดต่อฝ่ายบุคคล', 'วิสัยทัศน์องค์กร'].map(title => (
@@ -1706,46 +1669,48 @@
 
         return (
           <>
-            <div className="flex-1 p-6 md:p-8 overflow-auto bg-background flex flex-col h-full">
-              <div className="flex justify-between items-center mb-6 shrink-0">
+            <div className="flex-1 p-4 md:p-8 overflow-hidden bg-background flex flex-col h-full">
+              <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                 <div><h2 className="text-2xl font-bold text-gray-800 flex items-center"><Icon name="Image" size={26} className="mr-3 text-brand"/> รูปบ้านมาใหม่</h2><p className="text-gray-500 text-sm mt-1">คลังรูปภาพและรายละเอียดโครงการ</p></div>
                 <button onClick={handleOpenAdd} className="bg-brand text-white px-5 py-2.5 rounded-xl flex items-center shadow-subtle hover:bg-brandLight transition-all font-bold shrink-0 ml-4"><Icon name="Plus" size={18} className="mr-2" /> เพิ่มโครงการ</button>
               </div>
               
-              <div className="mb-8 relative max-w-md shrink-0">
+              <div className="mb-4 md:mb-8 relative max-w-md shrink-0">
                  <Icon name="Search" size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                  <input type="text" placeholder="ค้นหาชื่อโครงการ, ผู้รับผิดชอบ..." value={houseSearchQuery} onChange={(e) => setHouseSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand transition-all text-sm shadow-sm" />
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                 {filteredHouses.map(house => {
-                     const fullAddress = `${house.houseNo || ''} ${house.soi || ''}`.trim();
-                     return (
-                        <div key={house.id} onClick={() => handleOpenView(house)} className="w-full bg-white rounded-[20px] overflow-hidden shadow-subtle border border-gray-100 flex flex-col hover:-translate-y-1 transition-all cursor-pointer group mx-auto sm:mx-0">
-                            <div className="h-[200px] w-full bg-gray-100 relative overflow-hidden shrink-0 flex items-center justify-center">
-                                {house.images && house.images.length > 0 ? (
-                                    <img src={house.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={house.projectName} />
-                                ) : (
-                                    <div className="flex flex-col items-center text-gray-400"><Icon name="Image" size={40} className="mb-2 opacity-30"/><span className="text-[11px] font-medium">ไม่มีรูปภาพ</span></div>
-                                )}
-                                <div className="absolute top-3 right-3 bg-black/70 text-white text-[11px] font-bold px-2 py-1 rounded backdrop-blur-md flex items-center"><Icon name="Image" size={10} className="mr-1" /> {house.images?.length || 0}</div>
-                                {house.price && <div className="absolute bottom-3 left-3 bg-brand text-white text-[12px] font-extrabold px-2.5 py-1 rounded shadow-md">{house.price}</div>}
-                            </div>
-                            <div className="p-4 flex-1 flex flex-col">
-                                <h3 className="font-extrabold text-[15px] text-gray-800 truncate mb-1" title={house.projectName}>{house.projectName || 'ไม่ระบุชื่อ'}</h3>
-                                <p className="text-[12px] text-gray-500 truncate mb-3 flex items-center"><Icon name="MapPin" size={12} className="mr-1"/> {house.location || '-'} {fullAddress && `| ${fullAddress}`}</p>
-                                <div className="mt-auto grid grid-cols-3 gap-1 pt-3 border-t border-gray-100">
-                                    <div className="flex flex-col items-center justify-center text-gray-500" title="ห้องนอน"><Icon name="Bed" size={14} className="mb-0.5 opacity-60"/><span className="text-[11px] font-bold">{house.bedrooms || '-'}</span></div>
-                                    <div className="flex flex-col items-center justify-center text-gray-500 border-x border-gray-100" title="ห้องน้ำ"><Icon name="Bath" size={14} className="mb-0.5 opacity-60"/><span className="text-[11px] font-bold">{house.bathrooms || '-'}</span></div>
-                                    <div className="flex flex-col items-center justify-center text-brand" title="พื้นที่"><Icon name="Maximize" size={14} className="mb-0.5 opacity-60"/><span className="text-[11px] font-bold truncate max-w-full px-1">{house.area ? house.area.replace(' ตร.ว.','') : '-'}</span></div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar pb-10" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pr-2">
+                     {filteredHouses.map(house => {
+                         const fullAddress = `${house.houseNo || ''} ${house.soi || ''}`.trim();
+                         return (
+                            <div key={house.id} onClick={() => handleOpenView(house)} className="w-full bg-white rounded-[20px] overflow-hidden shadow-subtle border border-gray-100 flex flex-col hover:-translate-y-1 transition-all cursor-pointer group mx-auto sm:mx-0">
+                                <div className="h-[200px] w-full bg-gray-100 relative overflow-hidden shrink-0 flex items-center justify-center">
+                                    {house.images && house.images.length > 0 ? (
+                                        <img src={house.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={house.projectName} />
+                                    ) : (
+                                        <div className="flex flex-col items-center text-gray-400"><Icon name="Image" size={40} className="mb-2 opacity-30"/><span className="text-[11px] font-medium">ไม่มีรูปภาพ</span></div>
+                                    )}
+                                    <div className="absolute top-3 right-3 bg-black/70 text-white text-[11px] font-bold px-2 py-1 rounded backdrop-blur-md flex items-center"><Icon name="Image" size={10} className="mr-1" /> {house.images?.length || 0}</div>
+                                    {house.price && <div className="absolute bottom-3 left-3 bg-brand text-white text-[12px] font-extrabold px-2.5 py-1 rounded shadow-md">{house.price}</div>}
+                                </div>
+                                <div className="p-4 flex-1 flex flex-col">
+                                    <h3 className="font-extrabold text-[15px] text-gray-800 truncate mb-1" title={house.projectName}>{house.projectName || 'ไม่ระบุชื่อ'}</h3>
+                                    <p className="text-[12px] text-gray-500 truncate mb-3 flex items-center"><Icon name="MapPin" size={12} className="mr-1"/> {house.location || '-'} {fullAddress && `| ${fullAddress}`}</p>
+                                    <div className="mt-auto grid grid-cols-3 gap-1 pt-3 border-t border-gray-100">
+                                        <div className="flex flex-col items-center justify-center text-gray-500" title="ห้องนอน"><Icon name="Bed" size={14} className="mb-0.5 opacity-60"/><span className="text-[11px] font-bold">{house.bedrooms || '-'}</span></div>
+                                        <div className="flex flex-col items-center justify-center text-gray-500 border-x border-gray-100" title="ห้องน้ำ"><Icon name="Bath" size={14} className="mb-0.5 opacity-60"/><span className="text-[11px] font-bold">{house.bathrooms || '-'}</span></div>
+                                        <div className="flex flex-col items-center justify-center text-brand" title="พื้นที่"><Icon name="Maximize" size={14} className="mb-0.5 opacity-60"/><span className="text-[11px] font-bold truncate max-w-full px-1">{house.area ? house.area.replace(' ตร.ว.','') : '-'}</span></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                     )
-                 })}
-                 {filteredHouses.length === 0 && (
-                    <div className="col-span-full py-16 text-center text-gray-400 bg-surface rounded-2xl border border-gray-100 border-dashed"><Icon name="Image" size={40} className="mx-auto mb-3 opacity-30" /><p>{houses.length === 0 ? 'ยังไม่มีข้อมูลโครงการรูปภาพในระบบ' : 'ไม่พบข้อมูลที่ค้นหา'}</p></div>
-                 )}
+                         )
+                     })}
+                     {filteredHouses.length === 0 && (
+                        <div className="col-span-full py-16 text-center text-gray-400 bg-surface rounded-2xl border border-gray-100 border-dashed"><Icon name="Image" size={40} className="mx-auto mb-3 opacity-30" /><p>{houses.length === 0 ? 'ยังไม่มีข้อมูลโครงการรูปภาพในระบบ' : 'ไม่พบข้อมูลที่ค้นหา'}</p></div>
+                     )}
+                  </div>
               </div>
             </div>
 
@@ -1783,7 +1748,6 @@
         return () => { clearTimeout(timer1); clearTimeout(timer2); };
       }, []);
 
-      const holidayScrollRef = useStrictScroll();
       const [currentDate, setCurrentDate] = useState(new Date());
       const [events, setEvents] = useState([]);
       const [departments, setDepartments] = useState([]); 
@@ -2033,7 +1997,7 @@
                     <div key={day} className={`py-4 text-center text-[13px] font-bold ${idx > 4 ? 'text-[#ef4444]' : 'text-gray-500'}`}>{day}</div>
                   ))}
                 </div>
-                <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar">
+                <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                   {Array.from({ length: startDayIndex }).map((_, i) => (
                     <div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none bg-gray-50/20" />
                   ))}
@@ -2089,7 +2053,7 @@
             </div>
 
             <div className="flex-1 relative overflow-hidden bg-white p-0">
-               <div ref={holidayScrollRef} className="absolute inset-0 overflow-auto custom-scrollbar">
+               <div className="absolute inset-0 overflow-auto custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                    <table className="w-full text-center border-collapse min-w-max">
                      <thead className="sticky top-0 z-20 shadow-sm bg-white">
                        <tr>
@@ -2161,7 +2125,7 @@
             </div>
           )}
 
-          <div className="min-h-screen flex flex-col md:flex-row bg-background font-sans text-gray-800">
+          <div className="h-screen w-full flex flex-col md:flex-row bg-background font-sans text-gray-800 overflow-hidden">
             {/* Sidebar */}
             <div className={`fixed md:static inset-y-0 left-0 z-40 w-[250px] bg-white border-r border-gray-200 shadow-sm md:shadow-none transform transition-transform duration-300 flex flex-col shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
               <div className="h-[120px] flex flex-col items-center justify-center bg-brand shrink-0 relative z-20">
@@ -2171,7 +2135,7 @@
                    <div className="text-[10px] tracking-widest uppercase opacity-80 mt-[-2px] text-white">Real Estate</div>
                  </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5 custom-scrollbar bg-transparent">
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5 custom-scrollbar bg-transparent" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <div className="w-full px-2 pt-2 pb-3 relative z-10 bg-transparent">
                     <span className="text-[13px] font-bold text-gray-400 tracking-widest uppercase block leading-loose">เมนูระบบ</span>
                 </div>
@@ -2188,7 +2152,7 @@
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background relative z-10">
+            <div className="flex-1 flex flex-col h-full overflow-hidden bg-background relative z-10">
               <div className="flex items-center justify-between p-4 md:hidden bg-surface shadow-sm z-30 shrink-0 border-b border-gray-100 transition-colors">
                 <div className="flex items-center">
                   <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-gray-600"><Icon name={isSidebarOpen ? 'X' : 'Menu'} /></button>
@@ -2221,7 +2185,7 @@
                       <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600"><Icon name="X" size={20}/></button>
                     </div>
                     
-                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5">
+                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5 overflow-y-auto" style={{ overscrollBehavior: 'none' }}>
                       <div className="flex items-center space-x-4 border-b border-gray-100 pb-5">
                         <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
                           <input type="radio" checked={formData.type==='event'} onChange={()=>setFormData({...formData, type:'event'})} className="mr-2 w-4 h-4 accent-brand"/> กิจกรรม
@@ -2316,7 +2280,7 @@
                        </div>
                      </div>
 
-                     <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden">
+                     <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden" style={{ overscrollBehavior: 'none' }}>
                        {itemsToShow.length > 0 ? (
                          <table className="w-full text-left border-collapse">
                            <thead>
@@ -2435,7 +2399,9 @@
             {isDeleteMonthModalOpen && (
               <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
+                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="Trash" size={24}/>
+                  </div>
                   <h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลเดือนนี้</h3>
                   <p className="text-sm text-gray-500 mb-5 leading-relaxed">หากต้องการลบ ให้พิมพ์ <b>"ลบข้อมูล"</b></p>
                   <input type="text" value={deleteMonthText} onChange={(e) => setDeleteMonthText(e.target.value)} placeholder="ลบข้อมูล" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-5 outline-none focus:border-red-500 text-center font-bold text-sm" />
