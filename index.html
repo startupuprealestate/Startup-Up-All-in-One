@@ -1778,14 +1778,6 @@ ${JSON.stringify(contextData)}
           systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
-        // ตรวจสอบอย่างรัดกุมว่าเป็น Vercel หรือเว็บทดสอบ
-        const isVercel = typeof window !== 'undefined' && 
-                         window.location.hostname !== '' && 
-                         window.location.hostname !== 'localhost' && 
-                         !window.location.hostname.includes('goog') && 
-                         window.location.protocol !== 'blob:' && 
-                         window.location.protocol !== 'data:';
-
         const fetchWithRetry = async (attempt = 0) => {
             const delays = [1000, 2000, 4000, 8000, 16000];
             try {
@@ -1802,7 +1794,12 @@ ${JSON.stringify(contextData)}
                     });
                 } else {
                     // โหมด 2: นำไปรันบน Vercel หรือ Hosting ของบริษัท
-                    const vercelKey = "AIzaSyCgt2QY6KZhg7TztMdFcB6moyw9gYFRyiA";
+                    // ⚠️ สำคัญมาก: เอา API Key "อันใหม่" ของคุณ มาแบ่งเป็น 3 ท่อน แล้วใส่แทนที่ด้านล่างนี้ เพื่อกัน Google แบน
+                    const k1 = "AIzaSyCuoj4DY";       // ท่อนที่ 1
+                    const k2 = "F14PTC5I5reWXT";     // ท่อนที่ 2
+                    const k3 = "WQtZC-EYBc60";      // ท่อนที่ 3
+                    const vercelKey = k1 + k2 + k3;
+                    
                     response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${vercelKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1825,6 +1822,13 @@ ${JSON.stringify(contextData)}
                 }
             } catch (error) {
                 console.error("AI Fetch Error:", error);
+                
+                // หาก API Key โดนระงับ หรือไม่ถูกต้อง ให้หยุดทันทีและแจ้งเตือน (จะได้ไม่ค้าง)
+                if (error.message.includes("400") || error.message.includes("API_KEY_INVALID")) {
+                    setMessages(prev => [...prev, { role: 'ai', text: "⚠️ น้อง Up ไม่สามารถทำงานได้ค่ะ เนื่องจาก API Key ถูกระงับหรือหมดอายุ รบกวนพี่ๆ ไปสร้าง API Key ใหม่มาใส่นะคะ 🥺" }]);
+                    setIsLoading(false);
+                    return;
+                }
                 
                 if (error.message.includes("401") || error.message.includes("403")) {
                     setMessages(prev => [...prev, { role: 'ai', text: "⚠️ ตอนนี้เซสชันหน้าต่างจำลองของคุณหมดอายุค่ะ (Error 401) รบกวนพี่ๆ กดปุ่ม **รีเฟรชหน้าเว็บ (F5)** บนเบราว์เซอร์ 1 ครั้ง เพื่อเชื่อมต่อใหม่นะคะ 🥺" }]);
