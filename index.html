@@ -2349,69 +2349,87 @@
 
               return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                   <div className="bg-surface rounded-2xl w-full max-w-4xl p-6 md:p-8 shadow-2xl flex flex-col border border-gray-100 relative">
-                     <button onClick={() => setIsDayViewOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                   <div className="bg-surface rounded-2xl w-full max-w-4xl p-5 md:p-8 shadow-2xl flex flex-col border border-gray-100 relative">
+                     <button onClick={() => setIsDayViewOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors z-10">
                        <Icon name="X" size={18}/>
                      </button>
                      
-                     <div className="mb-6 border-b border-transparent">
+                     <div className="mb-4 md:mb-6 border-b border-transparent shrink-0">
                        <div className="inline-block border-b-[3px] border-[#ef4444] pb-2 pr-4">
-                         <h3 className="text-xl md:text-2xl font-bold flex items-center text-brand">
-                           <Icon name="CalendarIcon" className="mr-3" size={24}/> 
-                           กิจกรรมประจำวันที่ {getFormattedDateThai(selectedDayString)}
+                         <h3 className="text-lg md:text-2xl font-bold flex items-center text-brand">
+                           <Icon name="CalendarIcon" className="mr-2 md:mr-3" size={24}/> 
+                           กิจกรรมวันที่ {getFormattedDateThai(selectedDayString)}
                          </h3>
                        </div>
                      </div>
 
-                     <div className="max-h-[70vh] overflow-auto custom-scrollbar border border-gray-100 rounded-[12px]" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                     <div className="max-h-[65vh] overflow-y-auto custom-scrollbar -mx-2 px-2" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                        {itemsToShow.length > 0 ? (
-                         <table className="w-full text-left border-collapse min-w-[550px] md:min-w-full">
-                           <thead>
-                             <tr className="bg-gray-50 border-b border-gray-100">
-                               <th className="p-4 text-[13px] font-bold text-gray-500 w-[120px]">เวลา</th>
-                               <th className="p-4 text-[13px] font-bold text-gray-500 w-[140px]">ผู้รับผิดชอบ</th>
-                               <th className="p-4 text-[13px] font-bold text-gray-500 w-[200px]">สิ่งที่ต้องทำ</th>
-                               <th className="p-4 text-[13px] font-bold text-gray-500">หมายเหตุ</th>
-                             </tr>
-                           </thead>
-                           <tbody>
+                         <div className="space-y-3 pb-2">
                              {itemsToShow.map((ev, idx) => {
                                const isDuplicateTime = ev.type === 'event' && ev.time && timeCounts[ev.time] > 1;
 
+                               let borderColorClass = 'border-brand/40';
+                               let bgColorClass = 'bg-white';
+                               let typeLabel = null;
+
+                               if (ev.type === 'public_holiday') { borderColorClass = 'border-yellow-400'; bgColorClass = 'bg-yellow-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-yellow-700 bg-yellow-200/50 font-bold mb-1.5 w-max shadow-sm">นักขัตฤกษ์</span>; }
+                               else if (ev.type === 'holiday') { borderColorClass = 'border-red-400'; bgColorClass = 'bg-red-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-red-700 bg-red-200/50 font-bold mb-1.5 w-max shadow-sm">วันหยุด</span>; }
+                               else if (ev.type === 'leave') { borderColorClass = 'border-orange-400'; bgColorClass = 'bg-orange-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-orange-700 bg-orange-200/50 font-bold mb-1.5 w-max shadow-sm">ลางาน</span>; }
+
                                return (
-                                 <tr key={ev.id || idx} onClick={() => {setIsDayViewOpen(false); handleOpenModal(null, ev)}} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors">
-                                   <td className="p-4 align-top">
-                                      {ev.type !== 'event' ? '-' : (
-                                         <span className={`inline-flex px-2.5 py-1 rounded-[6px] text-[13px] font-bold ${isDuplicateTime ? 'border border-[#ef4444] text-[#ef4444] bg-red-50' : 'text-gray-800'}`}>
-                                            {ev.time} น.
-                                         </span>
-                                      )}
-                                   </td>
-                                   <td className="p-4 align-top font-bold text-[14px] text-gray-700">{ev.assignee}</td>
-                                   <td className="p-4 align-top text-[14px] text-gray-700">
-                                      <div className="flex items-center">
-                                        {ev.type === 'public_holiday' ? <span className="text-yellow-600 font-bold">นักขัตฤกษ์</span>
-                                         : ev.type === 'holiday' ? <span className="text-red-500 font-bold">วันหยุด</span> 
-                                         : ev.type === 'leave' ? <span className="text-orange-500 font-bold">ลางาน</span>
-                                         : <><span className="mr-2">{getActivityIcon(ev.activity)}</span> {ev.activity}</>}
-                                      </div>
-                                   </td>
-                                   <td className="p-4 align-top text-[13px] text-gray-600 whitespace-pre-wrap leading-relaxed">
-                                      {ev.note || '-'}
-                                   </td>
-                                 </tr>
+                                 <div key={ev.id || idx} onClick={() => {setIsDayViewOpen(false); handleOpenModal(null, ev)}} className={`relative flex flex-col sm:flex-row gap-3 md:gap-4 p-4 rounded-xl border-l-4 ${borderColorClass} border-y border-r border-gray-200 ${bgColorClass} hover:shadow-md cursor-pointer transition-all group overflow-hidden`}>
+                                     
+                                     {/* Time & Assignee Mobile/Desktop Layout */}
+                                     <div className="flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-start sm:w-[130px] shrink-0 gap-2 sm:gap-2.5">
+                                         {ev.type === 'event' ? (
+                                             <div className={`flex items-center px-2.5 py-1.5 rounded-lg text-[13px] font-bold shadow-sm w-max ${isDuplicateTime ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-white text-gray-800 border border-gray-200'}`}>
+                                                <Icon name="Clock" size={14} className={`mr-1.5 ${isDuplicateTime ? 'text-red-400' : 'text-gray-400'}`} /> {ev.time} น.
+                                             </div>
+                                         ) : (
+                                             <div className="flex items-center px-2.5 py-1 rounded-lg text-[12px] font-bold text-gray-500 bg-gray-100 border border-gray-200 w-max">
+                                                ตลอดวัน
+                                             </div>
+                                         )}
+                                         <div className="flex items-center text-[13px] font-bold text-brand bg-brand/5 px-2.5 py-1 rounded-lg border border-brand/10 w-max">
+                                             <Icon name="User" size={12} className="mr-1.5 opacity-60" /> {ev.assignee}
+                                         </div>
+                                     </div>
+
+                                     {/* Content Details */}
+                                     <div className="flex-1 min-w-0 flex flex-col">
+                                         {typeLabel}
+                                         <div className="font-bold text-[15px] md:text-[16px] text-gray-800 flex items-start leading-snug">
+                                            {ev.type === 'event' && <span className="mr-2 mt-0.5 opacity-80 shrink-0">{getActivityIcon(ev.activity)}</span>}
+                                            <span>{ev.activity}</span>
+                                         </div>
+                                         {ev.note ? (
+                                             <div className="mt-2.5 text-[13px] md:text-[14px] text-gray-600 bg-white p-3 rounded-lg border border-gray-100 leading-relaxed whitespace-pre-wrap shadow-sm">
+                                                {ev.note}
+                                             </div>
+                                         ) : (
+                                             <div className="mt-2 text-[12px] text-gray-400 italic font-medium">ไม่มีหมายเหตุเพิ่มเติม</div>
+                                         )}
+                                     </div>
+                                     
+                                     <div className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block bg-white p-2 rounded-full shadow-sm border border-gray-100">
+                                        <Icon name="Edit" size={16} className="text-gray-400 hover:text-brand" />
+                                     </div>
+                                 </div>
                                );
                              })}
-                           </tbody>
-                         </table>
+                         </div>
                        ) : (
-                         <div className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลในวันนี้</div>
+                         <div className="py-12 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                            <Icon name="CalendarIcon" size={48} className="mb-3 opacity-20" />
+                            <span className="font-bold text-[14px]">ไม่มีกิจกรรมในวันนี้</span>
+                         </div>
                        )}
                      </div>
                      
-                     <div className="mt-6 flex justify-end items-center space-x-4">
-                       <button onClick={() => setIsDayViewOpen(false)} className="px-4 py-2 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ปิด</button>
-                       <button onClick={() => {setIsDayViewOpen(false); handleOpenModal()}} className="px-5 py-2.5 text-[14px] font-bold bg-[#0b3d1b] text-white rounded-lg hover:bg-brandLight transition-colors flex items-center shadow-sm">
+                     <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end items-center space-x-3 shrink-0">
+                       <button onClick={() => setIsDayViewOpen(false)} className="px-5 py-2.5 text-[14px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all">ปิดหน้าต่าง</button>
+                       <button onClick={() => {setIsDayViewOpen(false); handleOpenModal()}} className="px-5 py-2.5 text-[14px] font-bold bg-brand text-white rounded-xl hover:bg-brandLight transition-colors flex items-center shadow-md hover:shadow-lg">
                          <Icon name="Plus" size={16} className="mr-1.5" /> เพิ่มข้อมูล
                        </button>
                      </div>
