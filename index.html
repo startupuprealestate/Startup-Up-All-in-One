@@ -15,15 +15,23 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
-    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Prompt', 'sans-serif'] }, colors: { brand: '#0b3d1b', brandLight: '#166534', surface: '#ffffff', background: '#f9fafb', cellHighlight: '#ebfbf1', mintPill: '#c6f6d5', mintText: '#065f46' }, boxShadow: { 'subtle': '0 4px 20px -2px rgba(0, 0, 0, 0.04)' } } } }
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Prompt', 'sans-serif'] }, colors: { brand: '#0b3d1b', brandLight: '#166534', surface: '#ffffff', background: '#f9fafb', cellHighlight: '#ebfbf1', mintPill: '#c6f6d5', mintText: '#065f46' } } } }
   </script>
   <style>
-    html, body { width: 100%; height: 100%; overflow: hidden !important; overscroll-behavior: none !important; background-color: #f9fafb; -webkit-font-smoothing: antialiased; margin: 0; padding: 0; position: fixed; }
+    /* ล็อกหน้าจอหลักตายตัว ห้ามเด้งหรือยางยืด (Rubber-banding) เพื่อแก้ปัญหา Safari */
+    html, body { width: 100%; height: 100%; overflow: hidden !important; overscroll-behavior: none !important; background-color: #f9fafb; margin: 0; padding: 0; position: fixed; }
     #root { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+    
+    /* Scrollbar ปรับแต่ง */
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
     .horizontal-scrollbar::-webkit-scrollbar { height: 8px; }
     .horizontal-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+    
+    /* เทคนิคแยกแกนเลื่อนสำหรับ Safari iOS (100% Locked) */
+    .scroll-x-only { overflow-x: auto !important; overflow-y: hidden !important; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
+    .scroll-y-only { overflow-y: auto !important; overflow-x: hidden !important; touch-action: pan-y; -webkit-overflow-scrolling: touch; width: max-content; min-width: 100%; }
+
     .date-picker-overlay { opacity: 0 !important; -webkit-appearance: none; cursor: pointer; }
     .date-picker-overlay::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
     .markdown-body table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0.5rem 0; }
@@ -47,32 +55,20 @@
 </head>
 <body>
   <div id="root"><div class="init-splash"><img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" class="init-logo" /></div></div>
-  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(e => {}));</script>
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, Fragment } = React;
 
-    const useAxisLock = () => {
-      const ref = useRef(null);
-      useEffect(() => {
-        const el = ref.current; if (!el) return;
-        let startX, startY, isScrollingX = false, isScrollingY = false;
-        const ts = (e) => { if (e.touches.length === 1) { startX = e.touches[0].pageX; startY = e.touches[0].pageY; isScrollingX = false; isScrollingY = false; el.style.overflowX = 'auto'; el.style.overflowY = 'auto'; } };
-        const tm = (e) => {
-          if (e.touches.length === 1 && !isScrollingX && !isScrollingY) {
-            const dx = Math.abs(e.touches[0].pageX - startX), dy = Math.abs(e.touches[0].pageY - startY);
-            if (dx > 5 || dy > 5) { if (dx > dy) { isScrollingX = true; el.style.overflowY = 'hidden'; } else { isScrollingY = true; el.style.overflowX = 'hidden'; } }
-          }
-        };
-        const te = () => { el.style.overflowX = 'auto'; el.style.overflowY = 'auto'; isScrollingX = false; isScrollingY = false; };
-        el.addEventListener('touchstart', ts, { passive: true }); el.addEventListener('touchmove', tm, { passive: true }); el.addEventListener('touchend', te, { passive: true });
-        return () => { el.removeEventListener('touchstart', ts); el.removeEventListener('touchmove', tm); el.removeEventListener('touchend', te); };
-      }, []);
-      return ref;
-    };
-
     const Icon = ({ name, size = 20, className = '' }) => {
       const icons = {
-        ChevronLeft: '<path d="m15 18-6-6 6-6"/>', ChevronRight: '<path d="m9 18 6-6-6-6"/>', ChevronUp: '<path d="m18 15-6-6-6 6"/>', ChevronDown: '<path d="m6 9 6 6 6-6"/>', Menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>', X: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', Search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', CalendarIcon: '<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>', MapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>', FileSignature: '<path d="M20 19.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h5.5"/><path d="M18.4 9.6a2 2 0 1 1 3 3L17 17l-4 1 1-4Z"/>', Home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>', Video: '<path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>', ListTodo: '<rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>', User: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>', CheckSquare: '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', Check: '<polyline points="20 6 9 17 4 12"/>', Trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>', Building: '<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>', MessageCircle: '<path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>', Image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>', Plus: '<path d="M5 12h14"/><path d="M12 5v14"/>', Minus: '<path d="M5 12h14"/>', Clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>', Edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>', Bed: '<path d="M3 20v-8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8"/><path d="M5 10V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"/><path d="M3 14h18"/>', Bath: '<path d="M9 6 6.5 9.5 3 10l1.46 3.16M15 6l2.5 3.5L21 10l-1.46 3.16"/><path d="M2 12h20"/><path d="M4 12v4a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-4"/><path d="M12 7v5"/><path d="M12 2a2 2 0 0 0-2 2c0 1.1.9 2 2 2h.5"/>', Maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>', Send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>', RefreshCw: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'
+        ChevronLeft: '<path d="m15 18-6-6 6-6"/>', ChevronRight: '<path d="m9 18 6-6-6-6"/>', ChevronUp: '<path d="m18 15-6-6-6 6"/>', ChevronDown: '<path d="m6 9 6 6 6-6"/>', Menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>', X: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        Search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', CalendarIcon: '<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>', MapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+        FileSignature: '<path d="M20 19.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h5.5"/><path d="M18.4 9.6a2 2 0 1 1 3 3L17 17l-4 1 1-4Z"/>', Home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+        Video: '<path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>', ListTodo: '<rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>', User: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+        CheckSquare: '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', Check: '<polyline points="20 6 9 17 4 12"/>', Trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+        Building: '<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>',
+        MessageCircle: '<path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>', Image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>', Plus: '<path d="M5 12h14"/><path d="M12 5v14"/>', Minus: '<path d="M5 12h14"/>', Clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+        Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>', Edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+        Bed: '<path d="M3 20v-8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8"/><path d="M5 10V6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"/><path d="M3 14h18"/>', Bath: '<path d="M9 6 6.5 9.5 3 10l1.46 3.16M15 6l2.5 3.5L21 10l-1.46 3.16"/><path d="M2 12h20"/><path d="M4 12v4a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-4"/><path d="M12 7v5"/><path d="M12 2a2 2 0 0 0-2 2c0 1.1.9 2 2 2h.5"/>', Maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>', Send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>', RefreshCw: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'
       };
       return <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: icons[name] }} />;
     };
@@ -164,7 +160,6 @@
 
     // --- TAB COMPONENTS ---
     const ContentChecklist = ({ sheetData = [], contentChecklists = {}, isFirebaseLoaded, setManualRefreshKey }) => {
-        const scrollRef = useAxisLock();
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isTaskFilterOpen, setIsTaskFilterOpen] = useState(false); const [pendingTaskFilter, setPendingTaskFilter] = useState(''); 
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -248,6 +243,7 @@
                                 {activeFilterDropdown === 'status' && (
                                     <><div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
                                     <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}</div>
                                         <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                             {uniqueStatuses.map(st => <label key={st} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(st)} onChange={() => toggleHideValue('สถานะ', st)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{st}</span></label>)}
                                         </div>
@@ -263,6 +259,7 @@
                                 {activeFilterDropdown === 'website' && (
                                     <><div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
                                     <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                        <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand font-bold">แสดงทั้งหมด</button>}</div>
                                         <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                             {uniqueWebsites.map(web => <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{web}</span></label>)}
                                         </div>
@@ -271,45 +268,53 @@
                             </div>
                         )}
                     </div>
+                    <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
+                        {visibleColumns.map((col, idx) => (
+                            <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
+                        ))}
+                    </div>
                 </div>
             </div>
 
             <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-               <div ref={scrollRef} className="h-full w-full overflow-auto axis-lock custom-scrollbar bg-white">
-                  <table className="w-full text-left border-collapse min-w-max">
-                     <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                        <tr>
-                           <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase text-center border-r border-gray-100 w-[60px]">ลำดับ</th>
-                           {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase border border-gray-200 w-[150px]">{col}</th>)}
-                        </tr>
-                     </thead>
-                     <tbody>
-                       {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดง</td></tr>}
-                       {filteredData.map((row, idx) => {
-                         const statusVal = safeTrim(row['สถานะ']), style = getRowStyleClasses(statusVal), checklist = contentChecklists[row.id] || {}, hasOther = !!checklist['other_checked'];
-                         const completedTasks = taskOptions.filter(opt => checklist[opt.key]).length + (hasOther ? 1 : 0), totalTasks = taskOptions.length + (hasOther ? 1 : 0), isComplete = completedTasks > 0 && completedTasks === totalTasks;
-                         return (
-                           <React.Fragment key={row.id}>
-                             <tr className={`border-b cursor-pointer transition-colors ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
-                               <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400 w-[60px]">{idx + 1}</td>
-                               {visibleColumns.map(col => {
-                                   let content = null;
-                                   if (col === 'หมู่บ้าน') content = <div className="flex items-center">{isComplete ? <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span> : <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border text-[11px] font-bold">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
-                                   else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                   else if (col === 'สถานะ') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                   else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
-                                   return <td key={col} className="py-4 px-5 align-middle border border-gray-200 w-[150px]">{content}</td>;
-                               })}
-                             </tr>
-                             {expandedRowId === row.id && (
-                                 <tr className="border-b border-gray-100 bg-gray-50/50"><td colSpan={visibleColumns.length + 1} className="p-0 border border-gray-200"><div className="p-6 md:p-8 bg-white border-l-4 border-brand shadow-inner w-full my-2 mx-4 rounded-xl max-w-[96%]"><div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4"><h4 className="text-[17px] font-bold text-gray-800 flex items-center"><Icon name="CheckSquare" size={20} className="mr-2 text-brand" />เช็คลิสต์คอนเทนต์</h4><button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><Icon name="X" size={14} /></button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12"><div className="bg-brand/5 p-5 rounded-[16px]"><h5 className="font-bold text-brand mb-4 flex items-center"><Icon name="Video" size={18} className="mr-2"/> งานหลัก</h5><div className="space-y-4"><CheckboxItem rowId={row.id} taskKey="main_vertical" label="คลิปแนวตั้ง" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="main_horizontal" label="คลิปแนวนอน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="main_person" label="คลิปมีคน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="main_photo" label="ถ่ายรูป" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /></div></div><div className="bg-blue-50/50 p-5 rounded-[16px]"><h5 className="font-bold text-blue-800 mb-4 flex items-center"><Icon name="FileSignature" size={18} className="mr-2"/> งานรอง (คอนเท้น)</h5><div className="space-y-4 mb-6"><CheckboxItem rowId={row.id} taskKey="sub_dir_before_after" label="Before/After" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="sub_dir_asmr" label="เทสบ้าน / Asmr" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /></div><div className="space-y-4"><CheckboxItem rowId={row.id} taskKey="sub_indir_qa" label="ตอบคอมเมนต์ / QA" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><OtherCheckboxItem rowId={row.id} checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /></div></div></div></div></td></tr>
-                             )}
-                           </React.Fragment>
-                         );
-                       })}
-                       {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
-                     </tbody>
-                  </table>
+               {/* โครงสร้างล็อกแกนสัมผัสสำหรับ Safari: ชั้นนอกซ้ายขวา ชั้นในบนล่าง */}
+               <div className="flex-1 w-full scroll-x-only">
+                  <div className="h-full scroll-y-only">
+                     <table className="w-full text-left border-collapse min-w-max">
+                        <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                           <tr>
+                              <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase text-center border-r border-gray-100 w-[60px]">ลำดับ</th>
+                              {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase border border-gray-200 w-[150px]">{col}</th>)}
+                           </tr>
+                        </thead>
+                        <tbody>
+                          {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดง</td></tr>}
+                          {filteredData.map((row, idx) => {
+                            const statusVal = safeTrim(row['สถานะ']), style = getRowStyleClasses(statusVal), checklist = contentChecklists[row.id] || {}, hasOther = !!checklist['other_checked'];
+                            const completedTasks = taskOptions.filter(opt => checklist[opt.key]).length + (hasOther ? 1 : 0), totalTasks = taskOptions.length + (hasOther ? 1 : 0), isComplete = completedTasks > 0 && completedTasks === totalTasks;
+                            return (
+                              <React.Fragment key={row.id}>
+                                <tr className={`border-b cursor-pointer transition-colors ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
+                                  <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400 w-[60px]">{idx + 1}</td>
+                                  {visibleColumns.map(col => {
+                                      let content = null;
+                                      if (col === 'หมู่บ้าน') content = <div className="flex items-center">{isComplete ? <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span> : <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border text-[11px] font-bold">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
+                                      else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                      else if (col === 'สถานะ') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                      else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
+                                      return <td key={col} className="py-4 px-5 align-middle border border-gray-200 w-[150px]">{content}</td>;
+                                  })}
+                                </tr>
+                                {expandedRowId === row.id && (
+                                    <tr className="border-b border-gray-100 bg-gray-50/50"><td colSpan={visibleColumns.length + 1} className="p-0 border border-gray-200"><div className="p-6 md:p-8 bg-white border-l-4 border-brand shadow-inner w-full my-2 mx-4 rounded-xl max-w-[96%]"><div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4"><h4 className="text-[17px] font-bold text-gray-800 flex items-center"><Icon name="CheckSquare" size={20} className="mr-2 text-brand" />เช็คลิสต์คอนเทนต์</h4><button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><Icon name="X" size={14} /></button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12"><div className="bg-brand/5 p-5 rounded-[16px]"><h5 className="font-bold text-brand mb-4 flex items-center"><Icon name="Video" size={18} className="mr-2"/> งานหลัก</h5><div className="space-y-4"><CheckboxItem rowId={row.id} taskKey="main_vertical" label="คลิปแนวตั้ง" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="main_horizontal" label="คลิปแนวนอน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="main_person" label="คลิปมีคน" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="main_photo" label="ถ่ายรูป" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /></div></div><div className="bg-blue-50/50 p-5 rounded-[16px]"><h5 className="font-bold text-blue-800 mb-4 flex items-center"><Icon name="FileSignature" size={18} className="mr-2"/> งานรอง (คอนเท้น)</h5><div className="space-y-4 mb-6"><CheckboxItem rowId={row.id} taskKey="sub_dir_before_after" label="Before/After" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><CheckboxItem rowId={row.id} taskKey="sub_dir_asmr" label="เทสบ้าน / Asmr" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /></div><div className="space-y-4"><CheckboxItem rowId={row.id} taskKey="sub_indir_qa" label="ตอบคอมเมนต์ / QA" checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /><OtherCheckboxItem rowId={row.id} checklist={checklist} isFirebaseLoaded={isFirebaseLoaded} /></div></div></div></div></td></tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                          {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
+                        </tbody>
+                     </table>
+                  </div>
                </div>
             </div>
           </div>
@@ -317,7 +322,6 @@
     };
 
     const ConstructionSchedule = ({ sheetData = [], constructionProgress = {}, isFirebaseLoaded, setManualRefreshKey }) => {
-        const scrollRef = useAxisLock();
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false); const [sortBy, setSortBy] = useState('default');
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -410,51 +414,54 @@
                </div>
 
                <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                  <div ref={scrollRef} className="h-full w-full overflow-auto axis-lock custom-scrollbar bg-white">
-                     <table className="w-full text-left border-collapse min-w-max">
-                        <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                           <tr>
-                              <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase text-center border-r border-gray-100 w-[60px]">ลำดับ</th>
-                              {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase border border-gray-200 w-[150px]">{col}</th>)}
-                           </tr>
-                        </thead>
-                        <tbody>
-                          {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดง</td></tr>}
-                          {sortedData.map((row, idx) => {
-                            const statusVal = safeTrim(row['สถานะ']), style = getRowStyleClasses(statusVal), prog = constructionProgress[row.id] || {};
-                            return (
-                                <tr key={row.id || idx} className={`border-b cursor-pointer transition-colors ${style.row}`}>
-                                    <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400 w-[60px]">{idx + 1}</td>
-                                    {visibleColumns.map(col => {
-                                        let content = null;
-                                        if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
-                                        else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                        else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
-                                        else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg border border-gray-300 w-[110px] text-center" />;
-                                        else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
-                                        else if (col === 'การตรวจงาน') {
-                                            const count = prog.inspectionCount || 0;
-                                            content = (
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="flex items-center bg-white rounded-lg p-1 border border-gray-200">
-                                                        <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} disabled={count === 0} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-red-500 disabled:opacity-40"><Icon name="Minus" size={14} /></button>
-                                                        <span className="w-8 text-center text-[14px] font-extrabold text-brand">{count}</span>
-                                                        <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-brand"><Icon name="Plus" size={14} /></button>
-                                                    </div>
-                                                    {count > 0 ? <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">ตรวจครั้งที่ {count}</span> : <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">ยังไม่ได้ตรวจ</span>}
-                                                </div>
-                                            );
-                                        }
-                                        else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                        else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
-                                        return <td key={col} className="py-4 px-5 align-middle border border-gray-200 w-[150px]">{content}</td>;
-                                    })}
-                                </tr>
-                            )
-                          })}
-                          {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
-                        </tbody>
-                     </table>
+                  {/* โครงสร้างล็อกแกนสัมผัสสำหรับ Safari */}
+                  <div className="flex-1 w-full scroll-x-only">
+                     <div className="h-full scroll-y-only">
+                        <table className="w-full text-left border-collapse min-w-max">
+                           <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                              <tr>
+                                 <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase text-center border-r border-gray-100 w-[60px]">ลำดับ</th>
+                                 {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase border border-gray-200 w-[150px]">{col}</th>)}
+                              </tr>
+                           </thead>
+                           <tbody>
+                             {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดง</td></tr>}
+                             {sortedData.map((row, idx) => {
+                               const statusVal = safeTrim(row['สถานะ']), style = getRowStyleClasses(statusVal), prog = constructionProgress[row.id] || {};
+                               return (
+                                   <tr key={row.id || idx} className={`border-b cursor-pointer transition-colors ${style.row}`}>
+                                       <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400 w-[60px]">{idx + 1}</td>
+                                       {visibleColumns.map(col => {
+                                           let content = null;
+                                           if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
+                                           else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                           else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
+                                           else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg border border-gray-300 w-[110px] text-center" />;
+                                           else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
+                                           else if (col === 'การตรวจงาน') {
+                                               const count = prog.inspectionCount || 0;
+                                               content = (
+                                                   <div className="flex items-center space-x-3">
+                                                       <div className="flex items-center bg-white rounded-lg p-1 border border-gray-200">
+                                                           <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} disabled={count === 0} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-red-500 disabled:opacity-40"><Icon name="Minus" size={14} /></button>
+                                                           <span className="w-8 text-center text-[14px] font-extrabold text-brand">{count}</span>
+                                                           <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-brand"><Icon name="Plus" size={14} /></button>
+                                                       </div>
+                                                       {count > 0 ? <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">ตรวจครั้งที่ {count}</span> : <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">ยังไม่ได้ตรวจ</span>}
+                                                   </div>
+                                               );
+                                           }
+                                           else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                           else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
+                                           return <td key={col} className="py-4 px-5 align-middle border border-gray-200 w-[150px]">{content}</td>;
+                                       })}
+                                   </tr>
+                               )
+                             })}
+                             {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
+                           </tbody>
+                        </table>
+                     </div>
                   </div>
                </div>
 
@@ -524,7 +531,6 @@
     };
 
     const PostSchedule = ({ sheetData = [], setManualRefreshKey, postTracking = {}, isFirebaseLoaded }) => {
-        const scrollRefAll = useAxisLock();
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -664,6 +670,22 @@
                                     )}
                                 </div>
                             )}
+                            {viewMode === 'all' && uniqueWebsites.length > 0 && (
+                                <div className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>} <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    </button>
+                                    {activeFilterDropdown === 'website' && (
+                                        <><div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand font-bold">แสดงทั้งหมด</button>}</div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {uniqueWebsites.map(web => <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{web}</span></label>)}
+                                            </div>
+                                        </div></>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                </div>
@@ -713,69 +735,83 @@
                    </div>
                ) : (
                    <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                     <div ref={scrollRefAll} className="h-full w-full overflow-auto axis-lock custom-scrollbar bg-white">
-                        <table className="w-full text-left border-collapse min-w-max">
-                           <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                              <tr>
-                                 <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase text-center border-r border-gray-100 w-[60px]">ลำดับ</th>
-                                 {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase border border-gray-200 w-[150px]">{col}</th>)}
-                              </tr>
-                           </thead>
-                           <tbody>
-                             {filteredAllData.map((row, idx) => {
-                                 const statusVal = safeTrim(row['สถานะ']);
-                                 const style = getRowStyleClasses(statusVal);
-                                 return (
-                                     <tr key={row.id || idx} className={`border-b transition-colors ${style.row}`}>
-                                         <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400 w-[60px]">{idx + 1}</td>
-                                         {visibleColumns.map(col => {
-                                             let content = null;
-                                             if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
-                                             else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                             else if (col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                             else if (col === 'ประวัติการโพสต์') {
-                                                 const postData = postTracking[row.id] || {};
-                                                 const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
-                                                 content = (
-                                                     <div className="flex flex-col gap-2 py-1">
-                                                         {records.length > 0 ? (
-                                                             <div className="flex flex-wrap gap-1.5 max-w-[300px]">
-                                                                 {records.map(([assigneeName, dateStr]) => {
-                                                                     const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
-                                                                     return (
-                                                                         <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
-                                                                             <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
-                                                                             <button onClick={() => confirmDeleteHistory(row.id, assigneeName, `${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])}`)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 rounded"><Icon name="X" size={10} /></button>
-                                                                         </span>
-                                                                     );
-                                                                 })}
-                                                             </div>
-                                                         ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
-                                                         <div className="relative mt-1">
-                                                             <button onClick={() => setPostMenuOpen(postMenuOpen === row.id ? null : row.id)} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 transition-colors w-fit flex items-center shadow-sm"><Icon name="Plus" size={10} className="mr-1"/> บันทึกโพสต์</button>
-                                                             {postMenuOpen === row.id && (
-                                                                 <><div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
-                                                                 <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
-                                                                     <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครโพสต์วันนี้?</span>
-                                                                     {allAssigneesList.map(name => {
-                                                                         const isChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
-                                                                         return <button key={name} onClick={() => { handleTogglePost(row.id, !isChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between px-3 py-2 text-[12px] font-bold rounded-lg ${isChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10'}`}>{name} {isChecked && <Icon name="Check" size={12} />}</button>
-                                                                     })}
-                                                                 </div></>
-                                                             )}
-                                                         </div>
-                                                     </div>
-                                                 );
-                                             }
-                                             return <td key={col} className="py-4 px-5 align-middle border border-gray-200 w-[150px]">{content}</td>;
-                                         })}
-                                     </tr>
-                                 )
-                             })}
-                           </tbody>
-                        </table>
+                     <div className="flex-1 w-full scroll-x-only">
+                        <div className="h-full scroll-y-only">
+                           <table className="w-full text-left border-collapse min-w-max">
+                              <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                                 <tr>
+                                    <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase text-center border-r border-gray-100 w-[60px]">ลำดับ</th>
+                                    {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase border border-gray-200 w-[150px]">{col}</th>)}
+                                 </tr>
+                              </thead>
+                              <tbody>
+                                {filteredAllData.map((row, idx) => {
+                                    const statusVal = safeTrim(row['สถานะ']);
+                                    const style = getRowStyleClasses(statusVal);
+                                    return (
+                                        <tr key={row.id || idx} className={`border-b transition-colors ${style.row}`}>
+                                            <td className="py-4 px-5 align-middle text-center text-[13px] font-bold border border-gray-200 text-gray-400 w-[60px]">{idx + 1}</td>
+                                            {visibleColumns.map(col => {
+                                                let content = null;
+                                                if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
+                                                else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                                else if (col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                                else if (col === 'ประวัติการโพสต์') {
+                                                    const postData = postTracking[row.id] || {};
+                                                    const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
+                                                    content = (
+                                                        <div className="flex flex-col gap-2 py-1">
+                                                            {records.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-1.5 max-w-[300px]">
+                                                                    {records.map(([assigneeName, dateStr]) => {
+                                                                        const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
+                                                                        return (
+                                                                            <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
+                                                                                <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
+                                                                                <button onClick={() => confirmDeleteHistory(row.id, assigneeName, `${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])}`)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 rounded"><Icon name="X" size={10} /></button>
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
+                                                            <div className="relative mt-1">
+                                                                <button onClick={() => setPostMenuOpen(postMenuOpen === row.id ? null : row.id)} className="text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-md border border-blue-200 transition-colors w-fit flex items-center shadow-sm"><Icon name="Plus" size={10} className="mr-1"/> บันทึกโพสต์</button>
+                                                                {postMenuOpen === row.id && (
+                                                                    <><div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
+                                                                    <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
+                                                                        <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครโพสต์วันนี้?</span>
+                                                                        {allAssigneesList.map(name => {
+                                                                            const isChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
+                                                                            return <button key={name} onClick={() => { handleTogglePost(row.id, !isChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between px-3 py-2 text-[12px] font-bold rounded-lg ${isChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10'}`}>{name} {isChecked && <Icon name="Check" size={12} />}</button>
+                                                                        })}
+                                                                    </div></>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return <td key={col} className="py-4 px-5 align-middle border border-gray-200 w-[150px]">{content}</td>;
+                                            })}
+                                        </tr>
+                                    )
+                                })}
+                              </tbody>
+                           </table>
+                        </div>
                      </div>
                    </div>
+               )}
+               {isSkipModalOpen && (
+                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                   <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                     <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
+                     <h3 className="text-xl font-bold text-gray-800 mb-2">ข้ามบ้านหลังนี้?</h3>
+                     <div className="flex justify-center space-x-2">
+                       <button onClick={() => setIsSkipModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">ยกเลิก</button>
+                       <button onClick={executeSkip} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors">ยืนยัน</button>
+                     </div>
+                   </div>
+                 </div>
                )}
             </div>
         );
@@ -785,17 +821,6 @@
       const [input, setInput] = useState(''); const [isLoading, setIsLoading] = useState(false);
       const chatEndRef = useRef(null); const inputRef = useRef(null);
       useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isLoading]);
-      useEffect(() => { if (!isLoading && inputRef.current) inputRef.current.focus(); }, [isLoading]);
-
-      const handleSend = async () => {
-        if (!input.trim()) return;
-        const userQuery = input.trim(); setInput(''); setMessages([...messages, { role: 'user', text: userQuery }]); setIsLoading(true);
-        setTimeout(() => {
-            setMessages(prev => [...prev, { role: 'ai', text: "ขออภัยด้วยค่ะ ระบบ AI แชทยังอยู่ระหว่างการอัปเดตระบบ กรุณาลองใหม่ในภายหลังนะคะ 💕" }]);
-            setIsLoading(false);
-        }, 1500);
-      };
-
       return (
       <div className="flex-1 flex flex-col p-3 md:p-8 h-full overflow-hidden bg-background">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center shrink-0"><Icon name="MessageCircle" className="mr-3 text-brand" size={26} /> น้อง Up (AI ผู้ช่วยบริษัท)</h2>
@@ -808,13 +833,11 @@
                 {msg.role === 'user' && <div className="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center ml-3 shrink-0"><Icon name="User" size={18}/></div>}
               </div>
             ))}
-            {isLoading && (<div className="flex items-start justify-start"><div className="w-10 h-10 rounded-full bg-brand/50 text-white flex items-center justify-center mr-3 shrink-0 animate-pulse font-bold">Up</div><div className="p-4 bg-white border border-gray-200 rounded-2xl rounded-tl-sm flex items-center space-x-2"><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div><div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div></div></div>)}
             <div ref={chatEndRef} />
           </div>
           <div className="p-4 md:p-5 bg-white border-t border-gray-100 shrink-0">
             <div className="relative flex items-center max-w-4xl mx-auto">
-              <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') handleSend(); }} placeholder="พิมพ์ข้อความที่นี่..." disabled={isLoading} className="w-full pl-5 pr-14 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none text-[14px] focus:border-brand" />
-              <button onClick={handleSend} disabled={isLoading || !input.trim()} className="absolute right-2 p-2.5 bg-brand text-white rounded-lg hover:bg-brandLight disabled:opacity-50"><Icon name="Send" size={16} /></button>
+              <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="ระบบ AI อยู่ระหว่างปิดปรับปรุงชั่วคราว..." disabled={true} className="w-full pl-5 pr-14 py-3.5 bg-gray-50 border border-gray-200 rounded-xl outline-none text-[14px] opacity-50" />
             </div>
           </div>
         </div>
@@ -838,157 +861,16 @@
     );
 
     const HouseGallery = ({ houses = [], sheetData = [], isFirebaseLoaded }) => {
-        const [modalMode, setModalMode] = useState('none');
-        const initialForm = { _rowId: '', projectName: '', location: '', houseNo: '', soi: '', area: '', bedrooms: '', bathrooms: '', parking: '', floors: '', direction: '', price: '', images: [] };
-        const [houseForm, setHouseForm] = useState(initialForm); const [activeHouse, setActiveHouse] = useState(null);
-        const [activeImageIndex, setActiveImageIndex] = useState(0); const [isUploadingImgs, setIsUploadingImgs] = useState(false);
-        const [houseSearchQuery, setHouseSearchQuery] = useState(''); const [isDeleteHouseModalOpen, setIsDeleteHouseModalOpen] = useState(false);
-
-        const handleDownloadSingle = (base64Data, filename) => { const link = document.createElement('a'); link.href = base64Data; link.download = filename || 'house_image.jpg'; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
-        const handleDownloadAll = (images, projectName) => { const safeName = (projectName || 'house').replace(/[/\\?%*:|"<>]/g, '-'); images.forEach((img, idx) => { setTimeout(() => { handleDownloadSingle(img, `${safeName}_${idx + 1}.jpg`); }, idx * 300); }); };
-        const handleOpenAdd = () => { setHouseForm(initialForm); setModalMode('add'); };
-        const handleOpenView = (house) => { setActiveHouse(house); setActiveImageIndex(0); setModalMode('view'); };
-        const handleOpenEdit = () => { setHouseForm({ ...initialForm, ...activeHouse }); setModalMode('edit'); };
-
-        const handleSaveHouse = async (e) => { e.preventDefault(); if (!isFirebaseLoaded) return; const { collection, addDoc, updateDoc, doc } = window.firebaseAPI; try { if (modalMode === 'add') { await addDoc(collection(window.firebaseDB, "houses"), { ...houseForm, createdAt: new Date().toISOString() }); setModalMode('none'); setHouseForm(initialForm); } else if (modalMode === 'edit' && activeHouse) { await updateDoc(doc(window.firebaseDB, "houses", activeHouse.id), { ...houseForm, updatedAt: new Date().toISOString() }); setActiveHouse({ ...activeHouse, ...houseForm }); setModalMode('view'); setActiveImageIndex(0); } } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกโครงการ"); } };
-        const handleAddImagesToForm = async (e) => { const files = Array.from(e.target.files); if (!files.length) return; setIsUploadingImgs(true); try { const newImages = await Promise.all(files.map(file => compressImage(file))); setHouseForm(prev => { const combined = [...prev.images, ...newImages]; return { ...prev, images: combined.slice(0, 10) }; }); } catch (error) { alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ'); } setIsUploadingImgs(false); };
-        const handleRemoveFormImage = (indexToRemove) => { setHouseForm(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== indexToRemove) })); };
-        const handleRemoveAllFormImages = () => { if(confirm('ยืนยันการลบรูปภาพทั้งหมดออกจากฟอร์มนี้?')) { setHouseForm(prev => ({ ...prev, images: [] })); } };
-        const handleDeleteHouse = async () => { if (!activeHouse || !isFirebaseLoaded) return; try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "houses", activeHouse.id)); setIsDeleteHouseModalOpen(false); setActiveHouse(null); setModalMode('none'); } catch (error) { alert("เกิดข้อผิดพลาดในการลบข้อมูล"); } };
-
-        const filteredHouses = houses.filter(h => { const query = houseSearchQuery.toLowerCase(), combined = `${h.projectName || ''} ${h.location || ''} ${h.houseNo || ''} ${h.soi || ''}`.toLowerCase(); return combined.includes(query); });
-
-        const renderAddEditModal = () => (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
-                <div className="bg-surface rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl relative border border-gray-100">
-                    <div className="flex justify-between items-center p-4 md:p-5 border-b border-gray-100 shrink-0">
-                        <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มโครงการบ้านใหม่' : 'แก้ไขข้อมูลบ้าน'}</h3>
-                        <button type="button" onClick={() => setModalMode(modalMode === 'add' ? 'none' : 'view')} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors"><Icon name="X" size={16}/></button>
-                    </div>
-                    <form id="houseFormObj" onSubmit={handleSaveHouse} className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div className="col-span-2 md:col-span-4">
-                                <label className="block text-[12px] font-bold text-gray-600 mb-1">โครงการ / บ้านเลขที่</label>
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                    <select value={houseForm._rowId || ''} onChange={e => {
-                                        const selectedRow = getValidSheetData(sheetData).find(r => r.id === e.target.value);
-                                        if(selectedRow) { setHouseForm({ ...houseForm, _rowId: e.target.value, projectName: safeTrim(selectedRow['หมู่บ้าน']) || '', houseNo: safeTrim(selectedRow['บ้านเลขที่']) || '', soi: safeTrim(selectedRow['ซอย']) || '', location: safeTrim(selectedRow['ทำเล']) || '', price: formatPriceInput(safeTrim(selectedRow['ราคา sale']) || safeTrim(selectedRow['ราคา']) || ''), area: safeTrim(selectedRow['ขนาด']) || safeTrim(selectedRow['พื้นที่']) || '', direction: safeTrim(selectedRow['ทิศ']) || '', bedrooms: safeTrim(selectedRow['ห้องนอน']) || safeTrim(selectedRow['นอน']) || '', bathrooms: safeTrim(selectedRow['ห้องน้ำ']) || safeTrim(selectedRow['น้ำ']) || '', parking: safeTrim(selectedRow['ที่จอดรถ']) || safeTrim(selectedRow['จอดรถ']) || '', floors: safeTrim(selectedRow['ชั้น']) || safeTrim(selectedRow['จำนวนชั้น']) || '' });
-                                        } else { setHouseForm({...houseForm, _rowId: ''}); }
-                                    }} className="flex-1 px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-[13px]"><option value="">-- เลือกจาก Google Sheet --</option>{getValidSheetData(sheetData).filter(r => safeTrim(r['สถานะ']) === 'ยังไม่เสร็จ').map(row => <option key={row.id} value={row.id}>{`${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])} ${safeTrim(row['ซอย'])}`.trim()}</option>)}</select>
-                                    <input type="text" required value={houseForm.projectName} onChange={e=>setHouseForm({...houseForm, projectName:e.target.value})} className="flex-1 px-2 py-1.5 bg-white border border-gray-300 rounded-md text-[13px]" />
-                                </div>
-                            </div>
-                            <div className="col-span-1 md:col-span-2"><label className="block text-[12px] font-bold text-gray-600 mb-1">ทำเล</label><input type="text" value={houseForm.location} onChange={e=>setHouseForm({...houseForm, location:e.target.value})} className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-md text-[13px]" /></div>
-                            <div className="col-span-1 md:col-span-2"><label className="block text-[12px] font-bold text-gray-600 mb-1">ราคา</label><input type="text" value={houseForm.price} onChange={e=>setHouseForm({...houseForm, price:formatPriceInput(e.target.value)})} className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-md text-[13px]" /></div>
-                            <div className="col-span-1"><label className="block text-[12px] font-bold text-gray-600 mb-1">บ้านเลขที่</label><input type="text" value={houseForm.houseNo} onChange={e=>setHouseForm({...houseForm, houseNo:e.target.value})} className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-md text-[13px]" /></div>
-                            <div className="col-span-1"><label className="block text-[12px] font-bold text-gray-600 mb-1">ซอย</label><input type="text" value={houseForm.soi} onChange={e=>setHouseForm({...houseForm, soi:e.target.value})} className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-md text-[13px]" /></div>
-                        </div>
-                        <div className="border-t border-gray-200 mt-4 pt-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-[13px] font-bold text-gray-800">รูปภาพโครงการ <span className="text-gray-500 font-normal text-[11px]">(สูงสุด 10 รูป)</span></label>
-                                {houseForm.images.length > 0 && <button type="button" onClick={handleRemoveAllFormImages} className="text-[11px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-1 rounded">ลบรูปทั้งหมด</button>}
-                            </div>
-                            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
-                                {houseForm.images.map((imgSrc, idx) => (
-                                    <div key={idx} className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative group border border-gray-200">
-                                        <img src={imgSrc} className="w-full h-full object-cover" />
-                                        <button type="button" onClick={() => handleRemoveFormImage(idx)} className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100"><Icon name="X" size={12} /></button>
-                                    </div>
-                                ))}
-                                {houseForm.images.length < 10 && (
-                                    <label className={`aspect-square flex flex-col items-center justify-center border-2 border-dashed rounded-lg cursor-pointer ${isUploadingImgs ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-300 hover:border-brand hover:bg-brand/5'}`}>
-                                        {isUploadingImgs ? <Icon name="RefreshCw" className="animate-spin text-brand mb-1" size={16}/> : <><Icon name="Plus" size={20} className="text-gray-400 mb-0.5" /><span className="text-[10px] font-bold text-gray-500">เพิ่มรูป</span></>}
-                                        <input type="file" multiple accept="image/*" className="hidden" onChange={handleAddImagesToForm} disabled={isUploadingImgs} />
-                                    </label>
-                                )}
-                            </div>
-                        </div>
-                    </form>
-                    <div className="flex justify-end p-4 md:p-5 border-t border-gray-100 shrink-0 bg-gray-50 rounded-b-2xl space-x-3">
-                        <button type="button" onClick={() => setModalMode(modalMode === 'add' ? 'none' : 'view')} className="px-5 py-2 text-[13px] font-bold text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-xl">ยกเลิก</button>
-                        <button form="houseFormObj" type="submit" className="px-6 py-2 text-[13px] font-bold text-white rounded-xl bg-brand hover:bg-brandLight flex items-center"><Icon name="Check" size={16} className="mr-2"/> บันทึกข้อมูล</button>
-                    </div>
-                </div>
-            </div>
-        );
-
-        const renderViewModal = () => {
-            if (!activeHouse) return null;
-            const h = activeHouse; const fullAddress = `${h.houseNo || ''} ${h.soi || ''}`.trim();
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md text-left">
-                    <div className="bg-surface rounded-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl relative border border-gray-100">
-                        <button onClick={() => setModalMode('none')} className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/80"><Icon name="X" size={18}/></button>
-                        <div className="w-full md:w-3/5 bg-black flex flex-col shrink-0">
-                            <div className="flex-1 w-full bg-black flex items-center justify-center relative p-2">
-                                {h.images && h.images.length > 0 ? (
-                                    <><img src={h.images[activeImageIndex]} className="w-full h-full object-contain" /><div className="absolute bottom-4 right-4"><button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/60 hover:bg-brand text-white px-3 py-1.5 rounded-lg text-[12px] font-bold flex items-center"><Icon name="Download" size={14} className="mr-1.5"/> โหลดรูปนี้</button></div></>
-                                ) : (<div className="text-gray-500 text-center"><Icon name="Image" size={48} className="mx-auto mb-2 opacity-50"/>ไม่มีรูปภาพ</div>)}
-                            </div>
-                            {h.images && h.images.length > 0 && (
-                                <div className="flex items-center p-3 bg-gray-900 border-t border-gray-800 h-[100px] shrink-0">
-                                    <div className="flex gap-2 overflow-x-auto horizontal-scrollbar flex-1 pb-2">
-                                        {h.images.map((imgSrc, idx) => <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-16 h-16 rounded-md overflow-hidden shrink-0 border-2 ${activeImageIndex === idx ? 'border-brand scale-105' : 'border-transparent opacity-60'}`}><img src={imgSrc} className="w-full h-full object-cover" /></button>)}
-                                    </div>
-                                    {h.images.length > 1 && <button onClick={() => handleDownloadAll(h.images, h.projectName)} className="ml-4 shrink-0 bg-brand text-white flex flex-col items-center justify-center h-16 px-3 rounded-lg hover:bg-brandLight"><Icon name="Download" size={18} className="mb-1"/><span className="text-[10px] font-bold">โหลดทั้งหมด</span></button>}
-                                </div>
-                            )}
-                        </div>
-                        <div className="w-full md:w-2/5 flex flex-col bg-white overflow-hidden border-l border-gray-200">
-                            <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
-                                <div className="flex justify-between items-start mb-2"><div><span className="inline-block bg-brand/10 text-brand px-2.5 py-1 rounded-md text-[11px] font-extrabold mb-2">บ้านมาใหม่</span><h2 className="text-2xl font-extrabold text-gray-900 leading-tight">{h.projectName || 'ไม่ระบุชื่อโครงการ'}</h2></div></div>
-                                {h.price && <div className="text-2xl font-black text-brand mb-6">{h.price}</div>}
-                                <div className="space-y-4 mb-8"><div className="flex items-start text-[14px]"><Icon name="MapPin" size={18} className="text-gray-400 mr-3 mt-0.5 shrink-0"/><div><div className="font-bold text-gray-800">{h.location || 'ไม่ระบุทำเล'}</div>{fullAddress && <div className="text-gray-500 mt-0.5">บ้านเลขที่ {fullAddress}</div>}</div></div></div>
-                            </div>
-                            <div className="p-5 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-between items-center">
-                                <button onClick={() => setIsDeleteHouseModalOpen(true)} className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl"><Icon name="Trash" size={20} /></button>
-                                <button onClick={handleOpenEdit} className="flex items-center px-6 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-black font-bold text-[14px]"><Icon name="Edit" size={16} className="mr-2" /> แก้ไขข้อมูล</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
         return (
-          <>
             <div className="flex-1 p-4 md:p-8 overflow-hidden bg-background flex flex-col h-full">
               <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                 <div><h2 className="text-2xl font-bold text-gray-800 flex items-center"><Icon name="Image" size={26} className="mr-3 text-brand"/> รูปบ้านมาใหม่</h2></div>
-                <button onClick={handleOpenAdd} className="bg-brand text-white px-5 py-2.5 rounded-xl flex items-center shadow-subtle hover:bg-brandLight font-bold shrink-0 ml-4"><Icon name="Plus" size={18} className="mr-2" /> เพิ่มโครงการ</button>
               </div>
-              <div className="mb-4 md:mb-8 relative max-w-md shrink-0"><Icon name="Search" size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" /><input type="text" placeholder="ค้นหาชื่อโครงการ, ผู้รับผิดชอบ..." value={houseSearchQuery} onChange={(e) => setHouseSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-brand text-sm shadow-sm" /></div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pr-2">
-                     {filteredHouses.map(house => (
-                        <div key={house.id} onClick={() => handleOpenView(house)} className="w-full bg-white rounded-[20px] overflow-hidden shadow-subtle border border-gray-100 flex flex-col hover:-translate-y-1 transition-all cursor-pointer group mx-auto sm:mx-0">
-                            <div className="h-[200px] w-full bg-gray-100 relative overflow-hidden shrink-0 flex items-center justify-center">
-                                {house.images && house.images.length > 0 ? (<img src={house.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />) : (<div className="flex flex-col items-center text-gray-400"><Icon name="Image" size={40} className="mb-2 opacity-30"/><span className="text-[11px] font-medium">ไม่มีรูปภาพ</span></div>)}
-                            </div>
-                            <div className="p-4 flex-1 flex flex-col">
-                                <h3 className="font-extrabold text-[15px] text-gray-800 truncate mb-1">{house.projectName || 'ไม่ระบุชื่อ'}</h3>
-                                <p className="text-[12px] text-gray-500 truncate mb-3 flex items-center"><Icon name="MapPin" size={12} className="mr-1"/> {house.location || '-'}</p>
-                            </div>
-                        </div>
-                     ))}
-                  </div>
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 bg-surface rounded-2xl border border-gray-100 border-dashed">
+                 <Icon name="Image" size={40} className="mb-3 opacity-30" />
+                 <p className="font-medium text-[14px]">หน้านี้อยู่ระหว่างการปรับปรุงระบบชั่วคราว</p>
               </div>
             </div>
-            {modalMode === 'add' || modalMode === 'edit' ? renderAddEditModal() : null}
-            {modalMode === 'view' ? renderViewModal() : null}
-            {isDeleteHouseModalOpen && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                  <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบโครงการ</h3>
-                  <div className="flex justify-center space-x-2 mt-5">
-                    <button onClick={() => setIsDeleteHouseModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
-                    <button onClick={handleDeleteHouse} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ลบข้อมูลถาวร</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
         );
     };
 
@@ -998,7 +880,6 @@
       const [showSplash, setShowSplash] = useState(true);
       const [splashFade, setSplashFade] = useState(false);
 
-      // --- States ---
       const [currentDate, setCurrentDate] = useState(new Date());
       const [events, setEvents] = useState([]);
       const [departments, setDepartments] = useState([]); 
@@ -1007,9 +888,6 @@
       const [editingEventId, setEditingEventId] = useState(null);
       const [isDayViewOpen, setIsDayViewOpen] = useState(false);
       const [selectedDayString, setSelectedDayString] = useState('');
-      
-      const [isDeleteMonthModalOpen, setIsDeleteMonthModalOpen] = useState(false);
-      const [deleteMonthText, setDeleteMonthText] = useState('');
       const [isAddDeptModalOpen, setIsAddDeptModalOpen] = useState(false);
       const [newDeptName, setNewDeptName] = useState('');
       const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
@@ -1020,6 +898,8 @@
       const [isDeleteMemberModalOpen, setIsDeleteMemberModalOpen] = useState(false);
       const [memberToDelete, setMemberToDelete] = useState('');
       const [deptOfMemberToDelete, setDeptOfMemberToDelete] = useState('');
+      const [isDeleteMonthModalOpen, setIsDeleteMonthModalOpen] = useState(false);
+      const [deleteMonthText, setDeleteMonthText] = useState('');
       const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '' });
 
       const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
@@ -1032,18 +912,13 @@
       const [aiMessages, setAiMessages] = useState([{ role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }]);
 
       useEffect(() => {
-        const timer1 = setTimeout(() => setSplashFade(true), 800);
-        const timer2 = setTimeout(() => setShowSplash(false), 1300);
+        const timer1 = setTimeout(() => setSplashFade(true), 800); const timer2 = setTimeout(() => setShowSplash(false), 1300);
         return () => { clearTimeout(timer1); clearTimeout(timer2); };
       }, []);
 
       useEffect(() => {
         if (window.firebaseDB) setIsFirebaseLoaded(true);
-        else {
-          const handleLoad = () => setIsFirebaseLoaded(true);
-          window.addEventListener('firebaseLoaded', handleLoad);
-          return () => window.removeEventListener('firebaseLoaded', handleLoad);
-        }
+        else { const handleLoad = () => setIsFirebaseLoaded(true); window.addEventListener('firebaseLoaded', handleLoad); return () => window.removeEventListener('firebaseLoaded', handleLoad); }
       }, []);
 
       useEffect(() => {
@@ -1080,9 +955,7 @@
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => { const day = new Date(year, month, 1).getDay(); return (day + 6) % 7; };
       const year = currentDate.getFullYear(), month = currentDate.getMonth(), daysInMonth = getDaysInMonth(year, month);
-      const startDayIndex = (getFirstDayOfMonth(year, month) + 6) % 7; 
-      const totalCells = startDayIndex + daysInMonth;
-      const emptyEndCells = (7 - (totalCells % 7)) % 7;
+      const startDayIndex = (getFirstDayOfMonth(year, month) + 6) % 7; const totalCells = startDayIndex + daysInMonth; const emptyEndCells = (7 - (totalCells % 7)) % 7;
 
       const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
       const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
@@ -1131,21 +1004,9 @@
         handleCloseModal();
       };
 
-      const handleDeleteEvent = async () => {
-        if (!isFirebaseLoaded || !editingEventId) return;
-        try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId)); } catch (error) {}
-        handleCloseModal();
-      };
+      const handleDeleteEvent = async () => { if (!isFirebaseLoaded || !editingEventId) return; try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId)); } catch (error) {} handleCloseModal(); };
+      const handleDeleteMonth = async () => { if (!isFirebaseLoaded) return; const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`; const eventsToDelete = events.filter(ev => ev.date.startsWith(monthPrefix)); try { await Promise.all(eventsToDelete.map(ev => window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", ev.id)))); } catch (error) {} setIsDeleteMonthModalOpen(false); };
 
-      const handleDeleteMonth = async () => {
-        if (!isFirebaseLoaded) return;
-        const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-        const eventsToDelete = events.filter(ev => ev.date.startsWith(monthPrefix));
-        try { await Promise.all(eventsToDelete.map(ev => window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", ev.id)))); } catch (error) {}
-        setIsDeleteMonthModalOpen(false);
-      };
-
-      const calendarScrollRef = useAxisLock();
       const renderCalendarTab = () => (
         <div className="flex-1 flex overflow-hidden">
           <div className="w-[240px] bg-white border-r border-gray-200 flex flex-col overflow-hidden hidden md:flex shrink-0">
@@ -1162,10 +1023,10 @@
                        <div className="px-2 py-1 text-[12px] font-bold text-brand uppercase tracking-widest flex justify-between items-center group">
                           <div className="flex items-center"><Icon name="User" size={14} className="mr-1.5 opacity-40" /> ทีม {dept}</div>
                           <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <button onClick={() => moveDeptUp(tIdx)} disabled={tIdx === 0} className="text-gray-400 hover:text-brand disabled:opacity-20 transition-colors"><Icon name="ChevronUp" size={14}/></button>
-                             <button onClick={() => moveDeptDown(tIdx)} disabled={tIdx === departments.length - 1} className="text-gray-400 hover:text-brand disabled:opacity-20 transition-colors"><Icon name="ChevronDown" size={14}/></button>
-                             <button onClick={() => {setIsAddMemberModalOpen(true); setTargetDeptForMember(dept)}} className="text-gray-400 hover:text-brand transition-colors"><Icon name="Plus" size={14}/></button>
-                             <button onClick={() => {setIsDeleteDeptModalOpen(true); setDeptToDelete(dept)}} className="text-gray-400 hover:text-red-500 transition-colors"><Icon name="Trash" size={14}/></button>
+                             <button onClick={() => moveDeptUp(tIdx)} disabled={tIdx === 0} className="text-gray-400 hover:text-brand disabled:opacity-20"><Icon name="ChevronUp" size={14}/></button>
+                             <button onClick={() => moveDeptDown(tIdx)} disabled={tIdx === departments.length - 1} className="text-gray-400 hover:text-brand disabled:opacity-20"><Icon name="ChevronDown" size={14}/></button>
+                             <button onClick={() => {setIsAddMemberModalOpen(true); setTargetDeptForMember(dept)}} className="text-gray-400 hover:text-brand"><Icon name="Plus" size={14}/></button>
+                             <button onClick={() => {setIsDeleteDeptModalOpen(true); setDeptToDelete(dept)}} className="text-gray-400 hover:text-red-500"><Icon name="Trash" size={14}/></button>
                           </div>
                        </div>
                        <div className="space-y-1 mt-1 px-1 pb-1">
@@ -1176,9 +1037,9 @@
                                      {name}
                                   </button>
                                   <div className="absolute right-0 opacity-0 group-hover:opacity-100 flex items-center bg-white pr-2 space-x-0.5 transition-opacity h-full">
-                                      <button onClick={() => moveMemberUp(tIdx, mIdx)} disabled={mIdx === 0} className="p-1 text-gray-400 hover:text-brand disabled:opacity-20 transition-colors"><Icon name="ChevronUp" size={14}/></button>
-                                      <button onClick={() => moveMemberDown(tIdx, mIdx)} disabled={mIdx === members.length - 1} className="p-1 text-gray-400 hover:text-brand disabled:opacity-20 transition-colors"><Icon name="ChevronDown" size={14}/></button>
-                                      <button onClick={() => {setIsDeleteMemberModalOpen(true); setMemberToDelete(name); setDeptOfMemberToDelete(dept)}} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Icon name="X" size={14}/></button>
+                                      <button onClick={() => moveMemberUp(tIdx, mIdx)} disabled={mIdx === 0} className="p-1 text-gray-400 hover:text-brand disabled:opacity-20"><Icon name="ChevronUp" size={14}/></button>
+                                      <button onClick={() => moveMemberDown(tIdx, mIdx)} disabled={mIdx === members.length - 1} className="p-1 text-gray-400 hover:text-brand disabled:opacity-20"><Icon name="ChevronDown" size={14}/></button>
+                                      <button onClick={() => {setIsDeleteMemberModalOpen(true); setMemberToDelete(name); setDeptOfMemberToDelete(dept)}} className="p-1 text-gray-400 hover:text-red-500"><Icon name="X" size={14}/></button>
                                   </div>
                                </div>
                           ))}
@@ -1193,35 +1054,24 @@
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-5 border-b border-gray-100 shrink-0 bg-white">
                 <div className="flex items-center space-x-4 mb-4 md:mb-0">
                   <h2 className="text-[20px] font-bold text-gray-800 tracking-tight">ปฏิทินวางแผนการทำงาน</h2>
-                  <div className="flex items-center text-lg font-bold text-gray-800">
-                    <Icon name="CalendarIcon" size={20} className="mr-2 text-gray-400" />
-                    {MONTHS_TH[month]} <span className="text-gray-400 font-medium ml-2">{year + 543}</span>
-                  </div>
+                  <div className="flex items-center text-lg font-bold text-gray-800"><Icon name="CalendarIcon" size={20} className="mr-2 text-gray-400" />{MONTHS_TH[month]} <span className="text-gray-400 font-medium ml-2">{year + 543}</span></div>
                   <div className="flex bg-gray-50 rounded-[10px] p-1 border border-gray-100 ml-2">
-                    <button onClick={prevMonth} className="px-2 py-1.5 rounded-md hover:bg-white text-gray-500 hover:text-gray-800 transition-colors"><Icon name="ChevronLeft" size={16}/></button>
-                    <button onClick={goToToday} className="px-3 py-1.5 text-[13px] font-semibold text-gray-600 hover:text-gray-900 transition-colors">วันนี้</button>
-                    <button onClick={nextMonth} className="px-2 py-1.5 rounded-md hover:bg-white text-gray-500 hover:text-gray-800 transition-colors"><Icon name="ChevronRight" size={16}/></button>
+                    <button onClick={prevMonth} className="px-2 py-1.5 rounded-md hover:bg-white text-gray-500"><Icon name="ChevronLeft" size={16}/></button>
+                    <button onClick={goToToday} className="px-3 py-1.5 text-[13px] font-semibold text-gray-600">วันนี้</button>
+                    <button onClick={nextMonth} className="px-2 py-1.5 rounded-md hover:bg-white text-gray-500"><Icon name="ChevronRight" size={16}/></button>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3 w-full md:w-auto justify-end pr-14 md:pr-14">
-                  <button onClick={() => setIsDeleteMonthModalOpen(true)} className="flex items-center space-x-2 bg-[#ef4444] hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-[13px] font-bold transition-all shadow-sm">
-                    <Icon name="Trash" size={14} /> <span className="hidden sm:inline">ลบข้อมูลเดือนนี้</span>
-                  </button>
-                  <button onClick={() => { setSelectedDayString(''); handleOpenModal(); }} className="flex items-center space-x-2 bg-brand text-white px-5 py-2.5 rounded-lg text-[13px] font-bold shadow-md hover:bg-brandLight transition-all">
-                    <Icon name="Plus" size={14} /> <span className="hidden sm:inline">เพิ่มกิจกรรม</span>
-                  </button>
+                  <button onClick={() => setIsDeleteMonthModalOpen(true)} className="flex items-center space-x-2 bg-[#ef4444] hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-[13px] font-bold shadow-sm"><Icon name="Trash" size={14} /> <span className="hidden sm:inline">ลบข้อมูลเดือนนี้</span></button>
+                  <button onClick={() => { setSelectedDayString(''); handleOpenModal(); }} className="flex items-center space-x-2 bg-brand text-white px-5 py-2.5 rounded-lg text-[13px] font-bold shadow-md hover:bg-brandLight"><Icon name="Plus" size={14} /> <span className="hidden sm:inline">เพิ่มกิจกรรม</span></button>
                 </div>
               </div>
               <div className="flex-1 flex flex-col bg-white overflow-hidden">
                 <div className="grid grid-cols-7 border-b border-gray-100 bg-white shrink-0">
-                  {['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].map((day, idx) => (
-                    <div key={day} className={`py-4 text-center text-[13px] font-bold ${idx > 4 ? 'text-[#ef4444]' : 'text-gray-500'}`}>{day}</div>
-                  ))}
+                  {['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].map((day, idx) => (<div key={day} className={`py-4 text-center text-[13px] font-bold ${idx > 4 ? 'text-[#ef4444]' : 'text-gray-500'}`}>{day}</div>))}
                 </div>
-                <div ref={calendarScrollRef} className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto axis-lock custom-scrollbar">
-                  {Array.from({ length: startDayIndex }).map((_, i) => (
-                    <div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none bg-gray-50/20" />
-                  ))}
+                <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar">
+                  {Array.from({ length: startDayIndex }).map((_, i) => (<div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] bg-gray-50/20" />))}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1, dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const { normalEvents, holidays, leaves, publicHolidays } = getEventsForDay(dStr);
@@ -1235,9 +1085,7 @@
 
                     return (
                       <div key={day} onClick={() => handleDayClick(day)} style={inlineStyle} className={`min-h-[100px] border-r border-b border-gray-100 p-1 md:p-2.5 flex flex-col cursor-pointer transition-colors hover:opacity-80 ${bgClass} group overflow-hidden`}>
-                        <div className="mb-1 md:mb-2 ml-1 relative z-10 shrink-0">
-                          <span className={`inline-flex w-6 h-6 md:w-7 md:h-7 rounded-full items-center justify-center text-[12px] md:text-[13px] font-semibold transition-colors ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-700 group-hover:text-brand'}`}>{day}</span>
-                        </div>
+                        <div className="mb-1 md:mb-2 ml-1 relative z-10 shrink-0"><span className={`inline-flex w-6 h-6 md:w-7 md:h-7 rounded-full items-center justify-center text-[12px] md:text-[13px] font-semibold transition-colors ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-700 group-hover:text-brand'}`}>{day}</span></div>
                         <div className="flex-1 space-y-1 px-0 md:px-0.5 relative z-10 min-w-0 w-full flex flex-col">
                            {selectedUser !== 'All' && publicHolidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-[4px] md:rounded-[6px] px-1 md:px-2 py-1 md:py-1.5 truncate text-center shadow-sm w-full">นักขัตฤกษ์</div>}
                            {selectedUser !== 'All' && holidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-red-100 text-red-800 rounded-[4px] md:rounded-[6px] px-1 md:px-2 py-1 md:py-1.5 truncate text-center shadow-sm w-full">วันหยุด</div>}
@@ -1247,9 +1095,7 @@
                       </div>
                     )
                   })}
-                  {Array.from({ length: emptyEndCells }).map((_, i) => (
-                    <div key={`empty-end-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none bg-gray-50/20" />
-                  ))}
+                  {Array.from({ length: emptyEndCells }).map((_, i) => (<div key={`empty-end-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] bg-gray-50/20" />))}
                 </div>
               </div>
             </div>
@@ -1257,7 +1103,6 @@
         </div>
       );
 
-      const holidayScrollRef = useAxisLock();
       const renderHolidayTab = () => (
         <div className="flex-1 flex flex-col h-full overflow-hidden p-4 md:px-6 md:pb-6 md:pt-2 bg-background">
           <div className="bg-surface border border-gray-200 shadow-subtle rounded-[20px] flex flex-col h-full overflow-hidden">
@@ -1266,67 +1111,71 @@
               <div className="flex items-center space-x-4 pr-14 md:pr-14">
                 <div className="flex items-center text-lg font-bold text-gray-800">{MONTHS_TH[month]} {year + 543}</div>
                 <div className="flex bg-gray-50 rounded-[10px] p-1 border border-gray-100">
-                  <button onClick={prevMonth} className="px-2.5 py-1.5 rounded-md hover:bg-white text-gray-500 transition-colors"><Icon name="ChevronLeft" size={16}/></button>
-                  <button onClick={goToToday} className="px-3 py-1.5 text-[13px] font-semibold text-gray-600 transition-colors">วันนี้</button>
-                  <button onClick={nextMonth} className="px-2.5 py-1.5 rounded-md hover:bg-white text-gray-500 transition-colors"><Icon name="ChevronRight" size={16}/></button>
+                  <button onClick={prevMonth} className="px-2.5 py-1.5 rounded-md hover:bg-white text-gray-500"><Icon name="ChevronLeft" size={16}/></button>
+                  <button onClick={goToToday} className="px-3 py-1.5 text-[13px] font-semibold text-gray-600">วันนี้</button>
+                  <button onClick={nextMonth} className="px-2.5 py-1.5 rounded-md hover:bg-white text-gray-500"><Icon name="ChevronRight" size={16}/></button>
                 </div>
               </div>
             </div>
+
             <div className="flex-1 relative overflow-hidden bg-white p-0">
-               <div ref={holidayScrollRef} className="absolute inset-0 overflow-auto axis-lock custom-scrollbar">
-                   <table className="w-full text-center border-collapse min-w-max">
-                     <thead className="sticky top-0 z-20 shadow-sm bg-white">
-                       <tr>
-                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
-                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
-                         {Array.from({ length: daysInMonth }).map((_, i) => (
-                           <th key={i} className={`border border-gray-200 bg-[#f3f4f6] p-1 text-[11px] font-bold ${[0, 6].includes(new Date(year, month, i + 1).getDay()) ? 'text-red-500' : 'text-gray-600'}`}>
-                             {['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][new Date(year, month, i + 1).getDay()]}
-                           </th>
-                         ))}
-                       </tr>
-                       <tr>
-                         {Array.from({ length: daysInMonth }).map((_, i) => {
-                           const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
-                           return (
-                             <th key={`d-${i}`} className={`border border-gray-200 p-1 text-[11px] font-bold ${isToday ? 'bg-brand text-white' : 'bg-[#f3f4f6] text-gray-600'}`}>
-                               {i+1}-{['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][month]}
-                             </th>
-                           )
-                         })}
-                       </tr>
-                     </thead>
-                     <tbody>
-                       {departments.map((dept) => (
-                         <React.Fragment key={dept.id}>
-                           <tr><td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td></tr>
-                           {dept.members.map((emp, idx) => (
-                             <tr key={emp} className="hover:bg-gray-50 transition-colors">
-                               <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
-                               <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
-                               {Array.from({ length: daysInMonth }).map((_, i) => {
-                                 const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
-                                 const cellEv = events.filter(ev => ev.assignee === emp && ev.date === dStr && (ev.type === 'holiday' || ev.type === 'leave' || ev.type === 'public_holiday'));
-                                 let bg = '', label = '';
-                                 if(cellEv.length){
-                                   if(cellEv.some(e=>e.type==='public_holiday')) { bg = 'bg-[#eab308] text-white'; label='ขัตฤกษ์'; }
-                                   else if(cellEv.some(e=>e.type==='holiday')) { bg = 'bg-[#ef4444] text-white'; label='หยุด'; }
-                                   else if(cellEv.some(e=>e.type==='leave')) { bg = 'bg-[#f97316] text-white'; label='ลา'; }
-                                 }
-                                 const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
-                                 const todayHighlightClass = isToday && !bg ? 'bg-green-50/50' : '';
-                                 return (
-                                   <td key={`c-${emp}-${i}`} onClick={() => { cellEv.length ? (setSelectedDayString(dStr), setIsDayViewOpen(true)) : handleOpenModal(i+1, null, emp, 'holiday') }} className={`border border-gray-200 p-0 cursor-pointer hover:bg-gray-100 transition-colors h-8 min-w-[40px] ${todayHighlightClass}`}>
-                                     {label && <div className={`w-full h-full flex items-center justify-center text-[10px] font-bold ${bg}`}>{label}</div>}
-                                   </td>
-                                 )
-                               })}
-                             </tr>
+               {/* โครงสร้างล็อกแกนสัมผัสสำหรับ Safari */}
+               <div className="flex-1 w-full scroll-x-only">
+                   <div className="h-full scroll-y-only">
+                       <table className="w-full text-center border-collapse min-w-max">
+                         <thead className="sticky top-0 z-20 shadow-sm bg-white">
+                           <tr>
+                             <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
+                             <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
+                             {Array.from({ length: daysInMonth }).map((_, i) => (
+                               <th key={i} className={`border border-gray-200 bg-[#f3f4f6] p-1 text-[11px] font-bold ${[0, 6].includes(new Date(year, month, i + 1).getDay()) ? 'text-red-500' : 'text-gray-600'}`}>
+                                 {['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][new Date(year, month, i + 1).getDay()]}
+                               </th>
+                             ))}
+                           </tr>
+                           <tr>
+                             {Array.from({ length: daysInMonth }).map((_, i) => {
+                               const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+                               return (
+                                 <th key={`d-${i}`} className={`border border-gray-200 p-1 text-[11px] font-bold ${isToday ? 'bg-brand text-white' : 'bg-[#f3f4f6] text-gray-600'}`}>
+                                   {i+1}-{['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][month]}
+                                 </th>
+                               )
+                             })}
+                           </tr>
+                         </thead>
+                         <tbody>
+                           {departments.map((dept) => (
+                             <React.Fragment key={dept.id}>
+                               <tr><td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td></tr>
+                               {dept.members.map((emp, idx) => (
+                                 <tr key={emp} className="hover:bg-gray-50 transition-colors">
+                                   <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
+                                   <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
+                                   {Array.from({ length: daysInMonth }).map((_, i) => {
+                                     const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+                                     const cellEv = events.filter(ev => ev.assignee === emp && ev.date === dStr && (ev.type === 'holiday' || ev.type === 'leave' || ev.type === 'public_holiday'));
+                                     let bg = '', label = '';
+                                     if(cellEv.length){
+                                       if(cellEv.some(e=>e.type==='public_holiday')) { bg = 'bg-[#eab308] text-white'; label='ขัตฤกษ์'; }
+                                       else if(cellEv.some(e=>e.type==='holiday')) { bg = 'bg-[#ef4444] text-white'; label='หยุด'; }
+                                       else if(cellEv.some(e=>e.type==='leave')) { bg = 'bg-[#f97316] text-white'; label='ลา'; }
+                                     }
+                                     const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+                                     const todayHighlightClass = isToday && !bg ? 'bg-green-50/50' : '';
+                                     return (
+                                       <td key={`c-${emp}-${i}`} onClick={() => { cellEv.length ? (setSelectedDayString(dStr), setIsDayViewOpen(true)) : handleOpenModal(i+1, null, emp, 'holiday') }} className={`border border-gray-200 p-0 cursor-pointer hover:bg-gray-100 transition-colors h-8 min-w-[40px] ${todayHighlightClass}`}>
+                                         {label && <div className={`w-full h-full flex items-center justify-center text-[10px] font-bold ${bg}`}>{label}</div>}
+                                       </td>
+                                     )
+                                   })}
+                                 </tr>
+                               ))}
+                             </React.Fragment>
                            ))}
-                         </React.Fragment>
-                       ))}
-                     </tbody>
-                   </table>
+                         </tbody>
+                       </table>
+                   </div>
                </div>
             </div>
           </div>
@@ -1335,6 +1184,7 @@
 
       return (
         <Fragment>
+          {/* Splash Screen */}
           {showSplash && <div className={`fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out ${splashFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}><img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" className="h-28 w-auto object-contain drop-shadow-lg mb-6 animate-pulse" /></div>}
 
           <div className="h-screen w-full flex flex-col md:flex-row bg-background font-sans text-gray-800 overflow-hidden">
@@ -1344,7 +1194,7 @@
                  <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" className="h-[65px] object-contain drop-shadow-sm" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
                  <div className="hidden flex-col items-center justify-center"><div className="text-[18px] font-bold tracking-widest text-[#d4af37]">STARTUP UP</div><div className="text-[10px] tracking-widest uppercase opacity-80 mt-[-2px] text-white">Real Estate</div></div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5 custom-scrollbar bg-transparent axis-lock">
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5 custom-scrollbar bg-transparent">
                 <div className="w-full px-2 pt-2 pb-3 relative z-10 bg-transparent"><span className="text-[13px] font-bold text-gray-400 tracking-widest uppercase block leading-loose">เมนูระบบ</span></div>
                 {MAIN_MENUS.map(menu => {
                   const isActive = activeApp === menu.id;
@@ -1361,10 +1211,7 @@
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-background relative z-10">
               <div className="flex items-center justify-between p-4 md:hidden bg-surface shadow-sm z-30 shrink-0 border-b border-gray-100 transition-colors">
-                <div className="flex items-center">
-                  <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-gray-600"><Icon name={isSidebarOpen ? 'X' : 'Menu'} /></button>
-                  <span className="font-bold text-brand text-lg ml-2">STARTUP UP</span>
-                </div>
+                <div className="flex items-center"><button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-gray-600"><Icon name={isSidebarOpen ? 'X' : 'Menu'} /></button><span className="font-bold text-brand text-lg ml-2">STARTUP UP</span></div>
               </div>
 
               {/* Routing */}
@@ -1380,7 +1227,7 @@
 
             {/* Global Modals */}
             {isModalOpen && (() => {
-               const btnColor = formData.type === 'holiday' ? 'bg-[#dc2626] hover:bg-[#b91c1c]' : formData.type === 'leave' ? 'bg-[#ea580c] hover:bg-[#c2410c]' : formData.type === 'public_holiday' ? 'bg-[#eab308] hover:bg-[#ca8a04]' : 'bg-[#0b3d1b] hover:bg-[#166534]';
+               const btnColor = formData.type === 'holiday' ? 'bg-[#dc2626]' : formData.type === 'leave' ? 'bg-[#ea580c]' : formData.type === 'public_holiday' ? 'bg-[#eab308]' : 'bg-[#0b3d1b]';
                return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                   <div className="bg-surface rounded-2xl w-full max-w-[500px] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
@@ -1388,7 +1235,7 @@
                       <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name="CalendarIcon" className="mr-2 text-brand" size={20} />{editingEventId ? 'แก้ไขรายละเอียด' : 'เพิ่มรายละเอียด'}</h3>
                       <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600"><Icon name="X" size={20}/></button>
                     </div>
-                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5 overflow-y-auto" style={{ overscrollBehavior: 'none' }}>
+                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5 overflow-y-auto">
                       <div className="flex items-center space-x-4 border-b border-gray-100 pb-5">
                         <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer"><input type="radio" checked={formData.type==='event'} onChange={()=>setFormData({...formData, type:'event'})} className="mr-2 w-4 h-4 accent-brand"/> กิจกรรม</label>
                         <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer"><input type="radio" checked={formData.type==='holiday'} onChange={()=>setFormData({...formData, type:'holiday'})} className="mr-2 w-4 h-4 accent-gray-600"/> วันหยุด</label>
@@ -1396,19 +1243,19 @@
                         <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer"><input type="radio" checked={formData.type==='public_holiday'} onChange={()=>setFormData({...formData, type:'public_holiday'})} className="mr-2 w-4 h-4 accent-gray-600"/> ขัตฤกษ์</label>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">วันที่</label><DatePickerFixed required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px] text-gray-700"/></div>
-                        <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">ผู้รับผิดชอบ</label><select required value={formData.assignee} onChange={e=>setFormData({...formData, assignee:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px] text-gray-700"><option value="" disabled hidden>ระบุผู้รับผิดชอบ</option>{departments.map((dept) => <optgroup key={dept.id} label={`ทีม ${dept.id}`}>{dept.members.map(name => <option key={name}>{name}</option>)}</optgroup>)}</select></div>
+                        <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">วันที่</label><DatePickerFixed required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px]"/></div>
+                        <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">ผู้รับผิดชอบ</label><select required value={formData.assignee} onChange={e=>setFormData({...formData, assignee:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px]"><option value="" disabled hidden>ระบุผู้รับผิดชอบ</option>{departments.map((dept) => <optgroup key={dept.id} label={`ทีม ${dept.id}`}>{dept.members.map(name => <option key={name}>{name}</option>)}</optgroup>)}</select></div>
                       </div>
                       {formData.type === 'event' && (
                         <>
-                          <div className="w-full"><label className="block text-[13px] font-bold text-gray-600 mb-1.5">เวลา (ชั่วโมง : นาที)</label><div className="flex space-x-2 items-center"><select value={formData.hour} onChange={e=>setFormData({...formData, hour:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{HOURS.map(h=><option key={h}>{h}</option>)}</select><span className="font-bold text-gray-400">:</span><select value={formData.minute} onChange={e=>setFormData({...formData, minute:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{MINUTES.map(m=><option key={m}>{m}</option>)}</select></div></div>
-                          <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">สิ่งที่ต้องทำ</label><select required value={formData.activity} onChange={e=>setFormData({...formData, activity:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px] text-gray-700"><option value="" disabled hidden>ระบุสิ่งที่ต้องทำ</option>{ACTIVITIES.map(a => <option key={a}>{a}</option>)}</select></div>
+                          <div className="w-full"><label className="block text-[13px] font-bold text-gray-600 mb-1.5">เวลา (ชั่วโมง : นาที)</label><div className="flex space-x-2 items-center"><select value={formData.hour} onChange={e=>setFormData({...formData, hour:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 text-center text-[14px]">{HOURS.map(h=><option key={h}>{h}</option>)}</select><span className="font-bold text-gray-400">:</span><select value={formData.minute} onChange={e=>setFormData({...formData, minute:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 text-center text-[14px]">{MINUTES.map(m=><option key={m}>{m}</option>)}</select></div></div>
+                          <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">สิ่งที่ต้องทำ</label><select required value={formData.activity} onChange={e=>setFormData({...formData, activity:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px]"><option value="" disabled hidden>ระบุสิ่งที่ต้องทำ</option>{ACTIVITIES.map(a => <option key={a}>{a}</option>)}</select></div>
                         </>
                       )}
-                      <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">หมายเหตุ / รายละเอียดเพิ่มเติม</label><textarea rows="3" value={formData.note} onChange={e=>setFormData({...formData, note:e.target.value})} placeholder="กรุณาระบุรายละเอียด" className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px] text-gray-700 resize-none"></textarea></div>
+                      <div><label className="block text-[13px] font-bold text-gray-600 mb-1.5">หมายเหตุ / รายละเอียดเพิ่มเติม</label><textarea rows="3" value={formData.note} onChange={e=>setFormData({...formData, note:e.target.value})} placeholder="กรุณาระบุรายละเอียด" className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand text-[14px] resize-none"></textarea></div>
                       <div className="flex justify-between pt-6 border-t border-gray-100">
-                        {editingEventId ? <button type="button" onClick={handleDeleteEvent} className="text-red-500 text-[14px] font-bold hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">ลบข้อมูล</button> : <div></div>}
-                        <div className="space-x-3 flex items-center"><button type="button" onClick={handleCloseModal} className="px-4 py-2.5 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ยกเลิก</button><button type="submit" className={`px-5 py-2.5 text-[14px] font-bold text-white rounded-lg shadow-sm transition-all flex items-center ${btnColor}`}><Icon name="Plus" size={16} className="mr-1.5" /> บันทึกข้อมูล</button></div>
+                        {editingEventId ? <button type="button" onClick={handleDeleteEvent} className="text-red-500 text-[14px] font-bold px-3 py-2 rounded-lg">ลบข้อมูล</button> : <div></div>}
+                        <div className="space-x-3 flex items-center"><button type="button" onClick={handleCloseModal} className="px-4 py-2.5 text-[14px] font-bold text-gray-500">ยกเลิก</button><button type="submit" className={`px-5 py-2.5 text-[14px] font-bold text-white rounded-lg flex items-center ${btnColor}`}><Icon name="Plus" size={16} className="mr-1.5" /> บันทึกข้อมูล</button></div>
                       </div>
                     </form>
                   </div>
@@ -1416,6 +1263,7 @@
                );
             })()}
 
+            {/* ตารางแสดงรายละเอียดของวัน */}
             {isDayViewOpen && selectedDayString && (() => {
               const { normalEvents, holidays, leaves, publicHolidays } = getEventsForDay(selectedDayString);
               let itemsToShow = normalEvents;
@@ -1424,9 +1272,9 @@
               return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                    <div className="bg-surface rounded-2xl w-full max-w-4xl p-6 md:p-8 shadow-2xl flex flex-col border border-gray-100 relative">
-                     <button onClick={() => setIsDayViewOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"><Icon name="X" size={18}/></button>
+                     <button onClick={() => setIsDayViewOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"><Icon name="X" size={18}/></button>
                      <div className="mb-6 border-b border-transparent"><div className="inline-block border-b-[3px] border-[#ef4444] pb-2 pr-4"><h3 className="text-xl md:text-2xl font-bold flex items-center text-brand"><Icon name="CalendarIcon" className="mr-3" size={24}/>กิจกรรมประจำวันที่ {getFormattedDateThai(selectedDayString)}</h3></div></div>
-                     <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden" style={{ overscrollBehavior: 'none' }}>
+                     <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden">
                        {itemsToShow.length > 0 ? (
                          <table className="w-full text-left border-collapse">
                            <thead><tr className="bg-gray-50 border-b border-gray-100"><th className="p-4 text-[13px] font-bold text-gray-500 w-[120px]">เวลา</th><th className="p-4 text-[13px] font-bold text-gray-500 w-[140px]">ผู้รับผิดชอบ</th><th className="p-4 text-[13px] font-bold text-gray-500 w-[200px]">สิ่งที่ต้องทำ</th><th className="p-4 text-[13px] font-bold text-gray-500">หมายเหตุ</th></tr></thead>
@@ -1447,37 +1295,26 @@
                        ) : (<div className="py-16 text-center text-gray-400 font-medium">ไม่มีข้อมูลในวันนี้</div>)}
                      </div>
                      <div className="mt-6 flex justify-end items-center space-x-4">
-                       <button onClick={() => setIsDayViewOpen(false)} className="px-4 py-2 text-[14px] font-bold text-gray-500 hover:text-gray-800 transition-all">ปิด</button>
-                       <button onClick={() => {setIsDayViewOpen(false); handleOpenModal()}} className="px-5 py-2.5 text-[14px] font-bold bg-[#0b3d1b] text-white rounded-lg hover:bg-brandLight transition-colors flex items-center shadow-sm"><Icon name="Plus" size={16} className="mr-1.5" /> เพิ่มข้อมูล</button>
+                       <button onClick={() => setIsDayViewOpen(false)} className="px-4 py-2 text-[14px] font-bold text-gray-500 hover:text-gray-800">ปิด</button>
+                       <button onClick={() => {setIsDayViewOpen(false); handleOpenModal()}} className="px-5 py-2.5 text-[14px] font-bold bg-[#0b3d1b] text-white rounded-lg flex items-center shadow-sm"><Icon name="Plus" size={16} className="mr-1.5" /> เพิ่มข้อมูล</button>
                      </div>
                    </div>
                 </div>
               );
             })()}
 
-            {isAddDeptModalOpen && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มทีมใหม่</h3><input type="text" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="ชื่อทีม..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" /><div className="flex justify-end space-x-2"><button onClick={() => setIsAddDeptModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg">ยกเลิก</button><button onClick={handleAddDept} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg hover:bg-brandLight transition-colors">บันทึก</button></div></div></div>
-            )}
-            {isAddMemberModalOpen && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มพนักงานทีม {targetDeptForMember}</h3><input type="text" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} placeholder="ชื่อพนักงาน..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" /><div className="flex justify-end space-x-2"><button onClick={() => setIsAddMemberModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 rounded-lg">ยกเลิก</button><button onClick={handleAddMember} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg hover:bg-brandLight transition-colors">บันทึก</button></div></div></div>
-            )}
-            {isDeleteDeptModalOpen && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100"><div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div><h3 className="text-xl font-bold text-gray-800 mb-2">ลบทีม {deptToDelete}</h3><p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบทีมนี้ใช่หรือไม่?</p><div className="flex justify-center space-x-2"><button onClick={() => setIsDeleteDeptModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button><button onClick={handleDeleteDept} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ยืนยัน</button></div></div></div>
-            )}
-            {isDeleteMemberModalOpen && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100"><div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="User" size={24}/></div><h3 className="text-xl font-bold text-gray-800 mb-2">ลบรายชื่อ {memberToDelete}</h3><p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบรายชื่อพนักงานนี้ออกจากระบบใช่หรือไม่?</p><div className="flex justify-center space-x-2"><button onClick={() => setIsDeleteMemberModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button><button onClick={handleDeleteMember} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ยืนยัน</button></div></div></div>
-            )}
-            {isDeleteMonthModalOpen && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100"><div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div><h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลเดือนนี้</h3><p className="text-sm text-gray-500 mb-5 leading-relaxed">หากต้องการลบ ให้พิมพ์ <b>"ลบข้อมูล"</b></p><input type="text" value={deleteMonthText} onChange={(e) => setDeleteMonthText(e.target.value)} placeholder="ลบข้อมูล" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-5 outline-none focus:border-red-500 text-center font-bold text-sm" /><div className="flex justify-center space-x-2"><button onClick={() => { setIsDeleteMonthModalOpen(false); setDeleteMonthText(''); }} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button><button onClick={handleDeleteMonth} disabled={deleteMonthText !== 'ลบข้อมูล'} className={`px-5 py-2.5 text-sm font-bold text-white rounded-lg ${deleteMonthText === 'ลบข้อมูล' ? 'bg-red-600 hover:bg-red-700' : 'bg-red-300'}`}>ยืนยัน</button></div></div></div>
-            )}
-
+            {/* Department Modals */}
+            {isAddDeptModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มทีมใหม่</h3><input type="text" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="ชื่อทีม..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" /><div className="flex justify-end space-x-2"><button onClick={() => setIsAddDeptModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 rounded-lg">ยกเลิก</button><button onClick={handleAddDept} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg">บันทึก</button></div></div></div>)}
+            {isAddMemberModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100"><h3 className="text-lg font-bold text-gray-800 mb-4">เพิ่มพนักงานทีม {targetDeptForMember}</h3><input type="text" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} placeholder="ชื่อพนักงาน..." className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-6 outline-none focus:border-brand text-sm" /><div className="flex justify-end space-x-2"><button onClick={() => setIsAddMemberModalOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-500 rounded-lg">ยกเลิก</button><button onClick={handleAddMember} className="px-4 py-2 text-sm font-bold bg-brand text-white rounded-lg">บันทึก</button></div></div></div>)}
+            {isDeleteDeptModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100"><div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div><h3 className="text-xl font-bold text-gray-800 mb-2">ลบทีม {deptToDelete}</h3><div className="flex justify-center space-x-2 mt-5"><button onClick={() => setIsDeleteDeptModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg">ยกเลิก</button><button onClick={handleDeleteDept} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600">ยืนยัน</button></div></div></div>)}
+            {isDeleteMemberModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100"><div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="User" size={24}/></div><h3 className="text-xl font-bold text-gray-800 mb-2">ลบรายชื่อ {memberToDelete}</h3><div className="flex justify-center space-x-2 mt-5"><button onClick={() => setIsDeleteMemberModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg">ยกเลิก</button><button onClick={handleDeleteMember} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600">ยืนยัน</button></div></div></div>)}
+            {isDeleteMonthModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"><div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100"><div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div><h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลเดือนนี้</h3><p className="text-sm text-gray-500 mb-5 leading-relaxed">หากต้องการลบ ให้พิมพ์ <b>"ลบข้อมูล"</b></p><input type="text" value={deleteMonthText} onChange={(e) => setDeleteMonthText(e.target.value)} placeholder="ลบข้อมูล" className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg mb-5 outline-none focus:border-red-500 text-center font-bold text-sm" /><div className="flex justify-center space-x-2"><button onClick={() => { setIsDeleteMonthModalOpen(false); setDeleteMonthText(''); }} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg">ยกเลิก</button><button onClick={handleDeleteMonth} disabled={deleteMonthText !== 'ลบข้อมูล'} className={`px-5 py-2.5 text-sm font-bold text-white rounded-lg ${deleteMonthText === 'ลบข้อมูล' ? 'bg-red-600' : 'bg-red-300'}`}>ยืนยัน</button></div></div></div>)}
           </div>
         </Fragment>
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
