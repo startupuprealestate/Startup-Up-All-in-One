@@ -15,22 +15,45 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
-    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Prompt', 'sans-serif'] }, colors: { brand: '#0b3d1b', brandLight: '#166534', surface: '#ffffff', background: '#f9fafb', cellHighlight: '#ebfbf1', mintPill: '#c6f6d5', mintText: '#065f46' } } } }
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Prompt', 'sans-serif'] }, colors: { brand: '#0b3d1b', brandLight: '#166534', surface: '#ffffff', background: '#f9fafb', cellHighlight: '#ebfbf1', mintPill: '#c6f6d5', mintText: '#065f46' }, boxShadow: { 'subtle': '0 4px 20px -2px rgba(0, 0, 0, 0.04)' } } } }
   </script>
   <style>
-    /* ล็อกหน้าจอหลักตายตัว ห้ามเด้งหรือยางยืด (Rubber-banding) เพื่อแก้ปัญหา Safari */
-    html, body { width: 100%; height: 100%; overflow: hidden !important; overscroll-behavior: none !important; background-color: #f9fafb; margin: 0; padding: 0; position: fixed; }
-    #root { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+    /* CSS ล็อกหน้าจอหลักตายตัว เพื่อให้ Safari Scroll ล็อกได้อย่างสมบูรณ์ */
+    html, body { 
+      height: 100%; 
+      overflow: hidden; 
+      background-color: #f9fafb; 
+      margin: 0; 
+      padding: 0; 
+      -webkit-font-smoothing: antialiased;
+    }
     
-    /* Scrollbar ปรับแต่ง */
+    #root { 
+      height: 100%; 
+      overflow: hidden; 
+      display: flex; 
+      flex-direction: column; 
+    }
+    
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
     .horizontal-scrollbar::-webkit-scrollbar { height: 8px; }
     .horizontal-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+
+    /* CSS ล็อกแกน (Safari Fix) */
+    .scroll-x-only { 
+      overflow-x: auto; 
+      overflow-y: hidden; 
+      -webkit-overflow-scrolling: touch; 
+    }
     
-    /* เทคนิคแยกแกนเลื่อนสำหรับ Safari iOS (100% Locked) */
-    .scroll-x-only { overflow-x: auto !important; overflow-y: hidden !important; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
-    .scroll-y-only { overflow-y: auto !important; overflow-x: hidden !important; touch-action: pan-y; -webkit-overflow-scrolling: touch; width: max-content; min-width: 100%; }
+    .scroll-y-only { 
+      overflow-y: auto; 
+      overflow-x: hidden; 
+      -webkit-overflow-scrolling: touch; 
+      width: 100%; 
+      min-width: max-content; /* ป้องกันตารางโดนตัดขอบขวา */
+    }
 
     .date-picker-overlay { opacity: 0 !important; -webkit-appearance: none; cursor: pointer; }
     .date-picker-overlay::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
@@ -55,8 +78,14 @@
 </head>
 <body>
   <div id="root"><div class="init-splash"><img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" class="init-logo" /></div></div>
+  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(e => {}));</script>
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, Fragment } = React;
+
+    // --- ฟังก์ชันช่วยเหลือสำหรับการ Scroll ---
+    const useStrictScroll = () => {
+      return useRef(null);
+    };
 
     const Icon = ({ name, size = 20, className = '' }) => {
       const icons = {
@@ -160,6 +189,7 @@
 
     // --- TAB COMPONENTS ---
     const ContentChecklist = ({ sheetData = [], contentChecklists = {}, isFirebaseLoaded, setManualRefreshKey }) => {
+        const scrollRef = useStrictScroll();
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isTaskFilterOpen, setIsTaskFilterOpen] = useState(false); const [pendingTaskFilter, setPendingTaskFilter] = useState(''); 
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -268,18 +298,13 @@
                             </div>
                         )}
                     </div>
-                    <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                        {visibleColumns.map((col, idx) => (
-                            <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
-                        ))}
-                    </div>
                 </div>
             </div>
 
             <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-               {/* โครงสร้างล็อกแกนสัมผัสสำหรับ Safari: ชั้นนอกซ้ายขวา ชั้นในบนล่าง */}
+               {/* โครงสร้างล็อกแกนเลื่อนแยกชั้น สำหรับตารางเช็คลิสต์ */}
                <div className="flex-1 w-full scroll-x-only">
-                  <div className="h-full scroll-y-only">
+                  <div ref={scrollRef} className="h-full scroll-y-only custom-scrollbar bg-white">
                      <table className="w-full text-left border-collapse min-w-max">
                         <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                            <tr>
@@ -322,6 +347,7 @@
     };
 
     const ConstructionSchedule = ({ sheetData = [], constructionProgress = {}, isFirebaseLoaded, setManualRefreshKey }) => {
+        const scrollRef = useStrictScroll();
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false); const [sortBy, setSortBy] = useState('default');
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -414,9 +440,9 @@
                </div>
 
                <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                  {/* โครงสร้างล็อกแกนสัมผัสสำหรับ Safari */}
+                  {/* โครงสร้างล็อกแกนเลื่อนแยกชั้น สำหรับตารางก่อสร้าง */}
                   <div className="flex-1 w-full scroll-x-only">
-                     <div className="h-full scroll-y-only">
+                     <div ref={scrollRef} className="h-full scroll-y-only custom-scrollbar bg-white">
                         <table className="w-full text-left border-collapse min-w-max">
                            <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                               <tr>
@@ -518,7 +544,7 @@
                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
                      <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
                      <h3 className="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบประวัติ?</h3>
-                     <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบประวัติการทำเสร็จของ <b>{historyToDelete.label}</b> ใช่หรือไม่?</p>
+                     <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบประวัติการทำเสร็จของ <b>{historyToDelete.label}</b> ใช่หรือไม่? <br/>(สถานะวันทำเสร็จจะถูกล้างค่าเป็นค่าว่าง)</p>
                      <div className="flex justify-center space-x-2">
                        <button onClick={() => setHistoryToDelete(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">ยกเลิก</button>
                        <button onClick={async () => { await handleUpdateProgress(historyToDelete.id, { finishedDate: "" }); setHistoryToDelete(null); }} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors">ลบประวัติ</button>
@@ -531,6 +557,7 @@
     };
 
     const PostSchedule = ({ sheetData = [], setManualRefreshKey, postTracking = {}, isFirebaseLoaded }) => {
+        const scrollRefAll = useStrictScroll();
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false); const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
@@ -602,6 +629,14 @@
             if (expStr) return <span className="inline-block mt-1.5 text-[11px] font-bold bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100"><Icon name="Clock" size={10} className="inline-block mr-1 mb-0.5"/>ใกล้หมดสัญญา: {expStr}</span>;
             if (startStr) return <span className="inline-block mt-1.5 text-[11px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100"><Icon name="CalendarIcon" size={10} className="inline-block mr-1 mb-0.5"/>เริ่มทำ: {startStr}</span>;
             return null;
+        };
+
+        const renderPreviousPostInfo = (house, assigneeName) => {
+            const lastPost = postTracking[house.id]?.[assigneeName];
+            if (!lastPost || lastPost === assignmentTodayStr) return null;
+            const diffDays = getDaysAgo(lastPost, assignmentTodayStr);
+            if (diffDays <= 0) return null;
+            return <span className="inline-block mt-1.5 text-[11px] font-bold bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200"><Icon name="RefreshCw" size={10} className="inline-block mr-1 mb-0.5"/>เคยโพสต์ {getFormattedDateThai(lastPost)} ({diffDays} วันที่แล้ว)</span>;
         };
 
         const filteredAllData = baseSheetData.filter(row => {
@@ -735,8 +770,9 @@
                    </div>
                ) : (
                    <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
+                     {/* โครงสร้างล็อกแกนเลื่อนแยกชั้น สำหรับตารางโพสต์บ้าน */}
                      <div className="flex-1 w-full scroll-x-only">
-                        <div className="h-full scroll-y-only">
+                        <div ref={scrollRefAll} className="h-full scroll-y-only custom-scrollbar bg-white">
                            <table className="w-full text-left border-collapse min-w-max">
                               <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                                  <tr>
@@ -813,6 +849,19 @@
                    </div>
                  </div>
                )}
+               {isDeleteHistoryModalOpen && (
+                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                   <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                     <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
+                     <h3 className="text-xl font-bold text-gray-800 mb-2">ลบประวัติการโพสต์</h3>
+                     <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบประวัติของ <b>{historyToDelete?.assigneeName}</b> ใช่หรือไม่?</p>
+                     <div className="flex justify-center space-x-2">
+                       <button onClick={() => setIsDeleteHistoryModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">ยกเลิก</button>
+                       <button onClick={executeDeleteHistory} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors">ลบประวัติ</button>
+                     </div>
+                   </div>
+                 </div>
+               )}
             </div>
         );
     };
@@ -860,7 +909,7 @@
       </div>
     );
 
-    const HouseGallery = ({ houses = [], sheetData = [], isFirebaseLoaded }) => {
+    const HouseGallery = () => {
         return (
             <div className="flex-1 p-4 md:p-8 overflow-hidden bg-background flex flex-col h-full">
               <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
@@ -1007,6 +1056,7 @@
       const handleDeleteEvent = async () => { if (!isFirebaseLoaded || !editingEventId) return; try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId)); } catch (error) {} handleCloseModal(); };
       const handleDeleteMonth = async () => { if (!isFirebaseLoaded) return; const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`; const eventsToDelete = events.filter(ev => ev.date.startsWith(monthPrefix)); try { await Promise.all(eventsToDelete.map(ev => window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "events", ev.id)))); } catch (error) {} setIsDeleteMonthModalOpen(false); };
 
+      const calendarScrollRef = useStrictScroll();
       const renderCalendarTab = () => (
         <div className="flex-1 flex overflow-hidden">
           <div className="w-[240px] bg-white border-r border-gray-200 flex flex-col overflow-hidden hidden md:flex shrink-0">
@@ -1070,7 +1120,7 @@
                 <div className="grid grid-cols-7 border-b border-gray-100 bg-white shrink-0">
                   {['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].map((day, idx) => (<div key={day} className={`py-4 text-center text-[13px] font-bold ${idx > 4 ? 'text-[#ef4444]' : 'text-gray-500'}`}>{day}</div>))}
                 </div>
-                <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar">
+                <div ref={calendarScrollRef} className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar">
                   {Array.from({ length: startDayIndex }).map((_, i) => (<div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] bg-gray-50/20" />))}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1, dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -1103,6 +1153,7 @@
         </div>
       );
 
+      const holidayScrollRef = useStrictScroll();
       const renderHolidayTab = () => (
         <div className="flex-1 flex flex-col h-full overflow-hidden p-4 md:px-6 md:pb-6 md:pt-2 bg-background">
           <div className="bg-surface border border-gray-200 shadow-subtle rounded-[20px] flex flex-col h-full overflow-hidden">
@@ -1118,10 +1169,9 @@
               </div>
             </div>
 
-            <div className="flex-1 relative overflow-hidden bg-white p-0">
-               {/* โครงสร้างล็อกแกนสัมผัสสำหรับ Safari */}
+            <div className="flex-1 relative overflow-hidden bg-white p-0 flex flex-col">
                <div className="flex-1 w-full scroll-x-only">
-                   <div className="h-full scroll-y-only">
+                   <div ref={holidayScrollRef} className="h-full scroll-y-only custom-scrollbar bg-white">
                        <table className="w-full text-center border-collapse min-w-max">
                          <thead className="sticky top-0 z-20 shadow-sm bg-white">
                            <tr>
@@ -1184,7 +1234,6 @@
 
       return (
         <Fragment>
-          {/* Splash Screen */}
           {showSplash && <div className={`fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out ${splashFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}><img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" className="h-28 w-auto object-contain drop-shadow-lg mb-6 animate-pulse" /></div>}
 
           <div className="h-screen w-full flex flex-col md:flex-row bg-background font-sans text-gray-800 overflow-hidden">
