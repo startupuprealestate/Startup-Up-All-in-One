@@ -2056,12 +2056,12 @@
               <div className="flex-1 flex flex-col bg-white overflow-hidden">
                 <div className="grid grid-cols-7 border-b border-gray-100 bg-white shrink-0">
                   {['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].map((day, idx) => (
-                    <div key={day} className={`py-4 text-center text-[13px] font-bold ${idx > 4 ? 'text-[#ef4444]' : 'text-gray-500'}`}>{day}</div>
+                    <div key={day} className={`py-3 md:py-4 text-center text-[12px] md:text-[13px] font-bold ${idx > 4 ? 'text-[#ef4444]' : 'text-gray-500'}`}>{day}</div>
                   ))}
                 </div>
-                <div className="flex-1 grid grid-cols-7 auto-rows-fr overflow-y-auto custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                <div className="flex-1 grid grid-cols-7 auto-rows-[minmax(80px,1fr)] md:auto-rows-[minmax(100px,1fr)] overflow-y-auto custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                   {Array.from({ length: startDayIndex }).map((_, i) => (
-                    <div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none bg-gray-50/20" />
+                    <div key={`e-${i}`} className="border-r border-b border-gray-100 p-2 pointer-events-none bg-gray-50/20" />
                   ))}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1, dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -2075,21 +2075,22 @@
                     else if (hasHoliday && selectedUser !== 'All') { bgClass = "bg-red-50"; }
 
                     return (
-                      <div key={day} onClick={() => handleDayClick(day)} style={inlineStyle} className={`min-h-[100px] border-r border-b border-gray-100 p-1 md:p-2.5 flex flex-col cursor-pointer transition-colors hover:opacity-80 ${bgClass} group overflow-hidden`}>
-                        <div className="mb-1 md:mb-2 ml-1 relative z-10 shrink-0">
-                          <span className={`inline-flex w-6 h-6 md:w-7 md:h-7 rounded-full items-center justify-center text-[12px] md:text-[13px] font-semibold transition-colors ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-700 group-hover:text-brand'}`}>{day}</span>
+                      <div key={day} onClick={() => handleDayClick(day)} style={inlineStyle} className={`relative border-r border-b border-gray-100 p-1 md:p-2 flex flex-col cursor-pointer transition-colors hover:opacity-80 ${bgClass} overflow-hidden`}>
+                        <div className="mb-1 md:mb-1.5 shrink-0 text-center md:text-left ml-0 md:ml-1">
+                          <span className={`inline-flex w-6 h-6 md:w-7 md:h-7 rounded-full items-center justify-center text-[12px] md:text-[13px] font-bold transition-colors ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-700'}`}>{day}</span>
                         </div>
-                        <div className="flex-1 space-y-1 px-0 md:px-0.5 relative z-10 min-w-0 w-full flex flex-col">
-                           {selectedUser !== 'All' && publicHolidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-[4px] md:rounded-[6px] px-1 md:px-2 py-1 md:py-1.5 truncate text-center shadow-sm w-full">นักขัตฤกษ์</div>}
-                           {selectedUser !== 'All' && holidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-red-100 text-red-800 rounded-[4px] md:rounded-[6px] px-1 md:px-2 py-1 md:py-1.5 truncate text-center shadow-sm w-full">วันหยุด</div>}
-                           {selectedUser !== 'All' && leaves.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-orange-100 text-orange-800 rounded-[4px] md:rounded-[6px] px-1 md:px-2 py-1 md:py-1.5 truncate text-center shadow-sm w-full">ลางาน</div>}
-                           {hasEvent && <div className="text-[10px] md:text-[12px] font-bold bg-mintPill text-mintText rounded-[4px] md:rounded-[8px] px-1 md:px-2 py-1 md:py-1.5 truncate shadow-[0_1px_2px_rgba(0,0,0,0.05)] text-center w-full">มีกิจกรรม</div>}
+                        {/* ปิด pointer-events เพื่อป้องกันการบังการแตะ */}
+                        <div className="flex-1 space-y-1 px-0.5 min-w-0 w-full flex flex-col pointer-events-none">
+                           {selectedUser !== 'All' && publicHolidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">นักขัตฤกษ์</div>}
+                           {selectedUser !== 'All' && holidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-red-100 text-red-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">วันหยุด</div>}
+                           {selectedUser !== 'All' && leaves.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-orange-100 text-orange-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">ลางาน</div>}
+                           {hasEvent && <div className="text-[10px] md:text-[11px] font-bold bg-mintPill text-mintText rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate shadow-sm text-center w-full">มีกิจกรรม</div>}
                         </div>
                       </div>
                     )
                   })}
                   {Array.from({ length: emptyEndCells }).map((_, i) => (
-                    <div key={`empty-end-${i}`} className="border-r border-b border-gray-100 p-2 min-h-[100px] pointer-events-none bg-gray-50/20" />
+                    <div key={`empty-end-${i}`} className="border-r border-b border-gray-100 p-2 pointer-events-none bg-gray-50/20" />
                   ))}
                 </div>
               </div>
