@@ -2363,9 +2363,9 @@
                        </div>
                      </div>
 
-                     <div className="max-h-[70vh] overflow-y-auto custom-scrollbar border border-gray-100 rounded-[12px] overflow-hidden" style={{ overscrollBehavior: 'none' }}>
+                     <div className="max-h-[70vh] overflow-auto custom-scrollbar border border-gray-100 rounded-[12px]" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                        {itemsToShow.length > 0 ? (
-                         <table className="w-full text-left border-collapse">
+                         <table className="w-full text-left border-collapse min-w-[550px] md:min-w-full">
                            <thead>
                              <tr className="bg-gray-50 border-b border-gray-100">
                                <th className="p-4 text-[13px] font-bold text-gray-500 w-[120px]">เวลา</th>
