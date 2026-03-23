@@ -1831,7 +1831,7 @@
                         // ดึง Token ของเครื่องนี้ (VAPID Key เอาจาก Firebase Project Settings > Cloud Messaging > Web configuration)
                         // เปลี่ยนคีย์ตรงนี้ให้เป็น VAPID Key ของโปรเจกต์คุณ
                         const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
-                            vapidKey: 'YOUR_VAPID_KEY_HERE_PROD' // <--- นำ Key จาก Firebase มาวางที่นี่
+                            vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA' // <--- นำ Key จาก Firebase มาวางที่นี่
                         }); 
                         if (token) {
                             // บันทึกเข้าฐานข้อมูลเพื่อรอให้ Vercel ยิงหา
