@@ -71,19 +71,13 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+    import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
     
     const firebaseConfig = { apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
-    
-    // 🔥 เทคนิคขั้นเทพ: เปิดใช้งาน Local Cache (จำข้อมูลไว้ในเครื่อง) 
-    // ช่วยลดโควต้า Read ได้มากกว่า 90% แต่ยังคงอัปเดตแบบ Realtime เหมือนเดิม!
-    const db = initializeFirestore(app, {
-      localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
-    });
-    
+    const db = getFirestore(app);
     const messaging = getMessaging(app);
 
     window.firebaseDB = db; 
