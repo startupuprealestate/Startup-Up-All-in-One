@@ -14,7 +14,16 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 // ฟังก์ชันรับแจ้งเตือนเบื้องหลัง 
-// (นำคำสั่ง showNotification ออก เพื่อให้เบราว์เซอร์โชว์อัตโนมัติแค่รอบเดียว)
 messaging.onBackgroundMessage(function(payload) {
-  console.log('ได้รับแจ้งเตือนตอนปิดแอป:', payload);
+  const notificationTitle = payload.notification.title;
+  const notificationOptions = {
+    body: payload.notification.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [200, 100, 200],
+    // ✨ หัวใจสำคัญ: ใช้ tag รวบข้อความที่ชื่อซ้ำกันให้เหลืออันเดียว
+    tag: notificationTitle
+  };
+
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
