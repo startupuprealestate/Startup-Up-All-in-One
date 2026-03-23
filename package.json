@@ -1,0 +1,10 @@
+{
+  "name": "startup-up-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
