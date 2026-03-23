@@ -1,17 +1,36 @@
 const admin = require('firebase-admin');
 
+let isFirebaseInitialized = false;
+let initError = null;
+
+// ป้องกันการ Initialize ซ้ำ และดักจับ Error อย่างละเอียด
 if (!admin.apps.length) {
   try {
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+      throw new Error("ไม่พบตัวแปร FIREBASE_SERVICE_ACCOUNT ใน Vercel Environment Variables");
+    }
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
+    isFirebaseInitialized = true;
   } catch (error) {
     console.error('Firebase Admin Init Error:', error);
+    initError = error.message;
   }
+} else {
+  isFirebaseInitialized = true;
 }
 
 module.exports = async function handler(req, res) {
+  // ถ้าระบบหลังบ้านยังเชื่อมต่อ Firebase ไม่สำเร็จ ให้แสดง Error ทันที
+  if (!isFirebaseInitialized) {
+    return res.status(500).json({ 
+        error: "เชื่อมต่อ Firebase ไม่สำเร็จ", 
+        details: initError || "Unknown Init Error"
+    });
+  }
+
   const db = admin.firestore();
   const now = new Date();
   
