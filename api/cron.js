@@ -11,10 +11,9 @@ if (!admin.apps.length) {
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const db = admin.firestore();
   const now = new Date();
-  // Vercel Cron ใช้ UTC ให้แปลงเป็นเวลาไทย (+7) หรือเช็คแบบ Absolute
   
   try {
     const tokensSnap = await db.collection('fcm_tokens').get();
