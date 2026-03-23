@@ -61,7 +61,7 @@ module.exports = async function handler(req, res) {
         
         if (isEventTomorrow) {
            notifications.push({
-             title: `⏰ พรุ่งนี้มีกิจกรรม: ${ev.activity}`,
+             title: `🚨 พรุ่งนี้มี: ${ev.activity}`,
              body: `เวลา: ${ev.time} น.\nผู้รับผิดชอบ: ${ev.assignee}\nหมายเหตุ: ${ev.note || '-'}`
            });
            batch.update(doc.ref, { notified24h: true });
