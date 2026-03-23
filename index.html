@@ -73,10 +73,20 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
     import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+    import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
+    
     const firebaseConfig = { apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    window.firebaseDB = db; window.firebaseAPI = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc };
+    const messaging = getMessaging(app);
+
+    window.firebaseDB = db; 
+    window.firebaseMessaging = messaging;
+    window.firebaseAPI = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage };
+    
+    // หากใช้ Vercel จะสามารถเรียก API ผ่าน /api/trigger ได้โดยตรง
+    window.VERCEL_API_URL = ""; 
+    
     window.dispatchEvent(new Event('firebaseLoaded'));
   </script>
 </head>
@@ -583,7 +593,22 @@
 
         const handleUpdateProgress = async (rowId, data) => {
             if (!isFirebaseLoaded) return;
-            try { await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); } catch(err) {}
+            try { 
+                await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
+                
+                // แจ้ง Vercel API เมื่อมีการลงวันที่บ้านเสร็จ
+                if (data.finishedDate) {
+                    const rowInfo = validSheetData.find(r => r.id === rowId);
+                    if (rowInfo) {
+                        const houseName = `${safeTrim(rowInfo['หมู่บ้าน'])} ${safeTrim(rowInfo['บ้านเลขที่'])} ${safeTrim(rowInfo['ซอย'])}`.trim();
+                        fetch(`${window.VERCEL_API_URL}/api/trigger`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'house', data: { houseName, finishedDate: data.finishedDate } })
+                        }).catch(e => console.log('Vercel API error', e));
+                    }
+                }
+            } catch(err) {}
         };
 
         return (
@@ -1794,6 +1819,39 @@
       // --- State for Mobile Filter Drawer ---
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
+      // --- FCM Notification System ---
+      useEffect(() => {
+        if (!isFirebaseLoaded) return;
+        
+        const requestNotification = async () => {
+            if ("Notification" in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    try {
+                        // ดึง Token ของเครื่องนี้ (VAPID Key เอาจาก Firebase Project Settings > Cloud Messaging > Web configuration)
+                        // เปลี่ยนคีย์ตรงนี้ให้เป็น VAPID Key ของโปรเจกต์คุณ
+                        const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
+                            vapidKey: 'YOUR_VAPID_KEY_HERE_PROD' // <--- นำ Key จาก Firebase มาวางที่นี่
+                        }); 
+                        if (token) {
+                            // บันทึกเข้าฐานข้อมูลเพื่อรอให้ Vercel ยิงหา
+                            await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), { token, updatedAt: new Date().toISOString() });
+                        }
+                    } catch (e) {
+                        console.log('FCM Token Request Error', e);
+                    }
+                }
+            }
+        };
+        requestNotification();
+        window.addEventListener('click', requestNotification, { once: true });
+        
+        // รับแจ้งเตือนระหว่างเปิดหน้าแอป
+        window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => {
+            console.log('Foreground Message received. ', payload);
+        });
+      }, [isFirebaseLoaded]);
+
       useEffect(() => {
         if (window.firebaseDB) setIsFirebaseLoaded(true);
         else {
@@ -1918,8 +1976,20 @@
         e.preventDefault(); if (!isFirebaseLoaded) return;
         const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? 'วันลางาน' : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
         try {
-          if (editingEventId) await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData);
-          else await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
+          if (editingEventId) {
+              await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData);
+          } else {
+              await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
+              
+              // แจ้ง Vercel API เมื่อมีการกดลางานใหม่
+              if (eventData.type === 'leave') {
+                  fetch(`${window.VERCEL_API_URL}/api/trigger`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'leave', data: eventData })
+                  }).catch(e => console.log('Vercel API error', e));
+              }
+          }
         } catch (error) { alert("พบข้อผิดพลาด กรุณาลองใหม่"); }
         handleCloseModal();
       };
