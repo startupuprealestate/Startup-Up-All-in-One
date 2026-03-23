@@ -21,8 +21,10 @@ messaging.onBackgroundMessage(function(payload) {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     vibrate: [200, 100, 200],
-    // ✨ หัวใจสำคัญ: ใช้ tag รวบข้อความที่ชื่อซ้ำกันให้เหลืออันเดียว
-    tag: notificationTitle
+    // ✨ ใช้ tag รวบข้อความที่ชื่อซ้ำกันให้เหลืออันเดียว
+    tag: notificationTitle,
+    // อนุญาตให้สั่นแจ้งเตือนได้ แม้จะเป็นข้อความที่รวบมาแล้ว
+    renotify: true 
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
