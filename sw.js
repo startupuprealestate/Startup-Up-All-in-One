@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// Config ของคุณ (ดึงมาจาก HTML ที่คุณให้มา)
+// Config ของคุณ
 firebase.initializeApp({
   apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY",
   authDomain: "startupuprealestate-e4b0a.firebaseapp.com",
@@ -13,15 +13,8 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ฟังก์ชันรับแจ้งเตือนตอนที่ "ปิดแอป" หรือ "พับหน้าจอ"
+// ฟังก์ชันรับแจ้งเตือนเบื้องหลัง 
+// (นำคำสั่ง showNotification ออก เพื่อให้เบราว์เซอร์โชว์อัตโนมัติแค่รอบเดียว)
 messaging.onBackgroundMessage(function(payload) {
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    vibrate: [200, 100, 200]
-  };
-
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  console.log('ได้รับแจ้งเตือนตอนปิดแอป:', payload);
 });
