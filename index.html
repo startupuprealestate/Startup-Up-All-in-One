@@ -1964,7 +1964,10 @@ ${promptAction}`;
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => { const day = new Date(year, month, 1).getDay(); return (day + 6) % 7; };
       const year = currentDate.getFullYear(), month = currentDate.getMonth(), daysInMonth = getDaysInMonth(year, month);
-      const startDayIndex = (getFirstDayOfMonth(year, month) + 6) % 7; 
+      
+      // 💡 น้อง Up แก้ไขให้ตรงนี้รับค่ามาตรงๆ ไม่ต้องบวกเลขซ้อนแล้วค่ะ
+      const startDayIndex = getFirstDayOfMonth(year, month); 
+      
       const totalCells = startDayIndex + daysInMonth;
       const emptyEndCells = (7 - (totalCells % 7)) % 7;
 
