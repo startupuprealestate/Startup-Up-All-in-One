@@ -159,6 +159,10 @@
     const DIRECTIONS = ['เหนือ', 'ตะวันออกเฉียงเหนือ', 'ตะวันออก', 'ตะวันออกเฉียงใต้', 'ใต้', 'ตะวันตกเฉียงใต้', 'ตะวันตก', 'ตะวันตกเฉียงเหนือ'];
     const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
     const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+    
+    // NEW: ข้อมูลโควต้าการลา
+    const LEAVE_QUOTAS = { 'ลาป่วย': 30, 'ลากิจ': 3, 'ลาพักร้อน': 6, 'ลางานศพ': 3, 'ลาคลอด': 45 };
+    const LEAVE_OPTIONS = ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน', 'ลางานศพ', 'ลาคลอด', 'ลาบวช'];
 
     const compressImage = (f) => new Promise((res) => {
         const reader = new FileReader(); reader.readAsDataURL(f);
@@ -1809,7 +1813,8 @@
       const [contentChecklists, setContentChecklists] = useState({});
       const [constructionProgress, setConstructionProgress] = useState({});
       const [postTracking, setPostTracking] = useState({});
-      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '' });
+      // เพิ่ม leaveType ลงไป
+      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '' });
       const [houses, setHouses] = useState([]);
       const [aiMessages, setAiMessages] = useState([{ role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }]);
       const [sheetData, setSheetData] = useState([]);
@@ -1882,7 +1887,18 @@
             const initial = [ { id: 'MARKETING', members: ['Peth', 'Beau', 'Noey', 'Ketar', 'Perth', 'Ter', 'Bumb', 'Weerwi'], order: 0 }, { id: 'SALE', members: ['May', 'Boom', 'Boat'], order: 1 }, { id: 'วิศวกร', members: ['ไม้'], order: 2 } ];
             initial.forEach(async (dept) => { try { await setDoc(doc(window.firebaseDB, "departments", dept.id), { members: dept.members, order: dept.order }); } catch(e) {} });
           } else {
-            const depsArray = []; snapshot.forEach((d) => depsArray.push({ id: d.id, ...d.data() })); depsArray.sort((a, b) => (a.order || 0) - (b.order || 0)); setDepartments(depsArray);
+            const depsArray = [];
+            const seen = new Set(); // ใช้ Set เพื่อดักตัวซ้ำ
+            snapshot.forEach((d) => {
+              // แปลงชื่อเป็นพิมพ์เล็กก่อนเช็ค จะได้กรอง MARKETING กับ Marketing ให้เหลือแค่อันเดียว
+              const nameLower = d.id.toLowerCase();
+              if (!seen.has(nameLower)) {
+                seen.add(nameLower);
+                depsArray.push({ id: d.id, ...d.data() });
+              }
+            });
+            depsArray.sort((a, b) => (a.order || 0) - (b.order || 0)); 
+            setDepartments(depsArray);
           }
         });
 
@@ -1970,19 +1986,19 @@
 
       const handleOpenModal = (day = null, eventToEdit = null, prefillAssignee = '', prefillType = '') => {
         if (eventToEdit) {
-          setFormData({ type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '' });
+          setFormData({ type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: eventToEdit.leaveType || '' });
           setEditingEventId(eventToEdit.id); setIsModalOpen(true); return;
         }
         let dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : selectedDayString || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-        setFormData({ ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '' });
+        setFormData({ ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '' });
         setEditingEventId(null); setIsModalOpen(true);
       };
 
-      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '' }); };
+      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '' }); };
 
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
-        const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? 'วันลางาน' : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
+        const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? (formData.leaveType ? `ลา: ${formData.leaveType}` : 'วันลางาน') : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
         try {
           if (editingEventId) {
               await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData);
@@ -2089,7 +2105,7 @@
                            <span className="truncate">ดูข้อมูล: {selectedUser === 'All' ? 'ทีมทั้งหมด' : selectedUser}</span>
                         </div>
                         <div className="flex items-center text-[12px] bg-white px-2 py-1 rounded-full shadow-sm text-gray-500">
-                           เปลี่ยน <Icon name="ChevronDown" size={14} className="ml-1" />
+                            เปลี่ยน <Icon name="ChevronDown" size={14} className="ml-1" />
                         </div>
                     </button>
 
@@ -2161,7 +2177,7 @@
                         <div className="flex-1 space-y-1 px-0.5 min-w-0 w-full flex flex-col pointer-events-none">
                            {selectedUser !== 'All' && publicHolidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">นักขัตฤกษ์</div>}
                            {selectedUser !== 'All' && holidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-red-100 text-red-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">วันหยุด</div>}
-                           {selectedUser !== 'All' && leaves.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-orange-100 text-orange-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">ลางาน</div>}
+                           {selectedUser !== 'All' && leaves.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-orange-100 text-orange-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">ลา: {leaves[0].leaveType || 'ไม่ระบุ'}</div>}
                            {hasEvent && <div className="text-[10px] md:text-[11px] font-bold bg-mintPill text-mintText rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate shadow-sm text-center w-full">มีกิจกรรม</div>}
                         </div>
                       </div>
@@ -2203,6 +2219,7 @@
                        <tr>
                          <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
                          <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
+                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 min-w-[140px]">สถิติการลา (ปี {year + 543})</th>
                          {Array.from({ length: daysInMonth }).map((_, i) => (
                            <th key={i} className={`border border-gray-200 bg-[#f3f4f6] p-1 text-[11px] font-bold ${[0, 6].includes(new Date(year, month, i + 1).getDay()) ? 'text-red-500' : 'text-gray-600'}`}>
                              {['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][new Date(year, month, i + 1).getDay()]}
@@ -2224,12 +2241,30 @@
                        {departments.map((dept) => (
                          <React.Fragment key={dept.id}>
                            <tr>
-                             <td colSpan={daysInMonth + 2} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td>
+                             <td colSpan={daysInMonth + 3} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td>
                            </tr>
                            {dept.members.map((emp, idx) => (
                              <tr key={emp} className="hover:bg-gray-50 transition-colors">
                                <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
                                <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
+                               <td className="border border-gray-200 p-1.5 text-[10px] text-gray-600 bg-white text-left">
+                                  {(() => {
+                                     const empLeaves = events.filter(ev => ev.type === 'leave' && ev.assignee === emp && ev.date.startsWith(`${year}-`));
+                                     const stats = { 'ลาป่วย': 0, 'ลากิจ': 0, 'ลาพักร้อน': 0, 'ลางานศพ': 0, 'ลาคลอด': 0, 'ลาบวช': 0, 'ไม่ระบุ': 0 };
+                                     empLeaves.forEach(ev => { if (ev.leaveType && stats[ev.leaveType] !== undefined) stats[ev.leaveType]++; else stats['ไม่ระบุ']++; });
+                                     return (
+                                        <div className="grid grid-cols-2 gap-1">
+                                           <div className={stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']}</div>
+                                           <div className={stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']}</div>
+                                           <div className={stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']}</div>
+                                           <div className={stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']}</div>
+                                           <div className={stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']}</div>
+                                           <div className={stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}>บวช: {stats['ลาบวช']}/-</div>
+                                           {stats['ไม่ระบุ'] > 0 && <div className="text-red-500 col-span-2">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
+                                        </div>
+                                     );
+                                  })()}
+                               </td>
                                {Array.from({ length: daysInMonth }).map((_, i) => {
                                  const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
                                  const cellEv = events.filter(ev => ev.assignee === emp && ev.date === dStr && (ev.type === 'holiday' || ev.type === 'leave' || ev.type === 'public_holiday'));
@@ -2238,7 +2273,17 @@
                                  if(cellEv.length){
                                    if(cellEv.some(e=>e.type==='public_holiday')) { bg = 'bg-[#eab308] text-white'; label='ขัตฤกษ์'; }
                                    else if(cellEv.some(e=>e.type==='holiday')) { bg = 'bg-[#ef4444] text-white'; label='หยุด'; }
-                                   else if(cellEv.some(e=>e.type==='leave')) { bg = 'bg-[#f97316] text-white'; label='ลา'; }
+                                   else if(cellEv.some(e=>e.type==='leave')) { 
+                                       bg = 'bg-[#f97316] text-white'; 
+                                       const lvType = cellEv.find(e=>e.type==='leave')?.leaveType;
+                                       if(lvType === 'ลาป่วย') label = 'ป่วย';
+                                       else if(lvType === 'ลากิจ') label = 'กิจ';
+                                       else if(lvType === 'ลาพักร้อน') label = 'พักร้อน';
+                                       else if(lvType === 'ลางานศพ') label = 'งานศพ';
+                                       else if(lvType === 'ลาคลอด') label = 'คลอด';
+                                       else if(lvType === 'ลาบวช') label = 'บวช';
+                                       else label = 'ลา';
+                                   }
                                  }
                                  const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
                                  const todayHighlightClass = isToday && !bg ? 'bg-green-50/50' : '';
@@ -2347,7 +2392,7 @@
                       <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600"><Icon name="X" size={20}/></button>
                     </div>
                     
-                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5 overflow-y-auto" style={{ overscrollBehavior: 'none' }}>
+                    <form onSubmit={handleSaveEvent} className="p-6 space-y-5 overflow-y-auto max-h-[70vh]" style={{ overscrollBehavior: 'none' }}>
                       <div className="flex items-center space-x-4 border-b border-gray-100 pb-5">
                         <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
                           <input type="radio" checked={formData.type==='event'} onChange={()=>setFormData({...formData, type:'event'})} className="mr-2 w-4 h-4 accent-brand"/> กิจกรรม
@@ -2395,6 +2440,16 @@
                             </select>
                           </div>
                         </>
+                      )}
+
+                      {formData.type === 'leave' && (
+                        <div>
+                          <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ประเภทการลา</label>
+                          <select required value={formData.leaveType} onChange={e=>setFormData({...formData, leaveType:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-orange-500 transition-all text-[14px] text-gray-700">
+                            <option value="" disabled hidden>-- กรุณาเลือกประเภทการลา --</option>
+                            {LEAVE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        </div>
                       )}
                       
                       <div>
@@ -2454,12 +2509,11 @@
 
                                if (ev.type === 'public_holiday') { borderColorClass = 'border-yellow-400'; bgColorClass = 'bg-yellow-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-yellow-700 bg-yellow-200/50 font-bold mb-1.5 w-max shadow-sm">นักขัตฤกษ์</span>; }
                                else if (ev.type === 'holiday') { borderColorClass = 'border-red-400'; bgColorClass = 'bg-red-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-red-700 bg-red-200/50 font-bold mb-1.5 w-max shadow-sm">วันหยุด</span>; }
-                               else if (ev.type === 'leave') { borderColorClass = 'border-orange-400'; bgColorClass = 'bg-orange-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-orange-700 bg-orange-200/50 font-bold mb-1.5 w-max shadow-sm">ลางาน</span>; }
+                               else if (ev.type === 'leave') { borderColorClass = 'border-orange-400'; bgColorClass = 'bg-orange-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-orange-700 bg-orange-200/50 font-bold mb-1.5 w-max shadow-sm">ลางาน {ev.leaveType ? `(${ev.leaveType})` : ''}</span>; }
 
                                return (
                                  <div key={ev.id || idx} onClick={() => {setIsDayViewOpen(false); handleOpenModal(null, ev)}} className={`relative flex flex-col sm:flex-row gap-3 md:gap-4 p-4 rounded-xl border-l-4 ${borderColorClass} border-y border-r border-gray-200 ${bgColorClass} hover:shadow-md cursor-pointer transition-all group overflow-hidden`}>
                                      
-                                     {/* Time & Assignee Mobile/Desktop Layout */}
                                      <div className="flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-start sm:w-[130px] shrink-0 gap-2 sm:gap-2.5">
                                          {ev.type === 'event' ? (
                                              <div className={`flex items-center px-2.5 py-1.5 rounded-lg text-[13px] font-bold shadow-sm w-max ${isDuplicateTime ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-white text-gray-800 border border-gray-200'}`}>
@@ -2475,7 +2529,6 @@
                                          </div>
                                      </div>
 
-                                     {/* Content Details */}
                                      <div className="flex-1 min-w-0 flex flex-col">
                                          {typeLabel}
                                          <div className="font-bold text-[15px] md:text-[16px] text-gray-800 flex items-start leading-snug">
