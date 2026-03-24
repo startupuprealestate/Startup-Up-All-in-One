@@ -1,14 +1,12 @@
 const admin = require('firebase-admin');
 
-// 1. ตรวจสอบการเชื่อมต่อ Firebase Admin (ป้องการการ Connect ซ้ำซ้อน)
+// 1. ตรวจสอบการเชื่อมต่อ Firebase Admin
 if (!admin.apps.length) {
+  // ดึงค่า JSON ก้อนใหญ่ที่พี่ตั้งไว้ มาแปลงเป็น Object
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
   admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      // ต้องมีการ replace \n เสมอเมื่อใช้กับ Vercel Environment Variables
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
+    credential: admin.credential.cert(serviceAccount),
   });
 }
 
@@ -46,13 +44,13 @@ export default async function handler(req, res) {
     // 4. สร้าง Payload ส่งแบบหลายเครื่อง
     const message = {
       notification: { title, body },
-      tokens: tokens, // <--- จุดสำคัญ: ส่ง Token เข้าไปเป็น Array
+      tokens: tokens, // <--- ส่ง Token เข้าไปเป็น Array
     };
 
     // 5. สั่งยิงแจ้งเตือน
     const response = await admin.messaging().sendEachForMulticast(message);
     
-    // (แถม) ระบบทำความสะอาด: ลบ Token ที่หมดอายุหรือยกเลิกการติดตามไปแล้วออกจากฐานข้อมูล
+    // 6. ระบบทำความสะอาด: ลบ Token ที่หมดอายุ
     if (response.failureCount > 0) {
        const failedTokens = [];
        response.responses.forEach((resp, idx) => {
