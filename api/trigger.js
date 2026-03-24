@@ -1,4 +1,4 @@
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
 
 // 1. ตรวจสอบการเชื่อมต่อ Firebase Admin
 if (!admin.apps.length) {
