@@ -1813,7 +1813,6 @@
       const [contentChecklists, setContentChecklists] = useState({});
       const [constructionProgress, setConstructionProgress] = useState({});
       const [postTracking, setPostTracking] = useState({});
-      // เพิ่ม leaveType ลงไป
       const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '' });
       const [houses, setHouses] = useState([]);
       const [aiMessages, setAiMessages] = useState([{ role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }]);
@@ -1821,48 +1820,35 @@
       const [sheetError, setSheetError] = useState(null);
       const [manualRefreshKey, setManualRefreshKey] = useState(0);
 
-      // --- State for Mobile Filter Drawer ---
+      // --- เพิ่ม State สำหรับ Popup ดูประวัติการลา ---
+      const [leaveDetailsData, setLeaveDetailsData] = useState(null);
+
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // --- FCM Notification System ---
       useEffect(() => {
         if (!isFirebaseLoaded) return;
-        
         const requestNotification = async () => {
             if ("Notification" in window) {
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') {
                     try {
-                        // 1. ชี้เป้าหมายไปที่ไฟล์ sw.js ของเราก่อน
                         const registration = await navigator.serviceWorker.register('/sw.js');
-                        
-                        // 2. ขอ Token โดยแนบ registration เข้าไปด้วย (ห้ามลืมบรรทัดนี้)
                         const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
                             vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
                             serviceWorkerRegistration: registration 
                         }); 
-                        
                         if (token) {
-                            // 3. บันทึกเข้าฐานข้อมูล
                             await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), { token, updatedAt: new Date().toISOString() });
-                            console.log("บันทึก Token สำเร็จ!");
                         }
                     } catch (e) {
-                        console.error('FCM Token Request Error', e);
-                        // เด้งแจ้งเตือนบนหน้าจอถ้าเกิด Error จะได้รู้สาเหตุ
-                        alert("การขอสิทธิ์แจ้งเตือนล้มเหลว: " + e.message); 
+                        console.error('FCM Error', e);
                     }
                 }
             }
         };
-        
         requestNotification();
         window.addEventListener('click', requestNotification, { once: true });
-        
-        // รับแจ้งเตือนระหว่างเปิดหน้าแอป
-        window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => {
-            console.log('Foreground Message received. ', payload);
-        });
+        window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { console.log('Message', payload); });
       }, [isFirebaseLoaded]);
 
       useEffect(() => {
@@ -1888,14 +1874,10 @@
             initial.forEach(async (dept) => { try { await setDoc(doc(window.firebaseDB, "departments", dept.id), { members: dept.members, order: dept.order }); } catch(e) {} });
           } else {
             const depsArray = [];
-            const seen = new Set(); // ใช้ Set เพื่อดักตัวซ้ำ
+            const seen = new Set();
             snapshot.forEach((d) => {
-              // แปลงชื่อเป็นพิมพ์เล็กก่อนเช็ค จะได้กรอง MARKETING กับ Marketing ให้เหลือแค่อันเดียว
               const nameLower = d.id.toLowerCase();
-              if (!seen.has(nameLower)) {
-                seen.add(nameLower);
-                depsArray.push({ id: d.id, ...d.data() });
-              }
+              if (!seen.has(nameLower)) { seen.add(nameLower); depsArray.push({ id: d.id, ...d.data() }); }
             });
             depsArray.sort((a, b) => (a.order || 0) - (b.order || 0)); 
             setDepartments(depsArray);
@@ -2004,8 +1986,6 @@
               await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData);
           } else {
               await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
-              
-              // แจ้ง Vercel API เมื่อมีการกดลางานใหม่
               if (eventData.type === 'leave') {
                   fetch(`${window.VERCEL_API_URL}/api/trigger`, {
                       method: 'POST',
@@ -2032,7 +2012,6 @@
         setIsDeleteMonthModalOpen(false);
       };
 
-      // --- User Filter Content (Reusable for Sidebar and Mobile Modal) ---
       const renderUserFilterList = (isMobile = false) => (
         <>
             <button onClick={() => { setSelectedUser('All'); if(isMobile) setIsUserFilterMobileOpen(false); }} className={`w-full text-left px-4 py-2.5 rounded-xl mb-3 text-[14px] font-bold transition-colors ${selectedUser === 'All' ? 'bg-brand/10 text-brand' : 'text-gray-600 hover:bg-gray-50'}`}>ดูทั้งหมด</button>
@@ -2083,22 +2062,17 @@
           </div>
           <div className="flex-1 flex flex-col bg-background p-3 md:p-6 overflow-hidden">
             <div className="bg-surface border border-gray-200 shadow-subtle rounded-[20px] flex flex-col h-full overflow-hidden">
-              
-              {/* === MOBILE & DESKTOP RESPONSIVE HEADER === */}
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between p-4 border-b border-gray-100 shrink-0 bg-white gap-4">
-                 
-                 {/* Mobile Header Layout */}
                  <div className="flex flex-col w-full lg:hidden gap-3">
                     <div className="flex items-center justify-between w-full">
                        <h2 className="text-[20px] font-extrabold text-gray-800 tracking-tight">ปฏิทินวางแผน</h2>
                        <div className="flex items-center gap-2">
-                           <button onClick={() => setIsDeleteMonthModalOpen(true)} className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors" title="ลบเดือนนี้"><Icon name="Trash" size={16} /></button>
+                           <button onClick={() => setIsDeleteMonthModalOpen(true)} className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"><Icon name="Trash" size={16} /></button>
                            <button onClick={() => { setSelectedDayString(''); handleOpenModal(); }} className="flex items-center bg-brand text-white px-3 py-2 rounded-lg text-[13px] font-bold shadow-sm">
                               <Icon name="Plus" size={14} className="mr-1" /> เพิ่ม
                            </button>
                        </div>
                     </div>
-                    
                     <button onClick={() => setIsUserFilterMobileOpen(true)} className="w-full flex items-center justify-between bg-brand/5 border border-brand/20 text-brand px-4 py-3 rounded-xl text-[14px] font-bold shadow-sm active:bg-brand/10 transition-colors">
                         <div className="flex items-center">
                            <div className="bg-white p-1 rounded-md shadow-sm mr-2.5"><Icon name="User" size={16} className="text-brand" /></div>
@@ -2108,7 +2082,6 @@
                             เปลี่ยน <Icon name="ChevronDown" size={14} className="ml-1" />
                         </div>
                     </button>
-
                     <div className="flex items-center justify-between w-full pt-1">
                        <div className="flex items-center text-[16px] font-bold text-gray-800">
                           <Icon name="CalendarIcon" size={18} className="mr-2 text-gray-400" />
@@ -2121,8 +2094,6 @@
                        </div>
                     </div>
                  </div>
-
-                 {/* Desktop Header Layout */}
                  <div className="hidden lg:flex w-full items-center justify-between">
                     <h2 className="text-[20px] font-bold text-gray-800 tracking-tight">ปฏิทินวางแผนการทำงาน</h2>
                     <div className="flex items-center justify-center gap-2">
@@ -2173,7 +2144,6 @@
                         <div className="mb-1 md:mb-1.5 shrink-0 text-center md:text-left ml-0 md:ml-1">
                           <span className={`inline-flex w-6 h-6 md:w-7 md:h-7 rounded-full items-center justify-center text-[12px] md:text-[13px] font-bold transition-colors ${isToday ? 'bg-brand text-white shadow-sm' : 'text-gray-700'}`}>{day}</span>
                         </div>
-                        {/* ปิด pointer-events เพื่อป้องกันการบังการแตะ */}
                         <div className="flex-1 space-y-1 px-0.5 min-w-0 w-full flex flex-col pointer-events-none">
                            {selectedUser !== 'All' && publicHolidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-yellow-100 text-yellow-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">นักขัตฤกษ์</div>}
                            {selectedUser !== 'All' && holidays.length > 0 && <div className="text-[10px] md:text-[11px] font-bold bg-red-100 text-red-800 rounded-[4px] md:rounded-[6px] px-1 py-0.5 md:py-1 truncate text-center shadow-sm w-full">วันหยุด</div>}
@@ -2193,7 +2163,6 @@
         </div>
       );
 
-      // --- Render Holiday Tab ---
       const renderHolidayTab = () => (
         <div className="flex-1 flex flex-col h-full overflow-hidden p-3 md:p-6 bg-background">
           <div className="bg-surface border border-gray-200 shadow-subtle rounded-[20px] flex flex-col h-full overflow-hidden">
@@ -2249,18 +2218,36 @@
                                <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
                                <td className="border border-gray-200 p-1.5 text-[10px] text-gray-600 bg-white text-left">
                                   {(() => {
+                                     // ดึงข้อมูลเฉพาะวันลางาน (ไม่เอาวันหยุด)
                                      const empLeaves = events.filter(ev => ev.type === 'leave' && ev.assignee === emp && ev.date.startsWith(`${year}-`));
                                      const stats = { 'ลาป่วย': 0, 'ลากิจ': 0, 'ลาพักร้อน': 0, 'ลางานศพ': 0, 'ลาคลอด': 0, 'ลาบวช': 0, 'ไม่ระบุ': 0 };
-                                     empLeaves.forEach(ev => { if (ev.leaveType && stats[ev.leaveType] !== undefined) stats[ev.leaveType]++; else stats['ไม่ระบุ']++; });
+                                     
+                                     // นับสถิติ
+                                     empLeaves.forEach(ev => { 
+                                         if (ev.leaveType && stats[ev.leaveType] !== undefined) stats[ev.leaveType]++; 
+                                         else stats['ไม่ระบุ']++; 
+                                     });
+                                     
+                                     const openLeaveDetails = (type) => {
+                                         const filteredLeaves = type === 'all' ? empLeaves : empLeaves.filter(ev => (ev.leaveType || 'ไม่ระบุ') === type);
+                                         setLeaveDetailsData({ empName: emp, type, leaves: filteredLeaves.sort((a,b) => a.date.localeCompare(b.date)) });
+                                     };
+
                                      return (
-                                        <div className="grid grid-cols-2 gap-1">
-                                           <div className={stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']}</div>
-                                           <div className={stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']}</div>
-                                           <div className={stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']}</div>
-                                           <div className={stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']}</div>
-                                           <div className={stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']}</div>
-                                           <div className={stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}>บวช: {stats['ลาบวช']}/-</div>
-                                           {stats['ไม่ระบุ'] > 0 && <div className="text-red-500 col-span-2">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
+                                        <div className="flex flex-col h-full justify-between gap-1.5">
+                                            <div className="grid grid-cols-2 gap-1 cursor-pointer select-none">
+                                               <div onClick={() => openLeaveDetails('ลาป่วย')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}`}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']}</div>
+                                               <div onClick={() => openLeaveDetails('ลากิจ')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}`}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']}</div>
+                                               <div onClick={() => openLeaveDetails('ลาพักร้อน')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}`}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']}</div>
+                                               <div onClick={() => openLeaveDetails('ลางานศพ')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}`}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']}</div>
+                                               <div onClick={() => openLeaveDetails('ลาคลอด')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}`}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']}</div>
+                                               <div onClick={() => openLeaveDetails('ลาบวช')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}`}>บวช: {stats['ลาบวช']}/-</div>
+                                               {stats['ไม่ระบุ'] > 0 && <div onClick={() => openLeaveDetails('ไม่ระบุ')} className="text-red-500 col-span-2 hover:bg-red-50 rounded px-1 font-bold">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
+                                            </div>
+                                            {/* ปุ่มดูประวัติทั้งหมด */}
+                                            <button onClick={() => openLeaveDetails('all')} className="mt-auto w-full py-1.5 text-[10px] font-bold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded flex items-center justify-center transition-colors shadow-sm border border-brand/20">
+                                                <Icon name="ListTodo" size={12} className="mr-1" /> ประวัติการลา
+                                            </button>
                                         </div>
                                      );
                                   })()}
@@ -2307,7 +2294,6 @@
 
       return (
         <>
-          {/* Splash Screen */}
           {showSplash && (
             <div className={`fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out ${splashFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-28 w-auto object-contain drop-shadow-lg mb-6 animate-pulse" />
@@ -2315,7 +2301,6 @@
           )}
 
           <div className="h-screen w-full flex flex-col lg:flex-row bg-background font-sans text-gray-800 overflow-hidden">
-            {/* Sidebar */}
             <div className={`fixed lg:static inset-y-0 left-0 z-40 w-[250px] bg-white border-r border-gray-200 shadow-sm lg:shadow-none transform transition-transform duration-300 flex flex-col shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
               <div className="h-[120px] flex flex-col items-center justify-center bg-brand shrink-0 relative z-20">
                  <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-[65px] object-contain drop-shadow-sm" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
@@ -2336,7 +2321,6 @@
               </div>
             </div>
 
-            {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-background relative z-10">
               <div className="flex items-center justify-between p-4 lg:hidden bg-surface shadow-sm z-30 shrink-0 border-b border-gray-100 transition-colors">
                 <div className="flex items-center">
@@ -2345,7 +2329,6 @@
                 </div>
               </div>
 
-              {/* Routing for Active Tabs */}
               {activeApp === 'calendar' && renderCalendarTab()}
               {activeApp === 'holidays' && renderHolidayTab()}
               {activeApp === 'content' && <ContentChecklist sheetData={sheetData} sheetError={sheetError} contentChecklists={contentChecklists} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
@@ -2356,8 +2339,6 @@
               {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
             </div>
 
-            {/* Global Modals */}
-            {/* User Filter Modal (Mobile Only) - ROBUST CROSS BROWSER */}
             {isUserFilterMobileOpen && activeApp === 'calendar' && (
               <div className="fixed inset-0 z-[100] lg:hidden">
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsUserFilterMobileOpen(false)}></div>
@@ -2472,7 +2453,6 @@
                );
             })()}
 
-            {/* ตารางแสดงรายละเอียดของวัน */}
             {isDayViewOpen && selectedDayString && (() => {
               const { normalEvents, holidays, leaves, publicHolidays } = getEventsForDay(selectedDayString);
               let itemsToShow = normalEvents;
@@ -2570,7 +2550,6 @@
               );
             })()}
 
-            {/* Department Modals */}
             {isAddDeptModalOpen && (
               <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                 <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 border border-gray-100">
@@ -2645,6 +2624,59 @@
                 </div>
               </div>
             )}
+
+            {/* Modal ดูรายละเอียดการลา */}
+            {leaveDetailsData && (() => {
+              // จัดการชื่อหัวข้อให้แสดงผลถูกต้อง
+              const titleType = leaveDetailsData.type === 'all' ? 'การลางานทั้งหมด' : (leaveDetailsData.type === 'ไม่ระบุ' ? 'การลาที่รอระบุประเภท' : leaveDetailsData.type);
+              
+              return (
+              <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-surface rounded-2xl shadow-xl w-full max-w-md flex flex-col border border-gray-100 overflow-hidden max-h-[85vh]">
+                  <div className="flex justify-between items-center p-4 md:p-5 border-b border-gray-100 bg-gray-50 shrink-0">
+                    <h3 className="text-[16px] font-bold text-gray-800 flex items-center">
+                      <Icon name="CalendarIcon" className="mr-2 text-brand" size={18} /> 
+                      ประวัติ{titleType} : {leaveDetailsData.empName}
+                    </h3>
+                    <button onClick={() => setLeaveDetailsData(null)} className="p-1.5 text-gray-400 hover:bg-gray-200 rounded-full transition-colors"><Icon name="X" size={16}/></button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 md:p-5 custom-scrollbar bg-background">
+                    {leaveDetailsData.leaves.length > 0 ? (
+                      <div className="space-y-3">
+                        {leaveDetailsData.leaves.map((lv, idx) => {
+                           // จัดสีป้ายกำกับตามประเภทการหยุด
+                           const badgeStyle = lv.leaveType ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-red-100 text-red-800 border-red-200';
+                           const badgeLabel = lv.leaveType || 'รอระบุประเภท';
+                           
+                           return (
+                              <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-2 relative group">
+                                <div className="flex justify-between items-start">
+                                  <span className="text-[14px] font-extrabold text-brand flex items-center"><Icon name="CalendarIcon" size={14} className="mr-1.5 text-brand/70"/>{getFormattedDateThai(lv.date)}</span>
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${badgeStyle}`}>{badgeLabel}</span>
+                                </div>
+                                <div className="text-[13px] text-gray-600 mt-1 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                                  <span className="font-bold text-gray-700">หมายเหตุ: </span>
+                                  {lv.note ? <span className="whitespace-pre-wrap leading-relaxed">{lv.note}</span> : <span className="text-gray-400 italic">ไม่มีการระบุหมายเหตุเพิ่มเติม</span>}
+                                </div>
+                                {/* ปุ่มแก้ไข */}
+                                <button onClick={() => { setLeaveDetailsData(null); handleOpenModal(null, lv); }} className="absolute bottom-4 right-4 text-gray-400 hover:text-brand bg-white p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 shadow-sm" title="แก้ไข">
+                                   <Icon name="Edit" size={14} />
+                                </button>
+                              </div>
+                           );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-12 flex flex-col items-center text-center text-gray-400 text-[13px] bg-white rounded-xl border border-dashed border-gray-200">
+                         <Icon name="CheckSquare" size={32} className="mb-2 opacity-30" />
+                         ไม่มีประวัติในหมวดหมู่นี้ค่ะ
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              );
+            })()}
 
           </div>
         </>
