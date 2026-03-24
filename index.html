@@ -1291,7 +1291,8 @@
                 if (type === 'W') return `[🌐 เว็บไซต์](${url})`;
                 if (type === 'V') return `[🖼️ Line Voom (รูปภาพ)](${url})`;
             }
-            return '*(ยังไม่มีข้อมูลลิงก์ค่ะ)*'; 
+            // ถ้าไม่เจอลิงก์ ให้แสดงผลว่ายังไม่มี
+            return '*(ตอนนี้ยังไม่มีข้อมูลลิงก์ค่ะ)*'; 
         });
 
         if (window.marked) {
@@ -1323,9 +1324,15 @@
         }, {});
         const summaryStats = Object.entries(statusCounts).map(([k, v]) => `- ${k}: ${v} หลัง`).join('\n');
         const totalActiveHouses = aiActiveData.length;
+        
+        // ส่งรายชื่อโครงการทั้งหมดให้ AI จำ
+        const activeProjectsList = [...new Set(aiActiveData.map(r => safeTrim(r['หมู่บ้าน'])))].filter(Boolean);
 
         let searchStr = queryLower;
         const removeTerms = [
+            // คำทักทาย คำชม และคำสร้อยทั่วไปที่ต้องตัดออกจากการค้นหา
+            'สวัสดี', 'หวัดดี', 'สวัสดึ', 'ฮัลโหล', 'hello', 'hi', 'ทักทาย', 'ดีจ้า', 'ดีครับ', 'ดีค่ะ', 'ทำไร', 'ทำอะไรอยู่', 'ทำอะไร', 'สบายดี', 'ชื่ออะไร', 'เป็นใคร', 'น้อง', 'อัพ', 'up', 'น่ารัก', 'เก่ง', 'จีบ', 'เหนื่อย', 'ขอบคุณ', 'แต๊งกิ้ว', 'thank you', 'thanks', 'ok', 'โอเค', 'สนใจ', 'อยากได้', 'อยากรู้', 'ช่วย', 'แนะนำ', 'บอก', 'จัง', 'เลย', 'จ้า', 'สิ', 'นะ', 'เอ้ย', 'ว้าว',
+            // คำเกี่ยวกับระบบ
             'line voom', 'linevoom', 'ไลน์วูม', 'voom', 'รูปภาพ', 'รูป', 'ภาพ', 'location', 'โลเคชั่น', 'แผนที่', 'พิกัด', 'แมพ', 'map',
             'website', 'เว็บไซต์', 'เว็บ', 'web', 'ขอ', 'หน่อย', 'ครับ', 'ค่ะ', 'จ๊ะ', 'จ๋า', 'คะ', 'ราคา', 'มีกี่', 'กี่หลัง', 'ทั้งหมด', 'ขอดู', 'รายชื่อ', 'ตาราง', 'รายละเอียด', 
             'บ้าน', 'ดู', 'ข้อมูล', 'หมู่บ้าน', 'โครงการ', 'ของ', 'ซอย', 'บ้านเลขที่', 'เลขที่', 'สถานะ', 'ว่าง', 'ตอนนี้', 'บริษัท', 'มี', 'กี่', 'หลัง', 'ที่', 'ใน', 'นี้', 'ให้', 'หา', 'เท่าไหร่', 'ไหม', 'บ้าง'
@@ -1349,13 +1356,20 @@
         if (needsDetailData) {
             if (keywords.length > 0) {
                 finalRows = aiActiveData.filter(row => {
-                    const p = safeTrim(row['หมู่บ้าน']).toLowerCase(), h = safeTrim(row['บ้านเลขที่']).toLowerCase(), s = safeTrim(row['ซอย']).toLowerCase();
-                    const combined = `${p} ${h} ${s}`;
+                    const p = safeTrim(row['หมู่บ้าน']).toLowerCase();
+                    const h = safeTrim(row['บ้านเลขที่']).toLowerCase();
+                    const s = safeTrim(row['ซอย']).toLowerCase();
+                    const combinedOriginal = `${p} ${h} ${s}`;
+                    
+                    // ลบช่องว่างออกทั้งหมดเพื่อเพิ่มความฉลาดในการค้นหา
+                    const combinedNoSpace = combinedOriginal.replace(/\s+/g, '');
+                    
                     const matchAll = keywords.every(k => {
-                        if (/^\d+$/.test(k)) { return new RegExp(`(^|\\D)${k}(\\D|$)`).test(combined); }
-                        return combined.includes(k);
+                        const kNoSpace = k.replace(/\s+/g, '');
+                        return combinedNoSpace.includes(kNoSpace);
                     });
-                    const queryNoSpace = keywords.join(''), projNoSpace = p.replace(/\s+/g, '');
+                    const queryNoSpace = keywords.join('').replace(/\s+/g, '');
+                    const projNoSpace = p.replace(/\s+/g, '');
                     const matchProjExact = queryNoSpace.length > 2 && (projNoSpace === queryNoSpace || projNoSpace.startsWith(queryNoSpace));
                     return matchAll || matchProjExact;
                 });
@@ -1376,10 +1390,13 @@
             exactHouseList = finalRows.map((row, idx) => {
                 const p = safeTrim(row['หมู่บ้าน']), no = safeTrim(row['บ้านเลขที่']), s = safeTrim(row['ซอย']), st = safeTrim(row['สถานะ']);
                 let extraInfo = [];
+                
                 if (wantsPrice) extraInfo.push(`ราคาปกติ: ${safeTrim(row['ราคา']) || '-'} (Sale: ${safeTrim(row['ราคา sale']) || '-'})`);
-                if (wantsVoom) extraInfo.push(globalUrlMap[`[V_${row.id}]`] ? `[V_${row.id}]` : '(ยังไม่มีรูป/LineVoom ค่ะ)');
-                if (wantsMap) extraInfo.push(globalUrlMap[`[M_${row.id}]`] ? `[M_${row.id}]` : '(ยังไม่มีแผนที่ค่ะ)');
-                if (wantsWeb) extraInfo.push(globalUrlMap[`[W_${row.id}]`] ? `[W_${row.id}]` : '(ยังไม่มีเว็บไซต์ค่ะ)');
+                // เปลี่ยนคำเมื่อไม่เจอลิงก์ Voom, แผนที่, เว็บไซต์
+                if (wantsVoom) extraInfo.push(globalUrlMap[`[V_${row.id}]`] ? `[V_${row.id}]` : '(ตอนนี้ยังไม่มีลิงก์ Line Voom ค่ะ)');
+                if (wantsMap) extraInfo.push(globalUrlMap[`[M_${row.id}]`] ? `[M_${row.id}]` : '(ตอนนี้ยังไม่มีลิงก์แผนที่ค่ะ)');
+                if (wantsWeb) extraInfo.push(globalUrlMap[`[W_${row.id}]`] ? `[W_${row.id}]` : '(ตอนนี้ยังไม่มีลิงก์เว็บไซต์ค่ะ)');
+                
                 let line = `- ${idx + 1}. **${p}** บ้านเลขที่ ${no}`;
                 if (s && s !== '-') line += ` ซอย ${s}`;
                 line += ` (สถานะ: ${st})`;
@@ -1387,23 +1404,33 @@
                 return line;
             }).join('\n');
         } else if (needsDetailData && finalRows.length === 0) {
-            exactHouseList = "> 🥺 ไม่พบข้อมูลบ้านที่ค้นหาค่ะ รบกวนพี่ระบุชื่อโครงการหรือเลขที่ให้ชัดเจนกว่านี้นะคะ";
+            const suggested = activeProjectsList.slice(0, 15).join(', ');
+            exactHouseList = `> 🥺 หนูพยายามหาแล้วแต่ไม่พบข้อมูลที่ตรงเป๊ะเลยค่ะ \n> 💡 ลองดูโครงการที่บริษัทเรามีตอนนี้ไหมคะ เช่น: ${suggested} \n> พิมพ์ชื่อโครงการที่สนใจมาใหม่ได้เลยนะคะ 💕`;
         }
 
         let promptAction = "";
         if (!needsDetailData) {
-            promptAction = `คุณมีหน้าที่ตอบคำถามทั่วไปและแจ้งสถิติจำนวนรวม ห้ามใช้คำว่า "ครับ" เด็ดขาด`;
+            promptAction = `🚨 กฏการตอบเมื่อเป็นการพูดคุยทั่วไป (บังคับทำตาม 100%):
+1. ห้ามใช้คำว่า "ครับ" เด็ดขาด! คุณเป็นผู้หญิง ชื่อน้อง Up เป็น AI ผู้ช่วยของบริษัท Startup Up Real Estate ตอบลงท้ายด้วย ค่ะ/นะคะ
+2. ถ้าผู้ใช้ทักทาย (เช่น สวัสดี, ฮัลโหล, ทำอะไรอยู่) ให้ตอบกลับแบบมนุษย์ที่ร่าเริง สดใส เป็นกันเอง และเสนอความช่วยเหลือ เช่น "สวัสดีค่า! วันนี้มีอะไรให้น้อง Up ช่วยหาข้อมูลบ้านให้ไหมคะ 💕"
+3. ห้ามร่ายยาว หรือรายงานสถิติข้อมูลบ้านเด็ดขาด หากผู้ใช้ไม่ได้ถามถึง
+4. ตอบให้สั้น กระชับ ตรงคำถาม และดูเป็นธรรมชาติที่สุดเหมือนกำลังคุยไลน์กับเพื่อนร่วมงาน`;
         } else {
-            promptAction = `🚨 กฏการตอบ (บังคับทำตาม 100%):
-1. ห้ามใช้คำว่า "ครับ" เด็ดขาด! คุณเป็นผู้หญิง
-2. ห้ามแต่งรายชื่อบ้านขึ้นมาเอง
+            promptAction = `🚨 กฏการตอบเมื่อค้นหาบ้าน (บังคับทำตาม 100%):
+1. ห้ามใช้คำว่า "ครับ" เด็ดขาด! คุณเป็นผู้หญิง ตอบลงท้ายด้วย ค่ะ/นะคะ
+2. ห้ามแต่งรายชื่อบ้านขึ้นมาเองเด็ดขาด อ้างอิงจากข้อมูลที่ให้ไปเท่านั้น
 3. บังคับให้คุณพิมพ์คำว่า \`[HOUSE_LIST]\` ลงในข้อความตอบกลับของคุณ เพื่อให้ระบบนำรายชื่อบ้านไปแทรกให้ผู้ใช้อ่าน
-4. ตัวอย่างการตอบ: "น้อง Up หาข้อมูลมาให้แล้วค่ะ 💕\n\n[HOUSE_LIST]\n\nต้องการดูโครงการไหนเพิ่มเติมบอกได้นะคะ"`;
+4. ⚠️ สำคัญมาก: ห้ามอธิบายรายละเอียด พรรณนา หรือสรุปข้อมูลของแต่ละโครงการเพิ่ม ให้ตอบสั้นๆ แล้วปล่อยเป็นหน้าที่ของ \`[HOUSE_LIST]\` แสดงผลเอง
+5. ตัวอย่างการตอบที่ถูกต้อง: "น้อง Up หาข้อมูลโครงการมาให้แล้วค่ะ 💕\n\n[HOUSE_LIST]\n\nสนใจหลังไหนบอกน้อง Up ได้เลยนะคะ"`;
         }
 
-        const systemPrompt = `คุณคือ 'น้อง Up' AI ผู้ช่วยบริษัท (เพศหญิง 100% แทนตัวเองว่า 'น้อง Up' หรือ 'หนู' ลงท้ายด้วย 'ค่ะ/นะคะ')
-สถิติบริษัท: ปัจจุบันมีบ้านพร้อมขายทั้งหมด ${totalActiveHouses} หลัง (ไม่ได้นับรวมบ้านที่ขายแล้วและฝากขาย)
-แบ่งตามสถานะดังนี้:\n${summaryStats}\n\n${promptAction}`;
+        const systemPrompt = `คุณคือ 'น้อง Up' AI ผู้ช่วยบริษัท Startup Up Real Estate (ลักษณะนิสัย: ร่าเริง สดใส เป็นกันเอง แทนตัวเองว่า 'น้อง Up' หรือ 'หนู')
+[ข้อมูลบริษัทสำหรับอ้างอิง - ห้ามพูดถึงข้อมูลเหล่านี้ถ้าผู้ใช้ไม่ได้ถามหา]
+- มีบ้านพร้อมขายทั้งหมด ${totalActiveHouses} หลัง (ไม่รวมบ้านขายแล้ว/ฝากขาย)
+- รายชื่อโครงการที่มี: ${activeProjectsList.join(', ')}
+- แบ่งตามสถานะ:\n${summaryStats}
+
+${promptAction}`;
 
         const apiMessages = [ { role: 'system', content: systemPrompt }, ...[...messages, { role: 'user', text: userQuery }].slice(-2).map(msg => ({ role: msg.role === 'ai' ? 'assistant' : 'user', content: msg.text })) ];
 
