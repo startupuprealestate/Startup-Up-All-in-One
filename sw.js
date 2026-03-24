@@ -29,3 +29,21 @@ messaging.onBackgroundMessage(function(payload) {
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
+// ✨ พอกดที่การแจ้งเตือนปุ๊บ ให้เปิดหน้าแอป หรือสลับไปหน้าแอปที่เปิดค้างไว้ทันที
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      // ถ้าแอปเปิดค้างอยู่แล้ว ให้สลับหน้าจอไปหาแอป
+      if (clientList.length > 0) {
+        let client = clientList[0];
+        for (let i = 0; i < clientList.length; i++) {
+          if (clientList[i].focused) { client = clientList[i]; }
+        }
+        return client.focus();
+      }
+      // ถ้าแอปปิดอยู่ ให้เปิดหน้าเว็บขึ้นมาใหม่
+      return clients.openWindow('/');
+    })
+  );
+});
