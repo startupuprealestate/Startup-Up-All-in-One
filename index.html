@@ -2214,10 +2214,12 @@ ${promptAction}`;
             <div className="flex-1 relative overflow-hidden bg-white p-0">
                <div className="absolute inset-0 overflow-auto custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                    <table className="w-full text-center border-collapse min-w-max">
-                     <thead className="sticky top-0 z-20 shadow-sm bg-white">
+                     <thead className="sticky top-0 z-40 shadow-sm bg-white">
                        <tr>
-                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 w-16">ลำดับ</th>
-                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 w-44">ชื่อพนักงาน</th>
+                         {/* แช่แข็งคอลัมน์ ลำดับ */}
+                         <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 min-w-[45px] max-w-[45px] sticky left-0 z-50">ลำดับ</th>
+                         {/* แช่แข็งคอลัมน์ ชื่อพนักงาน */}
+                         <th rowSpan={2} className="border border-gray-200 border-r-gray-300 border-r-2 bg-[#e5e7eb] p-2 text-[13px] font-bold text-gray-700 min-w-[130px] max-w-[130px] sticky left-[45px] z-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">ชื่อพนักงาน</th>
                          <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 min-w-[140px]">สถิติการลา (ปี {year + 543})</th>
                          {Array.from({ length: daysInMonth }).map((_, i) => (
                            <th key={i} className={`border border-gray-200 bg-[#f3f4f6] p-1 text-[11px] font-bold ${[0, 6].includes(new Date(year, month, i + 1).getDay()) ? 'text-red-500' : 'text-gray-600'}`}>
@@ -2240,13 +2242,19 @@ ${promptAction}`;
                        {departments.map((dept) => (
                          <React.Fragment key={dept.id}>
                            <tr>
-                             <td colSpan={daysInMonth + 3} className="border border-gray-200 bg-gray-50 p-2 pl-4 text-[13px] font-bold text-left text-brand">ทีม {dept.id}</td>
+                             <td colSpan={daysInMonth + 3} className="border border-gray-200 bg-gray-50 p-0">
+                               {/* ทำให้ชื่อทีมแช่แข็งอยู่ฝั่งซ้ายเสมอแม้เลื่อนตาราง */}
+                               <div className="sticky left-0 w-max p-2 pl-4 text-[13px] font-bold text-left text-brand z-20">ทีม {dept.id}</div>
+                             </td>
                            </tr>
                            {dept.members.map((emp, idx) => (
-                             <tr key={emp} className="hover:bg-gray-50 transition-colors">
-                               <td className="border border-gray-200 p-2 text-[12px] text-gray-500">{idx + 1}</td>
-                               <td className="border border-gray-200 p-2 text-[13px] font-bold text-gray-700 text-left pl-4">{emp}</td>
-                               <td className="border border-gray-200 p-1.5 text-[10px] text-gray-600 bg-white text-left">
+                             <tr key={emp} className="group transition-colors">
+                               {/* แช่แข็งคอลัมน์ ลำดับ ใน Body */}
+                               <td className="border border-gray-200 p-2 text-[12px] text-gray-500 bg-white group-hover:bg-gray-50 sticky left-0 z-30">{idx + 1}</td>
+                               {/* แช่แข็งคอลัมน์ ชื่อพนักงาน ใน Body */}
+                               <td className="border border-gray-200 border-r-gray-300 border-r-2 p-2 text-[13px] font-bold text-gray-700 text-left pl-4 bg-white group-hover:bg-gray-50 sticky left-[45px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">{emp}</td>
+                               
+                               <td className="border border-gray-200 p-1.5 text-[10px] text-gray-600 bg-white group-hover:bg-gray-50 text-left">
                                   {(() => {
                                      // ดึงข้อมูลเฉพาะวันลางาน (ไม่เอาวันหยุด)
                                      const empLeaves = events.filter(ev => ev.type === 'leave' && ev.assignee === emp && ev.date.startsWith(`${year}-`));
@@ -2266,13 +2274,13 @@ ${promptAction}`;
                                      return (
                                         <div className="flex flex-col h-full justify-between gap-1.5">
                                             <div className="grid grid-cols-2 gap-1 cursor-pointer select-none">
-                                               <div onClick={() => openLeaveDetails('ลาป่วย')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}`}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']}</div>
-                                               <div onClick={() => openLeaveDetails('ลากิจ')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}`}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']}</div>
-                                               <div onClick={() => openLeaveDetails('ลาพักร้อน')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}`}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']}</div>
-                                               <div onClick={() => openLeaveDetails('ลางานศพ')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}`}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']}</div>
-                                               <div onClick={() => openLeaveDetails('ลาคลอด')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}`}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']}</div>
-                                               <div onClick={() => openLeaveDetails('ลาบวช')} className={`hover:bg-gray-100 rounded px-1 transition-colors ${stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}`}>บวช: {stats['ลาบวช']}/-</div>
-                                               {stats['ไม่ระบุ'] > 0 && <div onClick={() => openLeaveDetails('ไม่ระบุ')} className="text-red-500 col-span-2 hover:bg-red-50 rounded px-1 font-bold">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
+                                               <div onClick={() => openLeaveDetails('ลาป่วย')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}`}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']}</div>
+                                               <div onClick={() => openLeaveDetails('ลากิจ')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}`}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']}</div>
+                                               <div onClick={() => openLeaveDetails('ลาพักร้อน')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}`}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']}</div>
+                                               <div onClick={() => openLeaveDetails('ลางานศพ')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}`}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']}</div>
+                                               <div onClick={() => openLeaveDetails('ลาคลอด')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}`}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']}</div>
+                                               <div onClick={() => openLeaveDetails('ลาบวช')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}`}>บวช: {stats['ลาบวช']}/-</div>
+                                               {stats['ไม่ระบุ'] > 0 && <div onClick={() => openLeaveDetails('ไม่ระบุ')} className="text-red-500 col-span-2 hover:bg-red-100 rounded px-1 font-bold">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
                                             </div>
                                             {/* ปุ่มดูประวัติทั้งหมด */}
                                             <button onClick={() => openLeaveDetails('all')} className="mt-auto w-full py-1.5 text-[10px] font-bold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded flex items-center justify-center transition-colors shadow-sm border border-brand/20">
