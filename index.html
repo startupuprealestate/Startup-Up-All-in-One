@@ -1927,59 +1927,68 @@ ${promptAction}`;
       // 💡 ระบบขออนุญาตแจ้งเตือน (แก้ปัญหาแจ้งเตือนเบิ้ล และทับกัน)
       const isNotificationRequested = useRef(false); // ตัวป้องกันการรันซ้ำ
 
+      // 💡 ระบบจัดการ Push Notification ฉบับอัปเกรด (แก้จอไม่เด้ง & กันเบิ้ล)
       useEffect(() => {
-        if (!isFirebaseLoaded || isNotificationRequested.current) return;
-        isNotificationRequested.current = true; // ล็อกไว้เลยว่ารันแล้ว
+        if (!isFirebaseLoaded) return;
 
-        const requestNotification = async () => {
-            if ("Notification" in window) {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    try {
-                        const registration = await navigator.serviceWorker.register('/sw.js');
-                        const currentToken = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
-                            vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
-                            serviceWorkerRegistration: registration 
-                        }); 
-                        
-                        if (currentToken) {
-                            // ✅ แก้ให้เซฟเป็น Document ใหม่แบบไม่ทับกัน
-                            // โดยใช้ Token เป็นรหัสอ้างอิงเลย
-                            await window.firebaseAPI.setDoc(
-                                window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", currentToken), 
-                                { 
-                                    token: currentToken, 
-                                    deviceInfo: navigator.userAgent, // เก็บชื่อรุ่นเครื่องไว้ดูเล่น
-                                    updatedAt: new Date().toISOString() 
-                                },
-                                { merge: true } // merge: true แปลว่าถ้ามีอยู่แล้วแค่อัปเดตวันที่ ไม่ลบทิ้ง
-                            );
-                        }
-                    } catch (e) {
-                        console.error('FCM Error', e);
+        const initMessaging = async () => {
+            try {
+                // 1. ลงทะเบียน Service Worker ก่อน
+                const registration = await navigator.serviceWorker.register('/sw.js');
+
+                // 2. สร้างฟังก์ชันขอ Token และบันทึกลง Firebase (แยกเครื่องชัดเจน)
+                const getAndSaveToken = async () => {
+                    const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
+                        vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
+                        serviceWorkerRegistration: registration 
+                    }); 
+                    if (token) {
+                        await window.firebaseAPI.setDoc(
+                            window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), 
+                            { 
+                                token: token, 
+                                device: navigator.userAgent, // เก็บข้อมูลด้วยว่าเครื่องไหน
+                                updatedAt: new Date().toISOString() 
+                            }, 
+                            { merge: true } // กันการเซฟทับ
+                        );
                     }
+                };
+
+                // 3. ตรวจสอบสิทธิ์
+                if (Notification.permission === 'granted') {
+                    // ถ้าเคยอนุญาตแล้ว ดึง Token ได้เลย
+                    getAndSaveToken();
+                } else if (Notification.permission !== 'denied') {
+                    // 🚨 ถ้ายังไม่เคยขอสิทธิ์ "ต้องรอให้ผู้ใช้แตะหน้าจอก่อน" ค่อยขอสิทธิ์
+                    const handleFirstTouch = async () => {
+                        const permission = await Notification.requestPermission();
+                        if (permission === 'granted') {
+                            getAndSaveToken();
+                        }
+                        // ขอเสร็จแล้วลบตัวดักจับการแตะทิ้ง
+                        window.removeEventListener('click', handleFirstTouch);
+                        window.removeEventListener('touchstart', handleFirstTouch);
+                    };
+                    // ดักจับการจิ้มหน้าจอของพนักงาน
+                    window.addEventListener('click', handleFirstTouch);
+                    window.addEventListener('touchstart', handleFirstTouch);
                 }
+            } catch (e) {
+                console.error('FCM Error:', e);
             }
         };
 
-        // รันครั้งแรกตอนเข้าเว็บ
-        requestNotification();
+        initMessaging();
 
-        // รันอีกครั้งเมื่อผู้ใช้กดจิ้มที่หน้าจอ (กันเหนียวระบบมือถือบางเครื่อง)
-        const handleFirstClick = () => {
-            requestNotification();
-            window.removeEventListener('click', handleFirstClick);
-        };
-        window.addEventListener('click', handleFirstClick);
-
-        // รอรับข้อความแจ้งเตือนตอนเปิดเว็บทิ้งไว้
+        // 4. ดักจับข้อความตอนเปิดเว็บทิ้งไว้ (ป้องกันการแจ้งเตือนเบิ้ลในหน้าเว็บ)
         const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { 
-            console.log('ได้รับแจ้งเตือน:', payload); 
+            console.log('มีแจ้งเตือนเข้าตอนเปิดเว็บ:', payload); 
+            // ไม่ต้องใส่คำสั่งโชว์ Notification ตรงนี้ เพราะเดี๋ยวระบบหลังบ้านจะจัดการเอง
         });
 
         return () => {
             if (unsubscribe) unsubscribe();
-            window.removeEventListener('click', handleFirstClick);
         };
       }, [isFirebaseLoaded]);
 
