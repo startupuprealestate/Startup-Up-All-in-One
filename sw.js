@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// Config ของคุณ
+// Config ของบริษัท
 firebase.initializeApp({
   apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY",
   authDomain: "startupuprealestate-e4b0a.firebaseapp.com",
@@ -13,22 +13,8 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ฟังก์ชันรับแจ้งเตือนเบื้องหลัง 
-messaging.onBackgroundMessage(function(payload) {
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    vibrate: [200, 100, 200],
-    // ✨ ใช้ tag รวบข้อความที่ชื่อซ้ำกันให้เหลืออันเดียว
-    tag: notificationTitle,
-    // อนุญาตให้สั่นแจ้งเตือนได้ แม้จะเป็นข้อความที่รวบมาแล้ว
-    renotify: true 
-  };
+// 💡 (ลบ onBackgroundMessage ออกไปแล้ว เพื่อให้ Firebase จัดการเด้งแจ้งเตือนแค่อันเดียว ป้องกันการเบิ้ล)
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
-});
 // ✨ พอกดที่การแจ้งเตือนปุ๊บ ให้เปิดหน้าแอป หรือสลับไปหน้าแอปที่เปิดค้างไว้ทันที
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
