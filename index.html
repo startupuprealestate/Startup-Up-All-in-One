@@ -1924,20 +1924,36 @@ ${promptAction}`;
 
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
+      // 💡 ระบบขออนุญาตแจ้งเตือน (แก้ปัญหาแจ้งเตือนเบิ้ล และทับกัน)
+      const isNotificationRequested = useRef(false); // ตัวป้องกันการรันซ้ำ
+
       useEffect(() => {
-        if (!isFirebaseLoaded) return;
+        if (!isFirebaseLoaded || isNotificationRequested.current) return;
+        isNotificationRequested.current = true; // ล็อกไว้เลยว่ารันแล้ว
+
         const requestNotification = async () => {
             if ("Notification" in window) {
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') {
                     try {
                         const registration = await navigator.serviceWorker.register('/sw.js');
-                        const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
+                        const currentToken = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
                             vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
                             serviceWorkerRegistration: registration 
                         }); 
-                        if (token) {
-                            await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), { token, updatedAt: new Date().toISOString() });
+                        
+                        if (currentToken) {
+                            // ✅ แก้ให้เซฟเป็น Document ใหม่แบบไม่ทับกัน
+                            // โดยใช้ Token เป็นรหัสอ้างอิงเลย
+                            await window.firebaseAPI.setDoc(
+                                window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", currentToken), 
+                                { 
+                                    token: currentToken, 
+                                    deviceInfo: navigator.userAgent, // เก็บชื่อรุ่นเครื่องไว้ดูเล่น
+                                    updatedAt: new Date().toISOString() 
+                                },
+                                { merge: true } // merge: true แปลว่าถ้ามีอยู่แล้วแค่อัปเดตวันที่ ไม่ลบทิ้ง
+                            );
                         }
                     } catch (e) {
                         console.error('FCM Error', e);
@@ -1945,9 +1961,26 @@ ${promptAction}`;
                 }
             }
         };
+
+        // รันครั้งแรกตอนเข้าเว็บ
         requestNotification();
-        window.addEventListener('click', requestNotification, { once: true });
-        window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { console.log('Message', payload); });
+
+        // รันอีกครั้งเมื่อผู้ใช้กดจิ้มที่หน้าจอ (กันเหนียวระบบมือถือบางเครื่อง)
+        const handleFirstClick = () => {
+            requestNotification();
+            window.removeEventListener('click', handleFirstClick);
+        };
+        window.addEventListener('click', handleFirstClick);
+
+        // รอรับข้อความแจ้งเตือนตอนเปิดเว็บทิ้งไว้
+        const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { 
+            console.log('ได้รับแจ้งเตือน:', payload); 
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+            window.removeEventListener('click', handleFirstClick);
+        };
       }, [isFirebaseLoaded]);
 
       useEffect(() => {
