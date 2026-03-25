@@ -72,20 +72,30 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+    // 💡 เพิ่มคำสั่ง enableIndexedDbPersistence เข้ามาตรงนี้
+    import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
     
     const firebaseConfig = { apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+
+    // ✨ เปิดระบบ Local Cache: โหลดข้อมูลจากในเครื่องก่อน ประหยัดโควต้ามหาศาล!
+    try {
+        enableIndexedDbPersistence(db).catch((err) => {
+            console.log("Cache error (ไม่กระทบการใช้งาน):", err);
+        });
+    } catch (e) {}
+
     const messaging = getMessaging(app);
 
     window.firebaseDB = db; 
     window.firebaseMessaging = messaging;
-    window.firebaseAPI = { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage };
     
-    // หากใช้ Vercel จะสามารถเรียก API ผ่าน /api/trigger ได้โดยตรง
-    window.VERCEL_API_URL = ""; 
+    // ใช้คำสั่งมาตรฐาน ไม่ต้องมีวิชาลับ
+    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage };
+    
+    window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/"; 
     
     window.dispatchEvent(new Event('firebaseLoaded'));
   </script>
@@ -1531,8 +1541,31 @@ ${promptAction}`;
         const [houseSearchQuery, setHouseSearchQuery] = useState('');
         const [isDeleteHouseModalOpen, setIsDeleteHouseModalOpen] = useState(false);
 
-        const handleDownloadSingle = (base64Data, filename) => {
-            const link = document.createElement('a'); link.href = base64Data; link.download = filename || 'house_image.jpg'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        // 💡 1. ฟังก์ชันบีบอัดลิงก์ Cloudinary อัตโนมัติ (ช่วยประหยัดโควต้า 25 Credits)
+        const getOptimizedUrl = (url) => {
+            if (!url || typeof url !== 'string') return url;
+            if (url.includes('cloudinary.com') && !url.includes('q_auto')) {
+                return url.replace('/upload/', '/upload/q_auto,f_auto,w_800/');
+            }
+            return url;
+        };
+
+        // 💡 2. ฟังก์ชันอัปโหลดรูปขึ้น Cloudinary
+        const uploadToCloudinary = async (base64Img) => {
+            const CLOUD_NAME = "dobblw1f3";
+            const UPLOAD_PRESET = "All_in_One";
+            
+            const formData = new FormData();
+            formData.append('file', base64Img);
+            formData.append('upload_preset', UPLOAD_PRESET);
+
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error.message);
+            return data.secure_url; // ส่งลิงก์รูปกลับมา
         };
 
         const handleDownloadAll = (images, projectName) => {
@@ -1550,11 +1583,45 @@ ${promptAction}`;
         const handleSaveHouse = async (e) => {
             e.preventDefault();
             if (!isFirebaseLoaded) return;
+            
+            setIsUploadingImgs(true); // ล็อกปุ่ม บังคับให้รออัปโหลดเสร็จ
             const { collection, addDoc, updateDoc, doc } = window.firebaseAPI;
+            
             try {
-                if (modalMode === 'add') { await addDoc(collection(window.firebaseDB, "houses"), { ...houseForm, createdAt: new Date().toISOString() }); setModalMode('none'); setHouseForm(initialForm); } 
-                else if (modalMode === 'edit' && activeHouse) { await updateDoc(doc(window.firebaseDB, "houses", activeHouse.id), { ...houseForm, updatedAt: new Date().toISOString() }); setActiveHouse({ ...activeHouse, ...houseForm }); setModalMode('view'); setActiveImageIndex(0); }
-            } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกโครงการ"); }
+                // 💡 3. วนลูปอัปโหลดรูปขึ้น Cloudinary ทีละรูป
+                const finalImageUrls = [];
+                for (let i = 0; i < houseForm.images.length; i++) {
+                    const imgData = houseForm.images[i];
+                    // ถ้าเป็นรูปใหม่ (Base64) ให้อัปโหลดขึ้น Cloudinary
+                    if (imgData.startsWith('data:image')) {
+                        const cloudUrl = await uploadToCloudinary(imgData);
+                        finalImageUrls.push(cloudUrl);
+                    } else {
+                        // ถ้ารูปเดิมเป็นลิงก์ Cloudinary อยู่แล้ว ก็ใช้ลิงก์เดิม
+                        finalImageUrls.push(imgData);
+                    }
+                }
+
+                const finalHouseData = { ...houseForm, images: finalImageUrls };
+
+                // บันทึก "ลิงก์" ลง Firebase (ไฟล์เล็กลงมากๆ โหลดไวขึ้น)
+                if (modalMode === 'add') { 
+                    await addDoc(collection(window.firebaseDB, "houses"), { ...finalHouseData, createdAt: new Date().toISOString() }); 
+                    setModalMode('none'); 
+                    setHouseForm(initialForm); 
+                } 
+                else if (modalMode === 'edit' && activeHouse) { 
+                    await updateDoc(doc(window.firebaseDB, "houses", activeHouse.id), { ...finalHouseData, updatedAt: new Date().toISOString() }); 
+                    setActiveHouse({ ...activeHouse, ...finalHouseData }); 
+                    setModalMode('view'); 
+                    setActiveImageIndex(0); 
+                }
+            } catch (error) { 
+                console.error("Upload Error:", error);
+                alert("เกิดข้อผิดพลาดในการอัปโหลดรูปหรือบันทึกข้อมูลค่ะ"); 
+            } finally {
+                setIsUploadingImgs(false); // ปลดล็อกปุ่ม
+            }
         };
 
         const handleAddImagesToForm = async (e) => {
@@ -1674,7 +1741,7 @@ ${promptAction}`;
                             <div className="flex-1 w-full bg-black flex items-center justify-center relative p-2">
                                 {h.images && h.images.length > 0 ? (
                                     <>
-                                        <img src={h.images[activeImageIndex]} className="w-full h-full object-contain" alt="House View" />
+                                        <img src={getOptimizedUrl(h.images[activeImageIndex])} className="w-full h-full object-contain" alt="House View" />
                                         <div className="absolute bottom-4 right-4 space-x-2">
                                             <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/60 hover:bg-brand text-white px-3 py-1.5 rounded-lg backdrop-blur-md text-[12px] font-bold transition-colors flex items-center shadow-lg"><Icon name="Download" size={14} className="mr-1.5"/> โหลดรูปนี้</button>
                                         </div>
@@ -1687,7 +1754,7 @@ ${promptAction}`;
                                 <div className="flex items-center p-3 bg-gray-900 border-t border-gray-800 h-[100px] shrink-0">
                                     <div className="flex gap-2 overflow-x-auto horizontal-scrollbar flex-1 pb-2">
                                         {h.images.map((imgSrc, idx) => (
-                                            <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-16 h-16 rounded-md overflow-hidden shrink-0 border-2 transition-all ${activeImageIndex === idx ? 'border-brand shadow-[0_0_10px_rgba(11,61,27,0.5)] scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}><img src={imgSrc} className="w-full h-full object-cover" alt={`thumb ${idx}`} /></button>
+                                            <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-16 h-16 rounded-md overflow-hidden shrink-0 border-2 transition-all ${activeImageIndex === idx ? 'border-brand shadow-[0_0_10px_rgba(11,61,27,0.5)] scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}><img src={getOptimizedUrl(imgSrc)} className="w-full h-full object-cover" alt={`thumb ${idx}`} /></button>
                                         ))}
                                     </div>
                                     {h.images.length > 1 && (
@@ -1759,7 +1826,7 @@ ${promptAction}`;
                             <div key={house.id} onClick={() => handleOpenView(house)} className="w-full bg-white rounded-[20px] overflow-hidden shadow-subtle border border-gray-100 flex flex-col hover:-translate-y-1 transition-all cursor-pointer group mx-auto sm:mx-0">
                                 <div className="h-[200px] w-full bg-gray-100 relative overflow-hidden shrink-0 flex items-center justify-center">
                                     {house.images && house.images.length > 0 ? (
-                                        <img src={house.images[0]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={house.projectName} />
+                                        <img src={getOptimizedUrl(house.images[0])} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={house.projectName} />
                                     ) : (
                                         <div className="flex flex-col items-center text-gray-400"><Icon name="Image" size={40} className="mb-2 opacity-30"/><span className="text-[11px] font-medium">ไม่มีรูปภาพ</span></div>
                                     )}
@@ -1937,7 +2004,7 @@ ${promptAction}`;
         );
 
         return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); unsubscribeChecklists(); unsubscribeProgress(); unsubscribePostTracking(); };
-      }, [isFirebaseLoaded, manualRefreshKey]);
+      }, [isFirebaseLoaded]);
 
       const moveDeptUp = async (index) => {
         if (index === 0 || !isFirebaseLoaded) return;
