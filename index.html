@@ -1588,10 +1588,11 @@ ${promptAction}`;
             const { collection, addDoc, updateDoc, doc } = window.firebaseAPI;
             
             try {
-                // 💡 3. วนลูปอัปโหลดรูปขึ้น Cloudinary ทีละรูป
+                // 💡 วนลูปอัปโหลดรูปขึ้น Cloudinary ทีละรูป
                 const finalImageUrls = [];
                 for (let i = 0; i < houseForm.images.length; i++) {
                     const imgData = houseForm.images[i];
+                    
                     // ถ้าเป็นรูปใหม่ (Base64) ให้อัปโหลดขึ้น Cloudinary
                     if (imgData.startsWith('data:image')) {
                         const cloudUrl = await uploadToCloudinary(imgData);
@@ -1604,7 +1605,7 @@ ${promptAction}`;
 
                 const finalHouseData = { ...houseForm, images: finalImageUrls };
 
-                // บันทึก "ลิงก์" ลง Firebase (ไฟล์เล็กลงมากๆ โหลดไวขึ้น)
+                // บันทึก "ลิงก์ภาพจาก Cloudinary" ลง Firebase
                 if (modalMode === 'add') { 
                     await addDoc(collection(window.firebaseDB, "houses"), { ...finalHouseData, createdAt: new Date().toISOString() }); 
                     setModalMode('none'); 
@@ -1618,7 +1619,7 @@ ${promptAction}`;
                 }
             } catch (error) { 
                 console.error("Upload Error:", error);
-                alert("เกิดข้อผิดพลาดในการอัปโหลดรูปหรือบันทึกข้อมูลค่ะ"); 
+                alert("เกิดข้อผิดพลาดในการอัปโหลดรูปลง Cloudinary หรือบันทึกข้อมูลค่ะ"); 
             } finally {
                 setIsUploadingImgs(false); // ปลดล็อกปุ่ม
             }
