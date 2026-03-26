@@ -1771,69 +1771,86 @@ ${promptAction}`;
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md text-left">
-                    <div className="bg-surface rounded-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl relative border border-gray-100">
-                        <button onClick={() => setModalMode('none')} className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/80 backdrop-blur-sm transition-colors shadow-md"><Icon name="X" size={18}/></button>
+                    <div className="bg-surface rounded-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] overflow-hidden shadow-2xl relative border border-gray-100 flex flex-col">
                         
-                        <div className="w-full md:w-3/5 bg-black flex flex-col shrink-0">
-                            <div className="flex-1 w-full bg-black flex items-center justify-center relative p-2">
-                                {h.images && h.images.length > 0 ? (
-                                    <>
-                                        <img src={getOptimizedUrl(h.images[activeImageIndex])} className="w-full h-full object-contain" alt="House View" />
-                                        <div className="absolute bottom-4 right-4 space-x-2">
-                                            <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/60 hover:bg-brand text-white px-3 py-1.5 rounded-lg backdrop-blur-md text-[12px] font-bold transition-colors flex items-center shadow-lg"><Icon name="Download" size={14} className="mr-1.5"/> โหลดรูปนี้</button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="text-gray-500 text-center"><Icon name="Image" size={48} className="mx-auto mb-2 opacity-50"/>ไม่มีรูปภาพ</div>
-                                )}
-                            </div>
-                            {h.images && h.images.length > 0 && (
-                                <div className="flex items-center p-3 bg-gray-900 border-t border-gray-800 h-[100px] shrink-0">
-                                    <div className="flex gap-2 overflow-x-auto horizontal-scrollbar flex-1 pb-2">
-                                        {h.images.map((imgSrc, idx) => (
-                                            <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-16 h-16 rounded-md overflow-hidden shrink-0 border-2 transition-all ${activeImageIndex === idx ? 'border-brand shadow-[0_0_10px_rgba(11,61,27,0.5)] scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}><img src={getOptimizedUrl(imgSrc)} className="w-full h-full object-cover" alt={`thumb ${idx}`} /></button>
-                                        ))}
-                                    </div>
-                                    {h.images.length > 1 && (
-                                        <button onClick={() => handleDownloadAll(h.images, h.projectName)} className="ml-4 shrink-0 bg-brand text-white flex flex-col items-center justify-center h-16 px-3 rounded-lg hover:bg-brandLight transition-colors shadow-lg"><Icon name="Download" size={18} className="mb-1"/><span className="text-[10px] font-bold">โหลดทั้งหมด</span></button>
+                        {/* 💡 ปุ่ม X ปิดหน้าต่าง ให้อยู่มุมขวาบนเสมอ (Fixed) ไม่เลื่อนหนีไปไหน */}
+                        <button onClick={() => setModalMode('none')} className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/80 backdrop-blur-sm transition-colors shadow-md">
+                            <Icon name="X" size={18}/>
+                        </button>
+
+                        {/* 💡 Wrapper ตัวนี้แหละที่กำหนดให้ มือถือ=เลื่อนรวมกัน / คอม=แยก 2 ฝั่ง */}
+                        <div className="w-full h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden custom-scrollbar">
+                            
+                            {/* โซนรูปภาพ: มือถือสูง 45vh (ไม่เต็มจอ ให้เห็นเนื้อหาข้างล่างด้วย) ส่วนคอมพิวเตอร์สูงเต็ม 100% */}
+                            <div className="w-full md:w-3/5 bg-black flex flex-col shrink-0 h-[45vh] md:h-full relative">
+                                <div className="flex-1 w-full bg-black flex items-center justify-center relative p-2 overflow-hidden">
+                                    {h.images && h.images.length > 0 ? (
+                                        <>
+                                            <img src={getOptimizedUrl(h.images[activeImageIndex])} className="w-full h-full object-contain" alt="House View" />
+                                            <div className="absolute bottom-4 right-4 space-x-2">
+                                                <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/60 hover:bg-brand text-white px-3 py-1.5 rounded-lg backdrop-blur-md text-[12px] font-bold transition-colors flex items-center shadow-lg"><Icon name="Download" size={14} className="mr-1.5"/> โหลดรูปนี้</button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-gray-500 text-center"><Icon name="Image" size={48} className="mx-auto mb-2 opacity-50"/>ไม่มีรูปภาพ</div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-
-                        <div className="w-full md:w-2/5 flex flex-col bg-white overflow-hidden border-l border-gray-200">
-                            <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <span className="inline-block bg-brand/10 text-brand px-2.5 py-1 rounded-md text-[11px] font-extrabold tracking-wide mb-2">บ้านมาใหม่</span>
-                                        <h2 className="text-2xl font-extrabold text-gray-900 leading-tight">{h.projectName || 'ไม่ระบุชื่อโครงการ'}</h2>
-                                    </div>
-                                </div>
-                                {h.price && <div className="text-2xl font-black text-brand mb-6">{h.price}</div>}
-                                <div className="space-y-4 mb-8">
-                                    <div className="flex items-start text-[14px]">
-                                        <Icon name="MapPin" size={18} className="text-gray-400 mr-3 mt-0.5 shrink-0"/>
-                                        <div><div className="font-bold text-gray-800">{h.location || 'ไม่ระบุทำเล'}</div>{fullAddress && <div className="text-gray-500 mt-0.5">บ้านเลขที่ {fullAddress}</div>}</div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 mb-6 border-y border-gray-100 py-6">
-                                    {h.bedrooms && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="Bed" size={20} className="text-blue-500 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">ห้องนอน</div><div className="text-[14px] font-extrabold text-gray-800">{h.bedrooms}</div></div></div>}
-                                    {h.bathrooms && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="Bath" size={20} className="text-cyan-500 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">ห้องน้ำ</div><div className="text-[14px] font-extrabold text-gray-800">{h.bathrooms}</div></div></div>}
-                                    {h.parking && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="CheckSquare" size={20} className="text-gray-400 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">ที่จอดรถ</div><div className="text-[14px] font-extrabold text-gray-800">{h.parking}</div></div></div>}
-                                    {h.floors && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="Building" size={20} className="text-gray-400 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">จำนวนชั้น</div><div className="text-[14px] font-extrabold text-gray-800">{h.floors}</div></div></div>}
-                                    {h.area && <div className="bg-brand/5 p-3 rounded-xl flex items-center border border-brand/10 col-span-2"><Icon name="Maximize" size={20} className="text-brand mr-3 shrink-0"/><div><div className="text-[11px] text-brand/70 font-bold">พื้นที่</div><div className="text-[14px] font-extrabold text-brand">{h.area}</div></div></div>}
-                                </div>
-                                {h.direction && (
-                                    <div className="flex justify-between items-center bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 mb-2">
-                                        <span className="text-[13px] font-bold text-gray-500">ทิศหน้าบ้าน</span><span className="text-[14px] font-extrabold text-gray-800">{h.direction}</span>
+                                
+                                {h.images && h.images.length > 0 && (
+                                    <div className="flex items-center p-2 sm:p-3 bg-gray-900 border-t border-gray-800 h-[80px] sm:h-[100px] shrink-0">
+                                        <div className="flex gap-2 overflow-x-auto horizontal-scrollbar flex-1 pb-1 sm:pb-2">
+                                            {h.images.map((imgSrc, idx) => (
+                                                <button key={idx} onClick={() => setActiveImageIndex(idx)} className={`w-12 h-12 sm:w-16 sm:h-16 rounded-md overflow-hidden shrink-0 border-2 transition-all ${activeImageIndex === idx ? 'border-brand shadow-[0_0_10px_rgba(11,61,27,0.5)] scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                                                    <img src={getOptimizedUrl(imgSrc)} className="w-full h-full object-cover" alt={`thumb ${idx}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {h.images.length > 1 && (
+                                            <button onClick={() => handleDownloadAll(h.images, h.projectName)} className="ml-3 sm:ml-4 shrink-0 bg-brand text-white flex flex-col items-center justify-center h-12 sm:h-16 px-2 sm:px-3 rounded-lg hover:bg-brandLight transition-colors shadow-lg">
+                                                <Icon name="Download" size={16} className="mb-0.5"/>
+                                                <span className="text-[9px] sm:text-[10px] font-bold">โหลดทั้งหมด</span>
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
-                            <div className="p-5 border-t border-gray-100 bg-gray-50 shrink-0">
-                                <div className="flex justify-between items-center">
-                                    <button onClick={() => setIsDeleteHouseModalOpen(true)} className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="ลบข้อมูลบ้านหลังนี้"><Icon name="Trash" size={20} /></button>
-                                    <button onClick={handleOpenEdit} className="flex items-center px-6 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-black transition-colors font-bold text-[14px] shadow-md"><Icon name="Edit" size={16} className="mr-2" /> แก้ไขข้อมูล</button>
+                            {/* โซนรายละเอียดบ้าน: คอมพิวเตอร์จะมี Scroll เลื่อนในกล่องนี้แยกต่างหาก */}
+                            <div className="w-full md:w-2/5 flex flex-col bg-white border-t md:border-t-0 md:border-l border-gray-200 shrink-0 md:shrink md:h-full">
+                                <div className="flex-1 overflow-y-visible md:overflow-y-auto p-5 sm:p-6 md:p-8 custom-scrollbar">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <span className="inline-block bg-brand/10 text-brand px-2.5 py-1 rounded-md text-[11px] font-extrabold tracking-wide mb-2">บ้านมาใหม่</span>
+                                            <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight pr-6">{h.projectName || 'ไม่ระบุชื่อโครงการ'}</h2>
+                                        </div>
+                                    </div>
+                                    {h.price && <div className="text-xl sm:text-2xl font-black text-brand mb-6">{h.price}</div>}
+                                    <div className="space-y-4 mb-8">
+                                        <div className="flex items-start text-[14px]">
+                                            <Icon name="MapPin" size={18} className="text-gray-400 mr-3 mt-0.5 shrink-0"/>
+                                            <div><div className="font-bold text-gray-800">{h.location || 'ไม่ระบุทำเล'}</div>{fullAddress && <div className="text-gray-500 mt-0.5">บ้านเลขที่ {fullAddress}</div>}</div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 mb-6 border-y border-gray-100 py-6">
+                                        {h.bedrooms && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="Bed" size={20} className="text-blue-500 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">ห้องนอน</div><div className="text-[14px] font-extrabold text-gray-800">{h.bedrooms}</div></div></div>}
+                                        {h.bathrooms && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="Bath" size={20} className="text-cyan-500 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">ห้องน้ำ</div><div className="text-[14px] font-extrabold text-gray-800">{h.bathrooms}</div></div></div>}
+                                        {h.parking && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="CheckSquare" size={20} className="text-gray-400 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">ที่จอดรถ</div><div className="text-[14px] font-extrabold text-gray-800">{h.parking}</div></div></div>}
+                                        {h.floors && <div className="bg-gray-50 p-3 rounded-xl flex items-center border border-gray-100"><Icon name="Building" size={20} className="text-gray-400 mr-3 shrink-0"/><div><div className="text-[11px] text-gray-500 font-bold">จำนวนชั้น</div><div className="text-[14px] font-extrabold text-gray-800">{h.floors}</div></div></div>}
+                                        {h.area && <div className="bg-brand/5 p-3 rounded-xl flex items-center border border-brand/10 col-span-2"><Icon name="Maximize" size={20} className="text-brand mr-3 shrink-0"/><div><div className="text-[11px] text-brand/70 font-bold">พื้นที่</div><div className="text-[14px] font-extrabold text-brand">{h.area}</div></div></div>}
+                                    </div>
+                                    {h.direction && (
+                                        <div className="flex justify-between items-center bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 mb-2">
+                                            <span className="text-[13px] font-bold text-gray-500">ทิศหน้าบ้าน</span><span className="text-[14px] font-extrabold text-gray-800">{h.direction}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* โซนปุ่มแก้ไข/ลบ: จะอยู่ล่างสุดเสมอ */}
+                                <div className="p-4 sm:p-5 border-t border-gray-100 bg-gray-50 shrink-0 mt-auto md:mt-0">
+                                    <div className="flex justify-between items-center">
+                                        <button onClick={() => setIsDeleteHouseModalOpen(true)} className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="ลบข้อมูลบ้านหลังนี้"><Icon name="Trash" size={20} /></button>
+                                        <button onClick={handleOpenEdit} className="flex items-center px-6 py-2.5 bg-gray-800 text-white rounded-xl hover:bg-black transition-colors font-bold text-[14px] shadow-md"><Icon name="Edit" size={16} className="mr-2" /> แก้ไขข้อมูล</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
