@@ -1577,6 +1577,10 @@ ${promptAction}`;
         const [houseSearchQuery, setHouseSearchQuery] = useState('');
         const [isDeleteHouseModalOpen, setIsDeleteHouseModalOpen] = useState(false);
 
+        // 💡 1. State สำหรับจับการสไลด์นิ้วมือถือ (Swipe)
+        const [touchStart, setTouchStart] = useState(null);
+        const [touchEnd, setTouchEnd] = useState(null);
+
         const getOptimizedUrl = (url) => {
             if (!url || typeof url !== 'string') return url;
             if (url.includes('cloudinary.com') && !url.includes('q_auto')) {
@@ -1599,41 +1603,47 @@ ${promptAction}`;
             return data.secure_url; 
         };
 
-        // 💡 เพิ่มฟังก์ชันโหลดรูปเดี่ยวกลับเข้ามา + ระบบ Share ลงแกลลอรี่มือถือ
+        // 💡 2. อัปเกรดระบบโหลดรูป ให้รองรับทั้งการ Share ในมือถือ และแก้ปัญหาติด CORS ในคอมพิวเตอร์
         const handleDownloadSingle = async (url, filename) => {
             try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                const file = new File([blob], filename || 'house-image.jpg', { type: blob.type });
-
-                // เช็คว่าเป็นมือถือหรือไม่ (กว้างน้อยกว่า 768px)
-                if (navigator.canShare && navigator.canShare({ files: [file] }) && window.innerWidth < 768) {
-                    await navigator.share({
-                        files: [file],
-                        title: 'รูปภาพบ้าน',
-                    });
-                } else {
-                    // ถ้าเป็นคอม โหลดลงเครื่องปกติ
-                    const blobUrl = window.URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = blobUrl;
-                    link.download = filename || 'image.jpg';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(blobUrl);
+                // เช็คว่าเป็นมือถือหรือไม่
+                if (navigator.canShare && window.innerWidth < 768) {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    const file = new File([blob], filename || 'house-image.jpg', { type: blob.type });
+                    
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: 'รูปภาพบ้าน' });
+                        return; // จบการทำงานถ้าแชร์สำเร็จ
+                    }
                 }
+
+                // 💡 แผนสำหรับคอมพิวเตอร์: สร้างลิงก์บังคับดาวน์โหลด (ใช้ fl_attachment ทะลุบล็อก Cloudinary)
+                let downloadUrl = url;
+                if (url.includes('cloudinary.com')) {
+                    // แทรกคำสั่งบังคับโหลดเข้าไปในลิงก์
+                    downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename || 'image'}/`);
+                }
+                
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = filename || 'image.jpg';
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
             } catch (error) {
                 if (error.name !== 'AbortError') {
-                    console.error('Download/Share failed:', error);
-                    window.open(url, '_blank');
+                    console.error('Download failed:', error);
+                    window.open(url, '_blank'); // แผนสำรองสุดท้าย
                 }
             }
         };
 
         const handleDownloadAll = (images, projectName) => {
             const safeName = (projectName || 'house').replace(/[/\\?%*:|"<>]/g, '-');
-            images.forEach((img, idx) => { setTimeout(() => { handleDownloadSingle(img, `${safeName}_${idx + 1}.jpg`); }, idx * 300); });
+            images.forEach((img, idx) => { setTimeout(() => { handleDownloadSingle(img, `${safeName}_${idx + 1}.jpg`); }, idx * 500); });
         };
 
         const handleOpenAdd = () => { setHouseForm(initialForm); setModalMode('add'); };
@@ -1647,7 +1657,7 @@ ${promptAction}`;
             e.preventDefault();
             if (!isFirebaseLoaded) return;
             
-            setIsUploadingImgs(true);
+            setIsUploadingImgs(true); // 💡 เปิดหน้าต่าง Loading
             const { collection, addDoc, updateDoc, doc } = window.firebaseAPI;
             
             try {
@@ -1679,19 +1689,19 @@ ${promptAction}`;
                 console.error("Upload Error:", error);
                 alert("เกิดข้อผิดพลาดในการอัปโหลดรูปลง Cloudinary หรือบันทึกข้อมูลค่ะ"); 
             } finally {
-                setIsUploadingImgs(false);
+                setIsUploadingImgs(false); // 💡 ปิดหน้าต่าง Loading
             }
         };
 
         const handleAddImagesToForm = async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
-            setIsUploadingImgs(true);
+            setIsUploadingImgs(true); // 💡 เปิดหน้าต่าง Loading
             try {
                 const newImages = await Promise.all(files.map(file => compressImage(file)));
                 setHouseForm(prev => { const combined = [...prev.images, ...newImages]; return { ...prev, images: combined.slice(0, 10) }; });
             } catch (error) { alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ'); }
-            setIsUploadingImgs(false);
+            setIsUploadingImgs(false); // 💡 ปิดหน้าต่าง Loading
         };
 
         const handleRemoveFormImage = (indexToRemove) => { setHouseForm(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== indexToRemove) })); };
@@ -1700,6 +1710,23 @@ ${promptAction}`;
         const handleDeleteHouse = async () => {
             if (!activeHouse || !isFirebaseLoaded) return;
             try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "houses", activeHouse.id)); setIsDeleteHouseModalOpen(false); setActiveHouse(null); setModalMode('none'); } catch (error) { alert("เกิดข้อผิดพลาดในการลบข้อมูล"); }
+        };
+
+        // 💡 3. ฟังก์ชันคำนวณการสไลด์นิ้ว
+        const handleTouchStart = (e) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX); };
+        const handleTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
+        const handleTouchEnd = () => {
+            if (!touchStart || !touchEnd) return;
+            const distance = touchStart - touchEnd;
+            const isLeftSwipe = distance > 50; // ปัดไปซ้าย = ดูรูปถัดไป
+            const isRightSwipe = distance < -50; // ปัดไปขวา = ดูรูปก่อนหน้า
+            
+            if (isLeftSwipe && activeHouse?.images) {
+                setActiveImageIndex(prev => Math.min(prev + 1, activeHouse.images.length - 1));
+            }
+            if (isRightSwipe && activeHouse?.images) {
+                setActiveImageIndex(prev => Math.max(prev - 1, 0));
+            }
         };
 
         const filteredHouses = houses.filter(h => {
@@ -1792,19 +1819,33 @@ ${promptAction}`;
             const fullAddress = `${h.houseNo || ''} ${h.soi || ''}`.trim();
 
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-md text-left">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md text-left">
                     <div className="bg-surface rounded-2xl w-full max-w-5xl h-[95vh] sm:h-[90vh] overflow-hidden flex flex-col shadow-2xl relative border border-gray-100">
-                        <button onClick={() => setModalMode('none')} className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/80 backdrop-blur-sm transition-colors shadow-md"><Icon name="X" size={18}/></button>
+                        <button onClick={() => setModalMode('none')} className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 backdrop-blur-sm transition-colors shadow-md"><Icon name="X" size={18}/></button>
                         
                         <div className="w-full h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden custom-scrollbar">
                             <div className="w-full md:w-3/5 bg-black flex flex-col shrink-0 h-[45vh] md:h-full relative">
-                                <div className="flex-1 w-full bg-black flex items-center justify-center relative p-2 overflow-hidden">
+                                {/* 💡 4. เพิ่ม onTouch ให้จับการสไลด์นิ้ว และเพิ่ม pb-16 กันรูปทับปุ่ม */}
+                                <div 
+                                    className="flex-1 w-full bg-black flex items-center justify-center relative p-2 pb-16 overflow-hidden"
+                                    onTouchStart={handleTouchStart}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={handleTouchEnd}
+                                >
                                     {h.images && h.images.length > 0 ? (
                                         <>
-                                            <img src={getOptimizedUrl(h.images[activeImageIndex])} className="w-full h-full object-contain" alt="House View" />
-                                            <div className="absolute bottom-4 right-4 space-x-2">
-                                                <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/60 hover:bg-brand text-white px-3 py-1.5 rounded-lg backdrop-blur-md text-[12px] font-bold transition-colors flex items-center shadow-lg"><Icon name="Download" size={14} className="mr-1.5"/> โหลดรูปนี้</button>
+                                            <img src={getOptimizedUrl(h.images[activeImageIndex])} className="w-full h-full object-contain max-h-full" alt="House View" draggable="false" />
+                                            
+                                            {/* 💡 3. ปุ่มโหลดรูป ล็อก z-10 ให้อยู่เหนือรูปเสมอ */}
+                                            <div className="absolute bottom-4 right-4 z-10 space-x-2">
+                                                <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/70 hover:bg-brand text-white px-4 py-2 rounded-xl backdrop-blur-md text-[13px] font-bold transition-colors flex items-center shadow-[0_4px_15px_rgba(0,0,0,0.5)] border border-white/20">
+                                                    <Icon name="Download" size={16} className="mr-2"/> โหลดรูปนี้
+                                                </button>
                                             </div>
+                                            
+                                            {/* แสดงลูกศรใบ้ว่าเลื่อนซ้ายขวาได้ในมือถือ */}
+                                            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronLeft" size={24}/></div>
+                                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronRight" size={24}/></div>
                                         </>
                                     ) : (
                                         <div className="text-gray-500 text-center"><Icon name="Image" size={48} className="mx-auto mb-2 opacity-50"/>ไม่มีรูปภาพ</div>
@@ -1819,7 +1860,7 @@ ${promptAction}`;
                                                 </button>
                                             ))}
                                         </div>
-                                        {/* 💡 ซ่อนปุ่มโหลดทั้งหมดในมือถือ ด้วยคำว่า hidden md:flex */}
+                                        {/* ซ่อนปุ่มโหลดทั้งหมดในมือถือ */}
                                         {h.images.length > 1 && (
                                             <button onClick={() => handleDownloadAll(h.images, h.projectName)} className="ml-3 sm:ml-4 shrink-0 bg-brand text-white hidden md:flex flex-col items-center justify-center h-12 sm:h-16 px-2 sm:px-3 rounded-lg hover:bg-brandLight transition-colors shadow-lg">
                                                 <Icon name="Download" size={16} className="mb-0.5"/>
@@ -1873,7 +1914,7 @@ ${promptAction}`;
         };
 
         return (
-            <div className="flex-1 p-4 md:p-8 h-full bg-background flex flex-col overflow-hidden">
+            <div className="flex-1 p-4 md:p-8 h-full bg-background flex flex-col overflow-hidden relative">
                 <div className="flex justify-between items-center mb-6 shrink-0">
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center"><Icon name="Image" className="mr-3 text-brand" size={26}/> รูปภาพบ้านมาใหม่</h2>
                     <button onClick={handleOpenAdd} className="bg-brand hover:bg-brandLight text-white px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all shadow-md flex items-center"><Icon name="Plus" size={18} className="mr-1.5"/> เพิ่มโครงการใหม่</button>
@@ -1924,6 +1965,20 @@ ${promptAction}`;
                                 <button onClick={() => setIsDeleteHouseModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">ยกเลิก</button>
                                 <button onClick={handleDeleteHouse} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors">ยืนยันการลบ</button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 💡 แจ้งเตือนเวลาอัปโหลดรูปภาพ */}
+                {isUploadingImgs && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white p-8 rounded-[20px] shadow-2xl flex flex-col items-center max-w-xs text-center border border-gray-100">
+                            <div className="relative mb-6">
+                                <div className="absolute inset-0 bg-brand/20 rounded-full blur-xl animate-pulse"></div>
+                                <Icon name="RefreshCw" size={50} className="animate-spin text-brand relative z-10" />
+                            </div>
+                            <h3 className="text-lg font-extrabold text-gray-800 mb-2 tracking-tight">กำลังอัปโหลดรูปภาพ...</h3>
+                            <p className="text-[13px] font-medium text-gray-500 bg-gray-50 px-4 py-2 rounded-lg">กรุณารอสักครู่ ห้ามปิดหน้าจอหรือรีเฟรช</p>
                         </div>
                     </div>
                 )}
