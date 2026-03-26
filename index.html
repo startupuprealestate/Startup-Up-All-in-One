@@ -921,12 +921,41 @@
             return true;
         });
 
+        // 💡 ระบบหาเวลาโพสต์ล่าสุด: ดันบ้านที่เพิ่งโพสต์ไปลงล่างสุด
+        const getLatestPostTime = (houseId) => {
+            const p = postTracking[houseId];
+            if (!p) return 0;
+            let maxTime = 0;
+            for (const key in p) {
+                if (key !== 'lastSkippedTimestamp' && p[key]) {
+                    const t = new Date(p[key]).getTime();
+                    if (t > maxTime) maxTime = t;
+                }
+            }
+            return maxTime;
+        };
+
         const skippedHouses = [], freshHouses = [];
         activePool.forEach(h => { postTracking[h.id]?.lastSkippedTimestamp ? skippedHouses.push(h) : freshHouses.push(h); });
         skippedHouses.sort((a, b) => (postTracking[a.id].lastSkippedTimestamp || 0) - (postTracking[b.id].lastSkippedTimestamp || 0));
-        let newestPool = [...freshHouses].reverse().concat(skippedHouses);
         
+        // 💡 จัดคิวบ้านทั่วไป: บ้านที่โพสต์นานที่สุดหรือยังไม่เคยโพสต์ จะเด้งขึ้นมาบนสุด
+        let newestPool = [...freshHouses].sort((a, b) => {
+             const lastA = getLatestPostTime(a.id);
+             const lastB = getLatestPostTime(b.id);
+             if (lastA !== lastB) return lastA - lastB; // สลับบ้านที่ยังไม่ได้โพสต์ขึ้นมา
+             
+             const idA = parseInt(a.id.replace('row_', '')) || 0;
+             const idB = parseInt(b.id.replace('row_', '')) || 0;
+             return idB - idA;
+        }).concat(skippedHouses);
+        
+        // 💡 จัดคิวบ้านเฉพาะเซลล์: สลับคิวหมุนเวียนทุกวัน
         let priorityPool = [...freshHouses].sort((a, b) => {
+             const lastA = getLatestPostTime(a.id);
+             const lastB = getLatestPostTime(b.id);
+             if (lastA !== lastB) return lastA - lastB; 
+
              const expA = parseThaiDate(safeTrim(a['หมดสัญญา']) || safeTrim(a['วันหมดสัญญา'])), expB = parseThaiDate(safeTrim(b['หมดสัญญา']) || safeTrim(b['วันหมดสัญญา']));
              const startA = parseThaiDate(safeTrim(a['เริ่มทำ'])), startB = parseThaiDate(safeTrim(b['เริ่มทำ']));
              const getScore = (exp, start) => {
