@@ -890,6 +890,7 @@
             return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
         });
 
+        // 💡 ฟังก์ชันนี้เป็นตัวกำหนดว่า "วันใหม่คือ 9.00 น."
         const { dateStr: assignmentTodayStr, displayStr: assignmentDisplayStr } = getAssignmentDateInfo();
 
         const handleTogglePost = async (rowId, isChecked, assigneeName) => {
@@ -921,13 +922,18 @@
             return true;
         });
 
-        // 💡 ระบบหาเวลาโพสต์ล่าสุด: ดันบ้านที่เพิ่งโพสต์ไปลงล่างสุด
+        // 💡 1. หัวใจสำคัญ: ระบบหาเวลาโพสต์ล่าสุด
         const getLatestPostTime = (houseId) => {
             const p = postTracking[houseId];
             if (!p) return 0;
             let maxTime = 0;
             for (const key in p) {
                 if (key !== 'lastSkippedTimestamp' && p[key]) {
+                    // 🚨 กฎเหล็ก: ถ้าโพสต์แล้ว "วันนี้" จะไม่นำมาคำนวณคิว (ข้ามไปเลย)
+                    // ทำให้เวลาติ๊กถูก บ้านจะอยู่ที่เดิมไม่กระเด็นหายไป
+                    // แต่พอ 9 โมงเช้าพรุ่งนี้ คิวจะถูกรีเซ็ต แล้วบ้านหลังนี้จะถูกดันลงไปล่างสุดทันที!
+                    if (p[key] === assignmentTodayStr) continue; 
+                    
                     const t = new Date(p[key]).getTime();
                     if (t > maxTime) maxTime = t;
                 }
@@ -939,18 +945,19 @@
         activePool.forEach(h => { postTracking[h.id]?.lastSkippedTimestamp ? skippedHouses.push(h) : freshHouses.push(h); });
         skippedHouses.sort((a, b) => (postTracking[a.id].lastSkippedTimestamp || 0) - (postTracking[b.id].lastSkippedTimestamp || 0));
         
-        // 💡 จัดคิวบ้านทั่วไป: บ้านที่โพสต์นานที่สุดหรือยังไม่เคยโพสต์ จะเด้งขึ้นมาบนสุด
+        // 💡 2. จัดคิวบ้านใหม่: ดันบ้านที่ไม่ค่อยได้โพสต์ขึ้นมาบนสุด
         let newestPool = [...freshHouses].sort((a, b) => {
              const lastA = getLatestPostTime(a.id);
              const lastB = getLatestPostTime(b.id);
-             if (lastA !== lastB) return lastA - lastB; // สลับบ้านที่ยังไม่ได้โพสต์ขึ้นมา
+             // บ้านที่นานที่สุดไม่ได้โพสต์ (last=0) จะขึ้นมาก่อน
+             if (lastA !== lastB) return lastA - lastB; 
              
              const idA = parseInt(a.id.replace('row_', '')) || 0;
              const idB = parseInt(b.id.replace('row_', '')) || 0;
              return idB - idA;
         }).concat(skippedHouses);
         
-        // 💡 จัดคิวบ้านเฉพาะเซลล์: สลับคิวหมุนเวียนทุกวัน
+        // 💡 3. จัดคิวบ้านเฉพาะเซลล์ (หมุนเวียนคิวแบบเดียวกัน)
         let priorityPool = [...freshHouses].sort((a, b) => {
              const lastA = getLatestPostTime(a.id);
              const lastB = getLatestPostTime(b.id);
@@ -1017,7 +1024,7 @@
                     <div className="flex items-center gap-3">
                         <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="FileSignature" className="mr-2 md:mr-3 text-brand" size={24}/> {viewMode === 'daily' ? `ตารางโพสต์ประจำวัน ที่ ${assignmentDisplayStr}` : 'ประวัติโพสต์บ้านทั้งหมด'}</h2>
                         {viewMode === 'all' && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{filteredAllData.length} รายการ</span></div>}
-                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
+                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                     </div>
                </div>
 
@@ -1037,7 +1044,7 @@
                         <div className="flex flex-wrap gap-2.5 shrink-0 w-full xl:w-auto">
                             <div className="relative shrink-0 w-full sm:w-auto">
                                 <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                                <input type="text" placeholder="ค้นหาหมู่บ้าน, เลขที่..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand text-[13px] shadow-sm"/>
+                                <input type="text" placeholder="ค้นหาหมู่บ้าน, เลขที่..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"/>
                             </div>
                             
                             {viewMode === 'all' && (
@@ -1068,7 +1075,7 @@
                                         <>
                                             <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
                                             <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand font-bold">แสดงทั้งหมด</button>}</div>
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}</div>
                                                 <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                                     {uniqueStatuses.map(st => (
                                                         <label key={st} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(st)} onChange={() => toggleHideValue('สถานะ', st)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{st}</span></label>
