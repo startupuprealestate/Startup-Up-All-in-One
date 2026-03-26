@@ -1577,9 +1577,10 @@ ${promptAction}`;
         const [houseSearchQuery, setHouseSearchQuery] = useState('');
         const [isDeleteHouseModalOpen, setIsDeleteHouseModalOpen] = useState(false);
 
-        // 💡 1. State สำหรับจับการสไลด์นิ้วมือถือ (Swipe)
         const [touchStart, setTouchStart] = useState(null);
         const [touchEnd, setTouchEnd] = useState(null);
+        
+        const [isZipping, setIsZipping] = useState(false);
 
         const getOptimizedUrl = (url) => {
             if (!url || typeof url !== 'string') return url;
@@ -1603,31 +1604,28 @@ ${promptAction}`;
             return data.secure_url; 
         };
 
-        // 💡 2. อัปเกรดระบบโหลดรูป ให้รองรับทั้งการ Share ในมือถือ และแก้ปัญหาติด CORS ในคอมพิวเตอร์
         const handleDownloadSingle = async (url, filename) => {
             try {
-                // เช็คว่าเป็นมือถือหรือไม่
                 if (navigator.canShare && window.innerWidth < 768) {
                     const response = await fetch(url);
                     const blob = await response.blob();
-                    const file = new File([blob], filename || 'house-image.jpg', { type: blob.type });
+                    const file = new File([blob], filename || 'New_Home.jpg', { type: blob.type });
                     
                     if (navigator.canShare({ files: [file] })) {
                         await navigator.share({ files: [file], title: 'รูปภาพบ้าน' });
-                        return; // จบการทำงานถ้าแชร์สำเร็จ
+                        return; 
                     }
                 }
 
-                // 💡 แผนสำหรับคอมพิวเตอร์: สร้างลิงก์บังคับดาวน์โหลด (ใช้ fl_attachment ทะลุบล็อก Cloudinary)
                 let downloadUrl = url;
                 if (url.includes('cloudinary.com')) {
-                    // แทรกคำสั่งบังคับโหลดเข้าไปในลิงก์
-                    downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename || 'image'}/`);
+                    const safeName = filename ? filename.replace('.jpg', '') : 'New_Home';
+                    downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${safeName}/`);
                 }
                 
                 const link = document.createElement('a');
                 link.href = downloadUrl;
-                link.download = filename || 'image.jpg';
+                link.download = filename || 'New_Home.jpg';
                 link.target = '_blank';
                 document.body.appendChild(link);
                 link.click();
@@ -1636,14 +1634,54 @@ ${promptAction}`;
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     console.error('Download failed:', error);
-                    window.open(url, '_blank'); // แผนสำรองสุดท้าย
+                    window.open(url, '_blank'); 
                 }
             }
         };
 
-        const handleDownloadAll = (images, projectName) => {
-            const safeName = (projectName || 'house').replace(/[/\\?%*:|"<>]/g, '-');
-            images.forEach((img, idx) => { setTimeout(() => { handleDownloadSingle(img, `${safeName}_${idx + 1}.jpg`); }, idx * 500); });
+        // 💡 อัปเกรด: ระบบโหลด ZIP แบบติดตั้งเครื่องมือให้อัตโนมัติ!
+        const handleDownloadAll = async (images, projectName) => {
+            setIsZipping(true); 
+            try {
+                // 💡 ถ้าเว็บไม่มี JSZip ให้โหลดเข้ามาอัตโนมัติเลย!
+                if (!window.JSZip) {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+
+                const zip = new window.JSZip();
+                const safeName = (projectName || 'New_Home').replace(/[/\\?%*:|"<>]/g, '-');
+                
+                // ดูดรูปภาพทั้งหมดเข้าโฟลเดอร์ ZIP
+                const promises = images.map(async (imgUrl, index) => {
+                    const response = await fetch(imgUrl);
+                    const blob = await response.blob();
+                    zip.file(`New_Home_${index + 1}.jpg`, blob);
+                });
+
+                await Promise.all(promises);
+                const content = await zip.generateAsync({ type: "blob" });
+                
+                // สั่งโหลดลงเครื่องคอมพิวเตอร์
+                const blobUrl = window.URL.createObjectURL(content);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = `${safeName}_All_Images.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+            } catch (error) {
+                console.error("Zip error:", error);
+                alert("เกิดข้อผิดพลาดในการโหลดรูปรวมเป็น ZIP ค่ะ");
+            } finally {
+                setIsZipping(false); 
+            }
         };
 
         const handleOpenAdd = () => { setHouseForm(initialForm); setModalMode('add'); };
@@ -1657,7 +1695,7 @@ ${promptAction}`;
             e.preventDefault();
             if (!isFirebaseLoaded) return;
             
-            setIsUploadingImgs(true); // 💡 เปิดหน้าต่าง Loading
+            setIsUploadingImgs(true); 
             const { collection, addDoc, updateDoc, doc } = window.firebaseAPI;
             
             try {
@@ -1689,19 +1727,19 @@ ${promptAction}`;
                 console.error("Upload Error:", error);
                 alert("เกิดข้อผิดพลาดในการอัปโหลดรูปลง Cloudinary หรือบันทึกข้อมูลค่ะ"); 
             } finally {
-                setIsUploadingImgs(false); // 💡 ปิดหน้าต่าง Loading
+                setIsUploadingImgs(false); 
             }
         };
 
         const handleAddImagesToForm = async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
-            setIsUploadingImgs(true); // 💡 เปิดหน้าต่าง Loading
+            setIsUploadingImgs(true); 
             try {
                 const newImages = await Promise.all(files.map(file => compressImage(file)));
                 setHouseForm(prev => { const combined = [...prev.images, ...newImages]; return { ...prev, images: combined.slice(0, 10) }; });
             } catch (error) { alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ'); }
-            setIsUploadingImgs(false); // 💡 ปิดหน้าต่าง Loading
+            setIsUploadingImgs(false); 
         };
 
         const handleRemoveFormImage = (indexToRemove) => { setHouseForm(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== indexToRemove) })); };
@@ -1712,14 +1750,13 @@ ${promptAction}`;
             try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "houses", activeHouse.id)); setIsDeleteHouseModalOpen(false); setActiveHouse(null); setModalMode('none'); } catch (error) { alert("เกิดข้อผิดพลาดในการลบข้อมูล"); }
         };
 
-        // 💡 3. ฟังก์ชันคำนวณการสไลด์นิ้ว
         const handleTouchStart = (e) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX); };
         const handleTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
         const handleTouchEnd = () => {
             if (!touchStart || !touchEnd) return;
             const distance = touchStart - touchEnd;
-            const isLeftSwipe = distance > 50; // ปัดไปซ้าย = ดูรูปถัดไป
-            const isRightSwipe = distance < -50; // ปัดไปขวา = ดูรูปก่อนหน้า
+            const isLeftSwipe = distance > 50; 
+            const isRightSwipe = distance < -50; 
             
             if (isLeftSwipe && activeHouse?.images) {
                 setActiveImageIndex(prev => Math.min(prev + 1, activeHouse.images.length - 1));
@@ -1825,7 +1862,6 @@ ${promptAction}`;
                         
                         <div className="w-full h-full flex flex-col md:flex-row overflow-y-auto md:overflow-hidden custom-scrollbar">
                             <div className="w-full md:w-3/5 bg-black flex flex-col shrink-0 h-[45vh] md:h-full relative">
-                                {/* 💡 4. เพิ่ม onTouch ให้จับการสไลด์นิ้ว และเพิ่ม pb-16 กันรูปทับปุ่ม */}
                                 <div 
                                     className="flex-1 w-full bg-black flex items-center justify-center relative p-2 pb-16 overflow-hidden"
                                     onTouchStart={handleTouchStart}
@@ -1836,14 +1872,12 @@ ${promptAction}`;
                                         <>
                                             <img src={getOptimizedUrl(h.images[activeImageIndex])} className="w-full h-full object-contain max-h-full" alt="House View" draggable="false" />
                                             
-                                            {/* 💡 3. ปุ่มโหลดรูป ล็อก z-10 ให้อยู่เหนือรูปเสมอ */}
                                             <div className="absolute bottom-4 right-4 z-10 space-x-2">
-                                                <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `${h.projectName}_${activeImageIndex+1}.jpg`)} className="bg-black/70 hover:bg-brand text-white px-4 py-2 rounded-xl backdrop-blur-md text-[13px] font-bold transition-colors flex items-center shadow-[0_4px_15px_rgba(0,0,0,0.5)] border border-white/20">
+                                                <button onClick={() => handleDownloadSingle(h.images[activeImageIndex], `New_Home_${activeImageIndex+1}.jpg`)} className="bg-black/70 hover:bg-brand text-white px-4 py-2 rounded-xl backdrop-blur-md text-[13px] font-bold transition-colors flex items-center shadow-[0_4px_15px_rgba(0,0,0,0.5)] border border-white/20">
                                                     <Icon name="Download" size={16} className="mr-2"/> โหลดรูปนี้
                                                 </button>
                                             </div>
                                             
-                                            {/* แสดงลูกศรใบ้ว่าเลื่อนซ้ายขวาได้ในมือถือ */}
                                             <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronLeft" size={24}/></div>
                                             <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronRight" size={24}/></div>
                                         </>
@@ -1860,11 +1894,11 @@ ${promptAction}`;
                                                 </button>
                                             ))}
                                         </div>
-                                        {/* ซ่อนปุ่มโหลดทั้งหมดในมือถือ */}
+                                        {/* 💡 ปุ่มโหลดทั้งหมด (ซ่อนในมือถือ, แสดงในคอม) */}
                                         {h.images.length > 1 && (
-                                            <button onClick={() => handleDownloadAll(h.images, h.projectName)} className="ml-3 sm:ml-4 shrink-0 bg-brand text-white hidden md:flex flex-col items-center justify-center h-12 sm:h-16 px-2 sm:px-3 rounded-lg hover:bg-brandLight transition-colors shadow-lg">
-                                                <Icon name="Download" size={16} className="mb-0.5"/>
-                                                <span className="text-[9px] sm:text-[10px] font-bold">โหลดทั้งหมด</span>
+                                            <button onClick={() => handleDownloadAll(h.images, h.projectName)} disabled={isZipping} className="ml-3 sm:ml-4 shrink-0 bg-brand text-white hidden md:flex flex-col items-center justify-center h-12 sm:h-16 px-2 sm:px-3 rounded-lg hover:bg-brandLight transition-colors shadow-lg disabled:opacity-70">
+                                                {isZipping ? <Icon name="RefreshCw" size={16} className="mb-0.5 animate-spin"/> : <Icon name="Download" size={16} className="mb-0.5"/>}
+                                                <span className="text-[9px] sm:text-[10px] font-bold">{isZipping ? 'กำลังมัดรวม...' : 'โหลดทั้งหมด'}</span>
                                             </button>
                                         )}
                                     </div>
@@ -1969,7 +2003,6 @@ ${promptAction}`;
                     </div>
                 )}
 
-                {/* 💡 แจ้งเตือนเวลาอัปโหลดรูปภาพ */}
                 {isUploadingImgs && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
                         <div className="bg-white p-8 rounded-[20px] shadow-2xl flex flex-col items-center max-w-xs text-center border border-gray-100">
