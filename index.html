@@ -76,7 +76,7 @@
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
     // 💡 เพิ่มระบบ Auth ของ Google เข้ามาตรงนี้ค่ะ
     // 💡 เพิ่มระบบ Auth และระบบบังคับจำล็อกอิน (Persistence)
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
     
     const firebaseConfig = { apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
@@ -93,7 +93,7 @@
     window.firebaseMessaging = messaging;
     
     // 💡 เพิ่มคำสั่งของ Auth เข้าไปใน API
-    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
+    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
     
     window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/"; 
     window.dispatchEvent(new Event('firebaseLoaded'));
@@ -2609,18 +2609,25 @@ ${promptAction}`;
         };
       }, [isFirebaseLoaded]);
 
-      // 💡 ฟังก์ชันล็อกอินและล็อกเอาท์ (พร้อมระบบจำถาวร)
-
-      // 💡 ฟังก์ชันล็อกอินและล็อกเอาท์ (พร้อมระบบจำถาวร)
+      // 💡 ฟังก์ชันล็อกอิน (เปลี่ยนเป็นแบบ Redirect แก้ปัญหาแอปค้างบนหน้าจอโฮม)
       const handleGoogleSignIn = async () => {
-          setErrorMessage(''); setAccessStatus('checking');
+          setErrorMessage(''); 
+          setAccessStatus('checking');
+
           try {
-              // บังคับให้เบราว์เซอร์จำค่าการล็อกอินเอาไว้ตลอดไป แม้จะปิดแท็บหรือรีเฟรช
-              await window.firebaseAPI.setPersistence(window.firebaseAuth, window.firebaseAPI.browserLocalPersistence);
+              try {
+                  await window.firebaseAPI.setPersistence(window.firebaseAuth, window.firebaseAPI.browserLocalPersistence);
+              } catch (persistenceError) {
+                  console.warn("เบราว์เซอร์ไม่รองรับการจำรหัสผ่าน:", persistenceError);
+              }
               
               const provider = new window.firebaseAPI.GoogleAuthProvider();
-              await window.firebaseAPI.signInWithPopup(window.firebaseAuth, provider);
+              provider.setCustomParameters({ prompt: 'select_account' }); 
+              
+              // 💡 จุดเปลี่ยนสำคัญ: ใช้ signInWithRedirect แทน signInWithPopup
+              await window.firebaseAPI.signInWithRedirect(window.firebaseAuth, provider);
           } catch (error) {
+              console.error(error);
               setErrorMessage('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
               setAccessStatus('denied');
           }
