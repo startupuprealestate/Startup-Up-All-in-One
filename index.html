@@ -2605,31 +2605,29 @@ ${promptAction}`;
         };
       }, [isFirebaseLoaded]);
 
-      // 💡 ฟังก์ชันล็อกอิน (ใช้ Redirect สำหรับมือถือ PWA)
-      // 💡 ฟังก์ชันล็อกอิน (แยกสมอง Android/PC ใช้ Popup, iOS ใช้ Redirect)
-      const handleGoogleSignIn = async () => {
+      const handleGoogleSignIn = () => {
           setErrorMessage(''); 
           setAccessStatus('checking');
           
-          try {
-              const provider = new window.firebaseAPI.GoogleAuthProvider();
-              
-              // 🚨 ตรวจสอบว่าเป็น iPhone/iPad ที่เปิดจากหน้าจอโฮมหรือไม่
-              const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-              const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+          const provider = new window.firebaseAPI.GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' }); 
 
-              if (isIOS && isStandalone) {
-                  // ถ้าเป็น iPhone หน้าจอโฮม บังคับใช้ Redirect (ป้องกันแอปค้าง)
-                  await window.firebaseAPI.signInWithRedirect(window.firebaseAuth, provider);
-              } else {
-                  // ถ้าเป็นมือถืออื่นๆ หรือคอมพิวเตอร์ ใช้ Popup (เสถียรสุด ไม่วนลูป)
-                  await window.firebaseAPI.signInWithPopup(window.firebaseAuth, provider);
-              }
-          } catch (error) {
-              console.error(error);
-              setErrorMessage('การล็อกอินขัดข้อง: ' + error.message);
-              setAccessStatus('denied');
-          }
+          // 🚨 กฎเหล็กของ Apple: ห้ามมีคำสั่ง await (รอประมวลผล) ก่อนเปิด Popup เด็ดขาด!
+          // น้อง Up ลบคำสั่งรอจำรหัสผ่านออก (เพราะ Firebase จำให้อัตโนมัติอยู่แล้ว) 
+          // เพื่อให้ Popup เด้งทันทีที่นิ้วแตะจอ ป้องกัน Safari บล็อกจนแอปค้าง!
+          
+          window.firebaseAPI.signInWithPopup(window.firebaseAuth, provider)
+            .then((result) => {
+                // ล็อกอินสำเร็จ! ปล่อยให้ระบบ onAuthStateChanged ด้านบนทำงานต่ออัตโนมัติ
+            })
+            .catch((error) => {
+                console.error("Login Error:", error);
+                // ถ้าผู้ใช้แค่กดปิดหน้าต่างไปเอง (กากบาท) จะไม่ฟ้อง Error 
+                if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+                    setErrorMessage('การล็อกอินขัดข้อง กรุณาลองใหม่อีกครั้งค่ะ');
+                }
+                setAccessStatus('denied'); // กลับมาหน้าล็อกอินให้กดใหม่
+            });
       };
 
       const handleSignOut = async () => {
