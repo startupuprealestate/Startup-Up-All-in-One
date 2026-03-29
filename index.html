@@ -2475,8 +2475,10 @@ ${promptAction}`;
       const [showSplash, setShowSplash] = useState(true);
       const [splashFade, setSplashFade] = useState(false);
       const [menuSearchQuery, setMenuSearchQuery] = useState('');
+      
+      // 🛡️ จุดแก้จอขาวที่ 1: ใส่ user.email ป้องกัน Error กรณีโหลดอีเมลไม่ทัน
       const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com']; 
-      const isAdmin = user && ADMIN_EMAILS.includes(user.email.toLowerCase());
+      const isAdmin = user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
       useEffect(() => {
         const timer1 = setTimeout(() => setSplashFade(true), 800);
@@ -2519,7 +2521,7 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล + Auto-Approve Admin)
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล)
       useEffect(() => {
         if (!isFirebaseLoaded || !window.firebaseAuth) return;
         
@@ -2530,42 +2532,61 @@ ${promptAction}`;
               setUser(firebaseUser);
               setAccessStatus('checking');
 
-              const userEmail = firebaseUser.email.toLowerCase();
-              // 💡 กำหนดอีเมล VIP ที่เข้าได้เลยไม่ต้องรออนุมัติ
-              const isAdminEmail = ['startup.up.real.estate@gmail.com'].includes(userEmail); 
-
-              const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
+              // 🛡️ จุดแก้จอขาวที่ 2: ดักจับอีเมลเผื่อระบบ Google ส่งมาไม่สมบูรณ์
+              const rawEmail = firebaseUser.email || '';
+              const userEmail = rawEmail.toLowerCase();
               
-              unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, (docSnap) => {
-                  if (docSnap.exists()) {
-                      const userData = docSnap.data();
-                      // 💡 ถ้าเป็นแอดมิน หรือสถานะ approved อยู่แล้ว ให้เข้าได้เลย
-                      if (userData.status === 'approved' || isAdminEmail) {
-                          // ถ้าเป็นแอดมินแต่ฐานข้อมูลยังเป็น pending ให้แอบอัปเดตเป็น approved ให้อัตโนมัติ
-                          if (isAdminEmail && userData.status !== 'approved') {
-                              window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' });
-                          }
-                          setAccessStatus('granted');
-                      } else {
-                          setAccessStatus('waitlist');
-                      }
-                  } else {
-                      // สมัครครั้งแรก: ถ้าเป็นแอดมิน ให้ผ่านเลย / ถ้าเป็นคนอื่น ให้รออนุมัติ (pending)
-                      window.firebaseAPI.setDoc(userRef, {
-                          email: userEmail,
-                          name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
-                          photoURL: firebaseUser.photoURL || '',
-                          status: isAdminEmail ? 'approved' : 'pending',
-                          role: isAdminEmail ? 'admin' : 'user',
-                          registeredAt: new Date().toISOString()
-                      }).then(() => {
-                          setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
-                      }).catch(err => {
-                          setAccessStatus('denied');
-                      });
-                  }
+              if (!userEmail) {
+                  setErrorMessage('ไม่พบข้อมูลอีเมลจากบัญชี Google นี้ค่ะ');
+                  setAccessStatus('denied');
                   setIsAuthLoaded(true);
-              });
+                  return;
+              }
+
+              const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
+              
+              try {
+                  const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
+                  unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, 
+                      (docSnap) => {
+                          if (docSnap.exists()) {
+                              const userData = docSnap.data();
+                              if (userData.status === 'approved' || isAdminEmail) {
+                                  if (isAdminEmail && userData.status !== 'approved') {
+                                      window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' }).catch(()=>{});
+                                  }
+                                  setAccessStatus('granted');
+                              } else {
+                                  setAccessStatus('waitlist');
+                              }
+                          } else {
+                              window.firebaseAPI.setDoc(userRef, {
+                                  email: userEmail,
+                                  name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
+                                  photoURL: firebaseUser.photoURL || '',
+                                  status: isAdminEmail ? 'approved' : 'pending',
+                                  role: isAdminEmail ? 'admin' : 'user',
+                                  registeredAt: new Date().toISOString()
+                              }).then(() => {
+                                  setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
+                              }).catch(err => {
+                                  setErrorMessage('บันทึกข้อมูลล้มเหลว: ' + err.message);
+                                  setAccessStatus('denied');
+                              });
+                          }
+                          setIsAuthLoaded(true);
+                      },
+                      (error) => {
+                          setErrorMessage('ดึงข้อมูลไม่ได้ (ตรวจสอบ Rules ใน Firebase)');
+                          setAccessStatus('denied');
+                          setIsAuthLoaded(true);
+                      }
+                  );
+              } catch (err) {
+                  setErrorMessage('ระบบขัดข้อง: ' + err.message);
+                  setAccessStatus('denied');
+                  setIsAuthLoaded(true);
+              }
 
           } else {
               setUser(null);
@@ -2580,6 +2601,8 @@ ${promptAction}`;
             if (unsubscribeUser) unsubscribeUser();
         };
       }, [isFirebaseLoaded]);
+
+      // 💡 ฟังก์ชันล็อกอินและล็อกเอาท์ (พร้อมระบบจำถาวร)
 
       // 💡 ฟังก์ชันล็อกอินและล็อกเอาท์ (พร้อมระบบจำถาวร)
       const handleGoogleSignIn = async () => {
