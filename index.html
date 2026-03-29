@@ -2520,86 +2520,100 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เพิ่มตาข่ายดักจับ Redirect จาก iOS PWA)
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (แก้บั๊ก iOS PWA วนลูปล็อกอิน)
       useEffect(() => {
         if (!isFirebaseLoaded || !window.firebaseAuth) return;
         
         let unsubscribeUser = null; 
+        let authSubscription = null;
 
-        // 🚨 สำคัญมาก: เช็คว่ามีการล็อกอินค้างไว้จากการเด้งหน้าต่าง Redirect หรือไม่
-        window.firebaseAPI.getRedirectResult(window.firebaseAuth).catch((error) => {
-             console.error("Redirect Error:", error);
-             setErrorMessage("การเชื่อมต่อบัญชี Google ขัดข้อง กรุณาลองใหม่ค่ะ");
-             setAccessStatus('denied');
-        });
+        const initializeAuth = async () => {
+            // บังคับให้หน้าจอค้างที่ "กำลังตรวจสอบสิทธิ์" เอาไว้ก่อนเลย
+            setAccessStatus('checking');
+            
+            try {
+                // 🚨 หัวใจสำคัญ: สั่งให้แอป "หยุดรอ" เช็คผลลัพธ์จากการเด้งกลับมาจากหน้า Google ให้เสร็จ 100% ก่อน
+                await window.firebaseAPI.getRedirectResult(window.firebaseAuth);
+            } catch (error) {
+                console.error("Redirect Error:", error);
+                // ข้าม Error กรณีผู้ใช้กดยกเลิกเอง
+                if (error.code !== 'auth/redirect-cancelled-by-user') {
+                    setErrorMessage("เชื่อมต่อบัญชีขัดข้อง: " + error.message);
+                }
+            }
 
-        const authSubscription = window.firebaseAPI.onAuthStateChanged(window.firebaseAuth, (firebaseUser) => {
-          if (firebaseUser) {
-              setUser(firebaseUser);
-              setAccessStatus('checking');
+            // 🚨 พอเช็คหน้าเด้งกลับเสร็จแล้ว ค่อยเปิดเรดาร์เช็คว่ามี User อยู่ไหม!
+            authSubscription = window.firebaseAPI.onAuthStateChanged(window.firebaseAuth, (firebaseUser) => {
+              if (firebaseUser) {
+                  setUser(firebaseUser);
+                  setAccessStatus('checking');
 
-              const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase() : '';
-              if (!userEmail) {
-                  setErrorMessage('ไม่พบข้อมูลอีเมล กรุณาล็อกอินใหม่ค่ะ');
-                  setAccessStatus('denied');
-                  setIsAuthLoaded(true);
-                  return;
-              }
+                  const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase() : '';
+                  if (!userEmail) {
+                      setErrorMessage('ไม่พบข้อมูลอีเมล กรุณาล็อกอินใหม่ค่ะ');
+                      setAccessStatus('denied');
+                      setIsAuthLoaded(true);
+                      return;
+                  }
 
-              const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com'];
-              const isAdminEmail = ADMIN_EMAILS.includes(userEmail); 
+                  const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com'];
+                  const isAdminEmail = ADMIN_EMAILS.includes(userEmail); 
 
-              try {
-                  const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
-                  
-                  unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, 
-                      (docSnap) => {
-                          if (docSnap.exists()) {
-                              const userData = docSnap.data();
-                              if (userData.status === 'approved' || isAdminEmail) {
-                                  if (isAdminEmail && userData.status !== 'approved') {
-                                      window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' }).catch(()=>{});
+                  try {
+                      const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
+                      
+                      unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, 
+                          (docSnap) => {
+                              if (docSnap.exists()) {
+                                  const userData = docSnap.data();
+                                  if (userData.status === 'approved' || isAdminEmail) {
+                                      if (isAdminEmail && userData.status !== 'approved') {
+                                          window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' }).catch(()=>{});
+                                      }
+                                      setAccessStatus('granted');
+                                  } else {
+                                      setAccessStatus('waitlist');
                                   }
-                                  setAccessStatus('granted');
                               } else {
-                                  setAccessStatus('waitlist');
+                                  window.firebaseAPI.setDoc(userRef, {
+                                      email: userEmail,
+                                      name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
+                                      photoURL: firebaseUser.photoURL || '',
+                                      status: isAdminEmail ? 'approved' : 'pending',
+                                      role: isAdminEmail ? 'admin' : 'user',
+                                      registeredAt: new Date().toISOString()
+                                  }).then(() => {
+                                      setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
+                                  }).catch(err => {
+                                      if (isAdminEmail) setAccessStatus('granted');
+                                      else { setErrorMessage('ลงทะเบียนไม่สำเร็จ'); setAccessStatus('denied'); }
+                                  });
                               }
-                          } else {
-                              window.firebaseAPI.setDoc(userRef, {
-                                  email: userEmail,
-                                  name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
-                                  photoURL: firebaseUser.photoURL || '',
-                                  status: isAdminEmail ? 'approved' : 'pending',
-                                  role: isAdminEmail ? 'admin' : 'user',
-                                  registeredAt: new Date().toISOString()
-                              }).then(() => {
-                                  setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
-                              }).catch(err => {
-                                  if (isAdminEmail) setAccessStatus('granted');
-                                  else { setErrorMessage('ลงทะเบียนไม่สำเร็จ'); setAccessStatus('denied'); }
-                              });
+                              setIsAuthLoaded(true);
+                          },
+                          (error) => {
+                              if (isAdminEmail) setAccessStatus('granted');
+                              else { setErrorMessage('ไม่มีสิทธิ์อ่านฐานข้อมูล'); setAccessStatus('denied'); }
+                              setIsAuthLoaded(true); 
                           }
-                          setIsAuthLoaded(true);
-                      },
-                      (error) => {
-                          if (isAdminEmail) setAccessStatus('granted');
-                          else { setErrorMessage('ไม่มีสิทธิ์อ่านฐานข้อมูล'); setAccessStatus('denied'); }
-                          setIsAuthLoaded(true); 
-                      }
-                  );
-              } catch (err) {
-                  setErrorMessage('ระบบขัดข้อง: ' + err.message);
+                      );
+                  } catch (err) {
+                      setErrorMessage('ระบบขัดข้อง: ' + err.message);
+                      setAccessStatus('denied');
+                      setIsAuthLoaded(true);
+                  }
+
+              } else {
+                  setUser(null);
                   setAccessStatus('denied');
                   setIsAuthLoaded(true);
+                  if (unsubscribeUser) unsubscribeUser();
               }
+            });
+        };
 
-          } else {
-              setUser(null);
-              setAccessStatus('denied');
-              setIsAuthLoaded(true);
-              if (unsubscribeUser) unsubscribeUser();
-          }
-        });
+        // สั่งเริ่มทำงาน
+        initializeAuth();
         
         return () => { 
             if (authSubscription) authSubscription(); 
@@ -2607,15 +2621,17 @@ ${promptAction}`;
         };
       }, [isFirebaseLoaded]);
 
+      // 💡 ฟังก์ชันล็อกอิน (ใช้ Redirect สำหรับมือถือ PWA)
       const handleGoogleSignIn = async () => {
-          setErrorMessage(''); setAccessStatus('checking');
+          setErrorMessage(''); 
+          setAccessStatus('checking'); // โชว์หน้าโหลดค้างไว้เลยจนกว่าจะสลับหน้า
           try {
               try {
                   await window.firebaseAPI.setPersistence(window.firebaseAuth, window.firebaseAPI.browserLocalPersistence);
-              } catch (e) { console.warn("Persistence Error", e); }
+              } catch (e) {}
               
               const provider = new window.firebaseAPI.GoogleAuthProvider();
-              // 💡 ใช้ signInWithRedirect เท่านั้นสำหรับแอปหน้าจอโฮม
+              // สั่งสลับหน้าไปล็อกอิน Google
               await window.firebaseAPI.signInWithRedirect(window.firebaseAuth, provider);
           } catch (error) {
               setErrorMessage('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
