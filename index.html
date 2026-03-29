@@ -2519,7 +2519,7 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล)
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล + Auto-Approve Admin)
       useEffect(() => {
         if (!isFirebaseLoaded || !window.firebaseAuth) return;
         
@@ -2530,29 +2530,36 @@ ${promptAction}`;
               setUser(firebaseUser);
               setAccessStatus('checking');
 
-              // เข้าไปส่องข้อมูล User คนนี้ในฐานข้อมูล Firebase (คอลเลกชันชื่อ users)
-              const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", firebaseUser.email.toLowerCase());
+              const userEmail = firebaseUser.email.toLowerCase();
+              // 💡 กำหนดอีเมล VIP ที่เข้าได้เลยไม่ต้องรออนุมัติ
+              const isAdminEmail = ['startup.up.real.estate@gmail.com'].includes(userEmail); 
+
+              const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
               
               unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, (docSnap) => {
                   if (docSnap.exists()) {
-                      // ถ้าเคยลงทะเบียนแล้ว เช็คว่าพี่บิวอนุมัติ (approved) หรือยัง
                       const userData = docSnap.data();
-                      if (userData.status === 'approved') {
-                          setAccessStatus('granted'); // อนุมัติแล้ว เข้าแอปได้!
+                      // 💡 ถ้าเป็นแอดมิน หรือสถานะ approved อยู่แล้ว ให้เข้าได้เลย
+                      if (userData.status === 'approved' || isAdminEmail) {
+                          // ถ้าเป็นแอดมินแต่ฐานข้อมูลยังเป็น pending ให้แอบอัปเดตเป็น approved ให้อัตโนมัติ
+                          if (isAdminEmail && userData.status !== 'approved') {
+                              window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' });
+                          }
+                          setAccessStatus('granted');
                       } else {
-                          setAccessStatus('waitlist'); // ยังไม่อนุมัติ รอไปก่อน
+                          setAccessStatus('waitlist');
                       }
                   } else {
-                      // ถ้าเพิ่งล็อกอินครั้งแรก ให้สร้างโปรไฟล์และตั้งค่าเป็น pending (รออนุมัติ)
+                      // สมัครครั้งแรก: ถ้าเป็นแอดมิน ให้ผ่านเลย / ถ้าเป็นคนอื่น ให้รออนุมัติ (pending)
                       window.firebaseAPI.setDoc(userRef, {
-                          email: firebaseUser.email.toLowerCase(),
+                          email: userEmail,
                           name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
                           photoURL: firebaseUser.photoURL || '',
-                          status: 'pending', // สถานะรอโฮสต์มาอนุมัติ
-                          role: 'user',
+                          status: isAdminEmail ? 'approved' : 'pending',
+                          role: isAdminEmail ? 'admin' : 'user',
                           registeredAt: new Date().toISOString()
                       }).then(() => {
-                          setAccessStatus('waitlist');
+                          setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
                       }).catch(err => {
                           setAccessStatus('denied');
                       });
