@@ -2521,7 +2521,7 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล + แก้จอขาว 100%)
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล + มีเกราะป้องกันแอปค้าง 100%)
       useEffect(() => {
         if (!isFirebaseLoaded || !window.firebaseAuth) return;
         
@@ -2532,17 +2532,18 @@ ${promptAction}`;
               setUser(firebaseUser);
               setAccessStatus('checking');
 
-              // ดักจับ Error กรณีอีเมลไม่มา
+              // ป้องกันอีเมลว่างเปล่า
               const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase() : '';
               if (!userEmail) {
-                  setErrorMessage('ดึงอีเมลไม่สำเร็จ กรุณาล็อกอินใหม่');
+                  setErrorMessage('ไม่พบข้อมูลอีเมล กรุณาล็อกอินใหม่ค่ะ');
                   setAccessStatus('denied');
                   setIsAuthLoaded(true);
                   return;
               }
 
-              // กำหนดอีเมลแอดมิน (เข้าได้เลยไม่ต้องรอ)
-              const isAdminEmail = ['startup.up.real.estate@gmail.com'].includes(userEmail); 
+              // 👑 กำหนดอีเมลของพี่บิว (แอดมิน)
+              const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com'];
+              const isAdminEmail = ADMIN_EMAILS.includes(userEmail); 
 
               try {
                   const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
@@ -2552,7 +2553,7 @@ ${promptAction}`;
                           if (docSnap.exists()) {
                               const userData = docSnap.data();
                               if (userData.status === 'approved' || isAdminEmail) {
-                                  // แอบอัปเดตสิทธิ์แอดมินให้อัตโนมัติ
+                                  // ถ้าเป็นแอดมิน แต่ในระบบยังรออนุมัติ ให้ปรับสิทธิ์อัตโนมัติ
                                   if (isAdminEmail && userData.status !== 'approved') {
                                       window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' }).catch(()=>{});
                                   }
@@ -2561,7 +2562,7 @@ ${promptAction}`;
                                   setAccessStatus('waitlist');
                               }
                           } else {
-                              // ถ้ายังไม่มีชื่อในระบบ ให้สร้างใหม่
+                              // ลงทะเบียนครั้งแรก
                               window.firebaseAPI.setDoc(userRef, {
                                   email: userEmail,
                                   name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
@@ -2572,25 +2573,33 @@ ${promptAction}`;
                               }).then(() => {
                                   setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
                               }).catch(err => {
-                                  setErrorMessage('บันทึกข้อมูลไม่สำเร็จ');
-                                  setAccessStatus('denied');
+                                  console.error("Save Error:", err);
+                                  // ถ้าฐานข้อมูลล็อก แอดมินยังคงเข้าได้
+                                  if (isAdminEmail) setAccessStatus('granted');
+                                  else {
+                                      setErrorMessage('ลงทะเบียนไม่สำเร็จ (กรุณาเช็ค Firebase Rules)');
+                                      setAccessStatus('denied');
+                                  }
                               });
                           }
+                          // ✅ ปลดล็อกหน้าโหลด
                           setIsAuthLoaded(true);
                       },
                       (error) => {
-                          console.error("User Fetch Error:", error);
-                          // ตัวกันกระแทก: ถ้าฐานข้อมูลพัง แอดมินต้องยังเข้าได้ ไม่จอขาว
+                          console.error("Database Read Error:", error);
+                          // 🚨 ตรงนี้แหละค่ะตัวแก้ค้าง! ถ้าฐานข้อมูลล็อก แอดมินจะทะลุผ่านได้ทันที
                           if (isAdminEmail) {
                               setAccessStatus('granted');
                           } else {
-                              setErrorMessage('ฐานข้อมูลถูกล็อก กรุณาติดต่อแอดมิน');
+                              setErrorMessage('ไม่มีสิทธิ์อ่านฐานข้อมูล (Permission Denied)');
                               setAccessStatus('denied');
                           }
-                          setIsAuthLoaded(true);
+                          // ✅ ปลดล็อกหน้าโหลด
+                          setIsAuthLoaded(true); 
                       }
                   );
               } catch (err) {
+                  setErrorMessage('ระบบขัดข้อง: ' + err.message);
                   setAccessStatus('denied');
                   setIsAuthLoaded(true);
               }
