@@ -3092,27 +3092,29 @@ ${promptAction}`;
           );
       }
 
-      // 🛑 หน้าล็อกอินด้วย Google (Denied) - เวอร์ชัน Minimalist ที่สุดตามรูป image_3.png
+      // 🛑 หน้าล็อกอินด้วย Google (Denied) - เวอร์ชัน Minimalist ที่สุด
       if (accessStatus === 'denied') {
           return (
             <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
               <div className="bg-white p-12 rounded-3xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center gap-8 text-center relative">
                   
-                  {/* ✅ ปุ่มปิด (X) - ใช้งานไม่ได้ในบริบทล็อกอินนี้ แต่ใส่ไว้ตามรูป image_3.png */}
-                  <button className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 focus:outline-none">
-                    <Icon name="X" size={18} />
-                  </button>
-
-                  {/* ✅ ข้อความหัวข้อสีเขียวเข้ม (เช่นแบรนด์เดิม) */}
+                  {/* ✅ ข้อความหัวข้อสีเขียวเข้ม */}
                   <h2 className="text-xl font-bold text-[#0b3d1b] mb-12">ระบบจัดการหลังบ้าน</h2>
                   
                   {errorMessage && <p className="text-red-500 text-[12px] font-bold bg-red-50 p-3 rounded-lg w-full text-center border border-red-200">{errorMessage}</p>}
                   
-                  {/* ✅ ปุ่มล็อกอิน Google ใหม่ - หน้าตาทางการ, ขนาดพอดีกับเนื้อหาตามรูป image_3.png, รูป G ขึ้นแน่นอน */}
-                  <button onClick={handleGoogleSignIn} className="flex items-center gap-3.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 px-8 py-3 rounded-full text-[14px] font-bold shadow-sm transition-all">
+                  {/* ✅ ปุ่มล็อกอิน Google แบบคลีนๆ */}
+                  <button onClick={handleGoogleSignIn} className="flex items-center justify-center gap-3.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 px-8 py-3 rounded-full text-[14px] font-bold shadow-sm transition-all w-full">
                       
-                      {/* ✅ รูปโลโก้ G แบบทางการจาก Wikimedia เพื่อแก้ปัญหารูปไม่ขึ้น */}
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo" className="h-5 w-auto" />
+                      {/* 💡 วาดโลโก้ G ด้วยโค้ด SVG (รับประกันรูปขึ้น 100% ไม่พึ่งลิงก์นอก) */}
+                      <svg viewBox="0 0 48 48" className="w-5 h-5">
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                          <path fill="none" d="M0 0h48v48H0z"></path>
+                      </svg>
+
                       เข้าสู่ระบบด้วย Google
                   </button>
               </div>
@@ -3129,7 +3131,7 @@ ${promptAction}`;
                       <Icon name="CheckSquare" size={32} />
                   </div>
                   <h1 className="text-2xl font-bold text-gray-800">รอการอนุมัติ</h1>
-                  <p className="text-sm text-gray-600">บัญชี Gmail ({user.email})<br/>ลงทะเบียนเข้าสู่ระบบเรียบร้อยแล้วค่ะ!<br/>รอพี่บิว (Host) กดยืนยันสิทธิ์นะคะ 💕</p>
+                  <p className="text-sm text-gray-600">บัญชี Gmail ({user.email})<br/>ลงทะเบียนเข้าสู่ระบบเรียบร้อยแล้วค่ะ!<br/>รอ(Host) กดยืนยันสิทธิ์นะคะ 💕</p>
                   
                   <div className="w-full flex justify-center mt-4 border-t border-gray-100 pt-5">
                       <button onClick={handleSignOut} className="px-8 py-2.5 text-[14px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all shadow-sm">ยกเลิก / ล็อกเอาท์</button>
