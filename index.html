@@ -3092,21 +3092,28 @@ ${promptAction}`;
           );
       }
 
-      // 🛑 หน้าล็อกอินด้วย Google (Denied)
+      // 🛑 หน้าล็อกอินด้วย Google (Denied) - เวอร์ชัน Minimalist ที่สุดตามรูป image_3.png
       if (accessStatus === 'denied') {
           return (
             <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
-              <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center gap-6">
-                  <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-20 w-auto object-contain drop-shadow-lg" />
-                  <h1 className="text-2xl font-bold text-gray-800">STARTUP UP</h1>
-                  <p className="text-sm text-gray-600 mb-2">ยินดีต้อนรับ! กรุณาล็อกอินเพื่อใช้งาน</p>
+              <div className="bg-white p-12 rounded-3xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center gap-8 text-center relative">
+                  
+                  {/* ✅ ปุ่มปิด (X) - ใช้งานไม่ได้ในบริบทล็อกอินนี้ แต่ใส่ไว้ตามรูป image_3.png */}
+                  <button className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                    <Icon name="X" size={18} />
+                  </button>
+
+                  {/* ✅ ข้อความหัวข้อสีเขียวเข้ม (เช่นแบรนด์เดิม) */}
+                  <h2 className="text-xl font-bold text-[#0b3d1b] mb-12">ระบบจัดการหลังบ้าน</h2>
                   
                   {errorMessage && <p className="text-red-500 text-[12px] font-bold bg-red-50 p-3 rounded-lg w-full text-center border border-red-200">{errorMessage}</p>}
                   
-                  {/* 💡 ปุ่มล็อกอินพร้อมโลโก้ Google แบบทางการ */}
-                  <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 px-6 py-3 rounded-xl text-[14px] font-bold shadow-sm transition-all">
+                  {/* ✅ ปุ่มล็อกอิน Google ใหม่ - หน้าตาทางการ, ขนาดพอดีกับเนื้อหาตามรูป image_3.png, รูป G ขึ้นแน่นอน */}
+                  <button onClick={handleGoogleSignIn} className="flex items-center gap-3.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 px-8 py-3 rounded-full text-[14px] font-bold shadow-sm transition-all">
+                      
+                      {/* ✅ รูปโลโก้ G แบบทางการจาก Wikimedia เพื่อแก้ปัญหารูปไม่ขึ้น */}
                       <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo" className="h-5 w-auto" />
-                      เข้าสู่ระบบด้วยบัญชี Google
+                      เข้าสู่ระบบด้วย Google
                   </button>
               </div>
             </div>
