@@ -2609,26 +2609,32 @@ ${promptAction}`;
         };
       }, [isFirebaseLoaded]);
 
-      // 💡 ฟังก์ชันล็อกอิน (เปลี่ยนเป็นแบบ Redirect แก้ปัญหาแอปค้างบนหน้าจอโฮม)
+      // 💡 ฟังก์ชันล็อกอิน (ใช้แบบ Popup + ดักจับ LINE เพื่อให้แอปหน้าจอโฮมจำรหัสได้)
       const handleGoogleSignIn = async () => {
           setErrorMessage(''); 
-          setAccessStatus('checking');
+          setAccessStatus('checking'); // เปลี่ยนหน้าจอเป็นกำลังโหลดจะได้ไม่ดูค้าง
+          
+          // 🛡️ ดักจับการเปิดผ่านแอป LINE หรือ Facebook
+          const ua = navigator.userAgent || navigator.vendor || window.opera;
+          if (ua.indexOf("Line") > -1 || ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1) {
+              setErrorMessage('⚠️ กรุณากดปุ่ม 3 จุดมุมขวาบน แล้วเลือก "เปิดในเบราว์เซอร์" ก่อนล็อกอินนะคะ');
+              setAccessStatus('denied');
+              return;
+          }
 
           try {
               try {
                   await window.firebaseAPI.setPersistence(window.firebaseAuth, window.firebaseAPI.browserLocalPersistence);
-              } catch (persistenceError) {
-                  console.warn("เบราว์เซอร์ไม่รองรับการจำรหัสผ่าน:", persistenceError);
-              }
+              } catch (persistenceError) {}
               
               const provider = new window.firebaseAPI.GoogleAuthProvider();
               provider.setCustomParameters({ prompt: 'select_account' }); 
               
-              // 💡 จุดเปลี่ยนสำคัญ: ใช้ signInWithRedirect แทน signInWithPopup
-              await window.firebaseAPI.signInWithRedirect(window.firebaseAuth, provider);
+              // 💡 กลับมาใช้ signInWithPopup เพื่อไม่ให้มันเด้งหลุดออกจากแอปหน้าจอโฮม
+              await window.firebaseAPI.signInWithPopup(window.firebaseAuth, provider);
           } catch (error) {
               console.error(error);
-              setErrorMessage('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
+              setErrorMessage('การล็อกอินถูกยกเลิก หรือเน็ตขัดข้อง กรุณาลองใหม่ค่ะ');
               setAccessStatus('denied');
           }
       };
