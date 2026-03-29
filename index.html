@@ -907,7 +907,7 @@
         );
     };
 
-    const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded }) => {
+    const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress }) => {
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
@@ -943,7 +943,6 @@
             return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
         });
 
-        // 💡 ฟังก์ชันนี้เป็นตัวกำหนดว่า "วันใหม่คือ 9.00 น."
         const { dateStr: assignmentTodayStr, displayStr: assignmentDisplayStr } = getAssignmentDateInfo();
 
         const handleTogglePost = async (rowId, isChecked, assigneeName) => {
@@ -975,18 +974,13 @@
             return true;
         });
 
-        // 💡 1. หัวใจสำคัญ: ระบบหาเวลาโพสต์ล่าสุด
         const getLatestPostTime = (houseId) => {
             const p = postTracking[houseId];
             if (!p) return 0;
             let maxTime = 0;
             for (const key in p) {
                 if (key !== 'lastSkippedTimestamp' && p[key]) {
-                    // 🚨 กฎเหล็ก: ถ้าโพสต์แล้ว "วันนี้" จะไม่นำมาคำนวณคิว (ข้ามไปเลย)
-                    // ทำให้เวลาติ๊กถูก บ้านจะอยู่ที่เดิมไม่กระเด็นหายไป
-                    // แต่พอ 9 โมงเช้าพรุ่งนี้ คิวจะถูกรีเซ็ต แล้วบ้านหลังนี้จะถูกดันลงไปล่างสุดทันที!
                     if (p[key] === assignmentTodayStr) continue; 
-                    
                     const t = new Date(p[key]).getTime();
                     if (t > maxTime) maxTime = t;
                 }
@@ -998,24 +992,19 @@
         activePool.forEach(h => { postTracking[h.id]?.lastSkippedTimestamp ? skippedHouses.push(h) : freshHouses.push(h); });
         skippedHouses.sort((a, b) => (postTracking[a.id].lastSkippedTimestamp || 0) - (postTracking[b.id].lastSkippedTimestamp || 0));
         
-        // 💡 2. จัดคิวบ้านใหม่: ดันบ้านที่ไม่ค่อยได้โพสต์ขึ้นมาบนสุด
         let newestPool = [...freshHouses].sort((a, b) => {
              const lastA = getLatestPostTime(a.id);
              const lastB = getLatestPostTime(b.id);
-             // บ้านที่นานที่สุดไม่ได้โพสต์ (last=0) จะขึ้นมาก่อน
              if (lastA !== lastB) return lastA - lastB; 
-             
              const idA = parseInt(a.id.replace('row_', '')) || 0;
              const idB = parseInt(b.id.replace('row_', '')) || 0;
              return idB - idA;
         }).concat(skippedHouses);
         
-        // 💡 3. จัดคิวบ้านเฉพาะเซลล์ (หมุนเวียนคิวแบบเดียวกัน)
         let priorityPool = [...freshHouses].sort((a, b) => {
              const lastA = getLatestPostTime(a.id);
              const lastB = getLatestPostTime(b.id);
              if (lastA !== lastB) return lastA - lastB; 
-
              const expA = parseThaiDate(safeTrim(a['หมดสัญญา']) || safeTrim(a['วันหมดสัญญา'])), expB = parseThaiDate(safeTrim(b['หมดสัญญา']) || safeTrim(b['วันหมดสัญญา']));
              const startA = parseThaiDate(safeTrim(a['เริ่มทำ'])), startB = parseThaiDate(safeTrim(b['เริ่มทำ']));
              const getScore = (exp, start) => {
@@ -1039,13 +1028,14 @@
             scheduleData.push({ name, type: 'general', houses: assignedHouses });
         });
         
+        // 💡 อัปเดตการดึงข้อมูลเฉพาะบุคคล: ให้เชื่อมกับ "ผู้ดูแลบ้าน" (caretaker) ใน constructionProgress ที่ทำไว้หน้าโซน
         specificAssignees.forEach(name => {
             const myHouses = priorityPool.filter(row => {
-                const possibleKeys = ['เซลล์', 'เซลล์รับผิดชอบ', 'ผู้รับผิดชอบ', 'เจ้าของบ้าน', 'Sale', 'AS', 'แอดมิน'];
-                for (const key of possibleKeys) { if (row[key] && safeTrim(row[key]).toLowerCase().includes(name.toLowerCase())) return true; }
-                for (const key in row) { if (key !== 'id' && safeTrim(row[key]).toLowerCase() === name.toLowerCase()) return true; }
-                return false;
+                // เช็คว่าคนๆ นี้ได้รับมอบหมายเป็น "ผู้ดูแลบ้าน" ในหน้าระบบแยกตามโซนหรือไม่
+                const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
+                return caretaker.toLowerCase() === name.toLowerCase();
             }).slice(0, 4); 
+            
             scheduleData.push({ name, type: 'specific', houses: myHouses });
         });
 
@@ -2990,7 +2980,7 @@ ${promptAction}`;
               {activeApp === 'content' && <ContentChecklist sheetData={sheetData} sheetError={sheetError} contentChecklists={contentChecklists} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'schedule' && <ConstructionSchedule sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'zone' && <HouseZoneTable sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
-              {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} />}
+              {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} constructionProgress={constructionProgress} />}
               {activeApp === 'company' && <CompanyInfo />}
               {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
