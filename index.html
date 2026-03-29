@@ -72,31 +72,30 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-    // 💡 เพิ่มคำสั่ง enableIndexedDbPersistence เข้ามาตรงนี้
     import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
+    // 💡 เพิ่มระบบ Auth ของ Google เข้ามาตรงนี้ค่ะ
+    // 💡 เพิ่มระบบ Auth และระบบบังคับจำล็อกอิน (Persistence)
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
     
     const firebaseConfig = { apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
-    // ✨ เปิดระบบ Local Cache: โหลดข้อมูลจากในเครื่องก่อน ประหยัดโควต้ามหาศาล!
-    try {
-        enableIndexedDbPersistence(db).catch((err) => {
-            console.log("Cache error (ไม่กระทบการใช้งาน):", err);
-        });
-    } catch (e) {}
-
+    const auth = getAuth(app); // 💡 เปิดใช้งาน Auth
     const messaging = getMessaging(app);
 
+    try {
+        enableIndexedDbPersistence(db).catch((err) => { console.log("Cache error:", err); });
+    } catch (e) {}
+
     window.firebaseDB = db; 
+    window.firebaseAuth = auth; // 💡 ส่ง Auth ให้ React รู้จัก
     window.firebaseMessaging = messaging;
     
-    // ใช้คำสั่งมาตรฐาน ไม่ต้องมีวิชาลับ
-    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage };
+    // 💡 เพิ่มคำสั่งของ Auth เข้าไปใน API
+    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
     
     window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/"; 
-    
     window.dispatchEvent(new Event('firebaseLoaded'));
   </script>
 </head>
@@ -110,7 +109,7 @@
     }
   </script>
   <script type="text/babel">
-    const { useState, useEffect, useRef, useMemo } = React;
+    const { useState, useEffect, useRef, useMemo, Fragment } = React;
 
     const Icon = ({ name, size = 20, className = '', ...props }) => {
       const icons = {
@@ -158,11 +157,16 @@
     };
 
     const MAIN_MENUS = [
-      { id: 'calendar', label: 'ปฏิทินการทำงาน', icon: 'CalendarIcon' }, { id: 'holidays', label: 'ปฏิทินวันหยุด', icon: 'CalendarIcon' },
-      { id: 'content', label: 'เช็คลิสต์คอนเทนต์', icon: 'CheckSquare' }, { id: 'schedule', label: 'บ้านยังไม่เสร็จ', icon: 'Home' },
-      { id: 'zone', label: 'แยกบ้านตามโซน', icon: 'MapPin' },
-      { id: 'post', label: 'ตารางโพสต์บ้าน', icon: 'FileSignature' }, { id: 'gallery', label: 'รูปบ้านมาใหม่', icon: 'Image' },
-      { id: 'company', label: 'ข้อมูลบริษัท', icon: 'Building' }, { id: 'ai', label: 'AI ผู้ช่วยบริษัท', icon: 'MessageCircle' },
+        { id: 'calendar', label: 'ปฏิทินวางแผน', icon: 'CalendarIcon' },
+        { id: 'holidays', label: 'ปฏิทินวันหยุด', icon: 'CalendarIcon' },
+        { id: 'content', label: 'เช็คลิสต์คอนเทนต์', icon: 'CheckSquare' },
+        { id: 'schedule', label: 'บ้านยังไม่เสร็จ', icon: 'Home' },
+        { id: 'zone', label: 'แยกบ้านตามโซน', icon: 'MapPin' },
+        { id: 'post', label: 'ตารางโพสต์บ้าน', icon: 'FileSignature' },
+        { id: 'gallery', label: 'รูปบ้านมาใหม่', icon: 'Image' },
+        { id: 'company', label: 'ข้อมูลบริษัท', icon: 'Building' },
+        { id: 'ai', label: 'AI ผู้ช่วยบริษัท', icon: 'MessageCircle' },
+        { id: 'admin', label: 'จัดการระบบ (Admin)', icon: 'User' } // 💡 เมนูใหม่มาแล้ว!
     ];
 
     const ACTIVITIES = ['เปิดบ้าน', 'เซ็นสัญญายื่นสินกู้', 'เซ็นสัญญารับบ้าน', 'โอนบ้าน', 'ตรวจบ้าน', 'ถ่ายคลิปหรือคอนเทนต์', 'อื่นๆ'];
@@ -2376,14 +2380,103 @@ ${promptAction}`;
         );
     };
 
+    const AdminPanel = ({ isFirebaseLoaded }) => {
+        const [usersList, setUsersList] = useState([]);
+
+        useEffect(() => {
+            if (!isFirebaseLoaded) return;
+            const { collection, onSnapshot } = window.firebaseAPI;
+            const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
+                const loaded = [];
+                snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
+                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
+                loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
+                setUsersList(loaded);
+            });
+            return () => unsubscribe();
+        }, [isFirebaseLoaded]);
+
+        const handleUpdateStatus = async (emailId, newStatus) => {
+            try {
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), { status: newStatus, updatedAt: new Date().toISOString() });
+            } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+        };
+
+        const handleDeleteUser = async (emailId) => {
+            if(!window.confirm('ลบผู้ใช้นี้ออกจากระบบ? (ถ้าเขาล็อกอินใหม่ จะกลับไปเป็นสถานะรออนุมัติ)')) return;
+            try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId)); } catch (e) {}
+        };
+
+        return (
+            <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                <div className="flex items-center justify-between mb-6 shrink-0">
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center"><Icon name="User" className="mr-3 text-brand" size={26}/> จัดการสิทธิ์เข้าใช้งาน (Admin)</h2>
+                </div>
+                <div className="bg-surface rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse min-w-max">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">ผู้ใช้งาน</th>
+                                    <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">อีเมลบัญชี</th>
+                                    <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">สถานะ</th>
+                                    <th className="p-4 text-[13px] font-extrabold text-gray-500 text-center whitespace-nowrap">จัดการสิทธิ์</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {usersList.map(u => (
+                                    <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-3">
+                                                <img src={u.photoURL || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full border border-gray-200 object-cover shadow-sm" alt="profile"/>
+                                                <div>
+                                                    <div className="font-bold text-[14px] text-gray-800">{u.name}</div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5">ลงทะเบียน: {new Date(u.registeredAt).toLocaleDateString('th-TH')}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-[13px] font-medium text-gray-600">{u.email}</td>
+                                        <td className="p-4">
+                                            {u.status === 'pending' ? 
+                                                <span className="bg-yellow-100 text-yellow-700 border border-yellow-300 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm flex items-center w-max"><Icon name="Clock" size={12} className="mr-1.5"/> รออนุมัติ</span> :
+                                                <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm flex items-center w-max"><Icon name="Check" size={12} className="mr-1.5"/> อนุมัติแล้ว</span>
+                                            }
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex items-center justify-center gap-2">
+                                                {u.status === 'pending' ? (
+                                                    <button onClick={() => handleUpdateStatus(u.id, 'approved')} className="bg-brand hover:bg-brandLight text-white px-4 py-2 rounded-xl text-[12px] font-bold shadow-sm transition-all flex items-center"><Icon name="Check" size={14} className="mr-1"/> อนุมัติเข้าแอป</button>
+                                                ) : (
+                                                    <button onClick={() => handleUpdateStatus(u.id, 'pending')} className="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-4 py-2 rounded-xl text-[12px] font-bold transition-all flex items-center shadow-sm"><Icon name="X" size={14} className="mr-1"/> ระงับสิทธิ์</button>
+                                                )}
+                                                <button onClick={() => handleDeleteUser(u.id)} className="bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 p-2 rounded-xl transition-all shadow-sm" title="ลบผู้ใช้"><Icon name="Trash" size={16}/></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {usersList.length === 0 && <tr><td colSpan={4} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-30"/><div className="text-[14px] font-bold">ยังไม่มีผู้ลงทะเบียน</div></td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
     function App() {
+      // 💡 ตัวแปรระบบ Login
+      const [user, setUser] = useState(null); 
+      const [isAuthLoaded, setIsAuthLoaded] = useState(false); 
+      const [accessStatus, setAccessStatus] = useState('checking'); 
+      const [errorMessage, setErrorMessage] = useState(''); 
+
       const [activeApp, setActiveApp] = useState('calendar');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [showSplash, setShowSplash] = useState(true);
       const [splashFade, setSplashFade] = useState(false);
-      
-      // 💡 ตัวแปรสำหรับช่องค้นหาเมนู (ต้องอยู่ตรงนี้ถึงจะไม่พัง)
       const [menuSearchQuery, setMenuSearchQuery] = useState('');
+      const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com']; 
+      const isAdmin = user && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
       useEffect(() => {
         const timer1 = setTimeout(() => setSplashFade(true), 800);
@@ -2426,10 +2519,86 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      const isNotificationRequested = useRef(false); 
-
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล)
       useEffect(() => {
-        if (!isFirebaseLoaded) return;
+        if (!isFirebaseLoaded || !window.firebaseAuth) return;
+        
+        let unsubscribeUser = null; 
+
+        const authSubscription = window.firebaseAPI.onAuthStateChanged(window.firebaseAuth, (firebaseUser) => {
+          if (firebaseUser) {
+              setUser(firebaseUser);
+              setAccessStatus('checking');
+
+              // เข้าไปส่องข้อมูล User คนนี้ในฐานข้อมูล Firebase (คอลเลกชันชื่อ users)
+              const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", firebaseUser.email.toLowerCase());
+              
+              unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, (docSnap) => {
+                  if (docSnap.exists()) {
+                      // ถ้าเคยลงทะเบียนแล้ว เช็คว่าพี่บิวอนุมัติ (approved) หรือยัง
+                      const userData = docSnap.data();
+                      if (userData.status === 'approved') {
+                          setAccessStatus('granted'); // อนุมัติแล้ว เข้าแอปได้!
+                      } else {
+                          setAccessStatus('waitlist'); // ยังไม่อนุมัติ รอไปก่อน
+                      }
+                  } else {
+                      // ถ้าเพิ่งล็อกอินครั้งแรก ให้สร้างโปรไฟล์และตั้งค่าเป็น pending (รออนุมัติ)
+                      window.firebaseAPI.setDoc(userRef, {
+                          email: firebaseUser.email.toLowerCase(),
+                          name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
+                          photoURL: firebaseUser.photoURL || '',
+                          status: 'pending', // สถานะรอโฮสต์มาอนุมัติ
+                          role: 'user',
+                          registeredAt: new Date().toISOString()
+                      }).then(() => {
+                          setAccessStatus('waitlist');
+                      }).catch(err => {
+                          setAccessStatus('denied');
+                      });
+                  }
+                  setIsAuthLoaded(true);
+              });
+
+          } else {
+              setUser(null);
+              setAccessStatus('denied');
+              setIsAuthLoaded(true);
+              if (unsubscribeUser) unsubscribeUser();
+          }
+        });
+        
+        return () => { 
+            if (authSubscription) authSubscription(); 
+            if (unsubscribeUser) unsubscribeUser();
+        };
+      }, [isFirebaseLoaded]);
+
+      // 💡 ฟังก์ชันล็อกอินและล็อกเอาท์ (พร้อมระบบจำถาวร)
+      const handleGoogleSignIn = async () => {
+          setErrorMessage(''); setAccessStatus('checking');
+          try {
+              // บังคับให้เบราว์เซอร์จำค่าการล็อกอินเอาไว้ตลอดไป แม้จะปิดแท็บหรือรีเฟรช
+              await window.firebaseAPI.setPersistence(window.firebaseAuth, window.firebaseAPI.browserLocalPersistence);
+              
+              const provider = new window.firebaseAPI.GoogleAuthProvider();
+              await window.firebaseAPI.signInWithPopup(window.firebaseAuth, provider);
+          } catch (error) {
+              setErrorMessage('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
+              setAccessStatus('denied');
+          }
+      };
+
+      const handleSignOut = async () => {
+          try {
+              await window.firebaseAPI.signOut(window.firebaseAuth);
+              setActiveApp('calendar'); setAccessStatus('denied');
+          } catch (error) { console.error('Sign Out Error:', error); }
+      };
+
+      // 💡 ระบบจัดการ Push Notification ฉบับอัปเกรด (ผูกกับอีเมลคนล็อกอิน)
+      useEffect(() => {
+        if (!isFirebaseLoaded || !user || accessStatus !== 'granted') return;
 
         const initMessaging = async () => {
             try {
@@ -2442,20 +2611,23 @@ ${promptAction}`;
                     if (token) {
                         await window.firebaseAPI.setDoc(
                             window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), 
-                            { token: token, device: navigator.userAgent, updatedAt: new Date().toISOString() }, 
+                            { 
+                                token: token, 
+                                device: navigator.userAgent, 
+                                ownerEmail: user.email, // ผูกกับอีเมลเป๊ะๆ
+                                ownerName: user.displayName,
+                                updatedAt: new Date().toISOString() 
+                            }, 
                             { merge: true }
                         );
                     }
                 };
 
-                if (Notification.permission === 'granted') {
-                    getAndSaveToken();
-                } else if (Notification.permission !== 'denied') {
+                if (Notification.permission === 'granted') getAndSaveToken();
+                else if (Notification.permission !== 'denied') {
                     const handleFirstTouch = async () => {
                         const permission = await Notification.requestPermission();
-                        if (permission === 'granted') {
-                            getAndSaveToken();
-                        }
+                        if (permission === 'granted') getAndSaveToken();
                         window.removeEventListener('click', handleFirstTouch);
                         window.removeEventListener('touchstart', handleFirstTouch);
                     };
@@ -2466,15 +2638,9 @@ ${promptAction}`;
         };
 
         initMessaging();
-
-        const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { 
-            console.log('มีแจ้งเตือนเข้าตอนเปิดเว็บ:', payload); 
-        });
-
-        return () => {
-            if (unsubscribe) unsubscribe();
-        };
-      }, [isFirebaseLoaded]);
+        const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { console.log('มีแจ้งเตือน:', payload); });
+        return () => { if (unsubscribe) unsubscribe(); };
+      }, [isFirebaseLoaded, user, accessStatus]);
 
       useEffect(() => {
         if (window.firebaseDB) setIsFirebaseLoaded(true);
@@ -2486,7 +2652,7 @@ ${promptAction}`;
       }, []);
 
       useEffect(() => {
-        if (!isFirebaseLoaded) return;
+        if (!isFirebaseLoaded || accessStatus !== 'granted') return; // โหลดข้อมูลเฉพาะตอน Login ผ่านแล้ว
         const { collection, onSnapshot, setDoc, doc } = window.firebaseAPI;
         
         const unsubscribeEvents = onSnapshot(collection(window.firebaseDB, "events"), (snapshot) => {
@@ -2531,7 +2697,7 @@ ${promptAction}`;
         );
 
         return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); unsubscribeChecklists(); unsubscribeProgress(); unsubscribePostTracking(); };
-      }, [isFirebaseLoaded]);
+      }, [isFirebaseLoaded, accessStatus]);
 
       const moveDeptUp = async (index) => {
         if (index === 0 || !isFirebaseLoaded) return;
@@ -2562,7 +2728,9 @@ ${promptAction}`;
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => { const day = new Date(year, month, 1).getDay(); return (day + 6) % 7; };
       const year = currentDate.getFullYear(), month = currentDate.getMonth(), daysInMonth = getDaysInMonth(year, month);
+      
       const startDayIndex = getFirstDayOfMonth(year, month); 
+      
       const totalCells = startDayIndex + daysInMonth;
       const emptyEndCells = (7 - (totalCells % 7)) % 7;
 
@@ -2914,6 +3082,56 @@ ${promptAction}`;
         </div>
       );
 
+      // --- หน้าที่รอโหลด ---
+      if (!isAuthLoaded || accessStatus === 'checking') {
+          return (
+            <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center">
+              <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Logo" className="h-28 w-auto object-contain drop-shadow-lg mb-6 animate-pulse" />
+              <div className="text-white text-[14px] font-bold">กำลังตรวจสอบสิทธิ์...</div>
+            </div>
+          );
+      }
+
+      // 🛑 หน้าล็อกอินด้วย Google (Denied)
+      if (accessStatus === 'denied') {
+          return (
+            <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
+              <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center gap-6">
+                  <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-20 w-auto object-contain drop-shadow-lg" />
+                  <h1 className="text-2xl font-bold text-gray-800">STARTUP UP</h1>
+                  <p className="text-sm text-gray-600 mb-2">ยินดีต้อนรับ! กรุณาล็อกอินเพื่อใช้งาน</p>
+                  
+                  {errorMessage && <p className="text-red-500 text-[12px] font-bold bg-red-50 p-3 rounded-lg w-full text-center border border-red-200">{errorMessage}</p>}
+                  
+                  {/* 💡 ปุ่มล็อกอินพร้อมโลโก้ Google แบบทางการ */}
+                  <button onClick={handleGoogleSignIn} className="w-full flex items-center justify-center gap-3.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 px-6 py-3 rounded-xl text-[14px] font-bold shadow-sm transition-all">
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo" className="h-5 w-auto" />
+                      เข้าสู่ระบบด้วยบัญชี Google
+                  </button>
+              </div>
+            </div>
+          );
+      }
+
+      // 🛑 หน้าแจ้งเตือนรอการอนุมัติ (Waitlist)
+      if (accessStatus === 'waitlist') {
+          return (
+            <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
+              <div className="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center gap-6 text-center">
+                  <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-2 border border-yellow-200 animate-pulse">
+                      <Icon name="CheckSquare" size={32} />
+                  </div>
+                  <h1 className="text-2xl font-bold text-gray-800">รอการอนุมัติ</h1>
+                  <p className="text-sm text-gray-600">บัญชี Gmail ({user.email})<br/>ลงทะเบียนเข้าสู่ระบบเรียบร้อยแล้วค่ะ!<br/>รอพี่บิว (Host) กดยืนยันสิทธิ์นะคะ 💕</p>
+                  
+                  <div className="w-full flex justify-center mt-4 border-t border-gray-100 pt-5">
+                      <button onClick={handleSignOut} className="px-8 py-2.5 text-[14px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all shadow-sm">ยกเลิก / ล็อกเอาท์</button>
+                  </div>
+              </div>
+            </div>
+          );
+      }
+
       return (
         <>
           {showSplash && (
@@ -2931,37 +3149,34 @@ ${promptAction}`;
                 <div className="w-full px-2 pt-2 pb-1 relative z-10 bg-transparent">
                     <span className="text-[13px] font-bold text-gray-400 tracking-widest uppercase block mb-3">เมนูระบบ</span>
                     
-                    {/* 💡 ช่องพิมพ์ค้นหาเมนู */}
                     <div className="relative mb-2">
                         <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <input 
-                            type="text" 
-                            placeholder="ค้นหาเมนู..." 
-                            value={menuSearchQuery}
-                            onChange={(e) => setMenuSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl text-[13px] outline-none focus:border-brand transition-all shadow-sm"
-                        />
-                        {menuSearchQuery && (
-                            <button onClick={() => setMenuSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                <Icon name="X" size={14} />
-                            </button>
-                        )}
+                        <input type="text" placeholder="ค้นหาเมนู..." value={menuSearchQuery} onChange={(e) => setMenuSearchQuery(e.target.value)} className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl text-[13px] outline-none focus:border-brand transition-all shadow-sm" />
+                        {menuSearchQuery && <button onClick={() => setMenuSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"><Icon name="X" size={14} /></button>}
                     </div>
                 </div>
                 
-                {/* 💡 กรองเมนูตามคำที่ค้นหา */}
-                {MAIN_MENUS.filter(menu => menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase())).map(menu => {
+                MAIN_MENUS.filter(menu => (menu.id !== 'admin' || isAdmin) && menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase()))
                   const isActive = activeApp === menu.id;
                   return (
-                    <button key={menu.id} onClick={() => { setActiveApp(menu.id); setSelectedUser('All'); setIsSidebarOpen(false); setMenuSearchQuery(''); }} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 shrink-0 ${isActive ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}>
+                    <button key={menu.id} onClick={() => { setActiveApp(menu.id); setIsSidebarOpen(false); setMenuSearchQuery(''); }} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 shrink-0 ${isActive ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}>
                       <Icon name={menu.icon} size={20} className={`${isActive ? 'text-brand' : 'text-gray-400'}`} />
                       <span className="text-[14px]">{menu.label}</span>
                     </button>
                   )
                 })}
-                {MAIN_MENUS.filter(menu => menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase())).length === 0 && (
-                    <div className="text-center py-6 text-[12px] font-medium text-gray-400">ไม่พบเมนูที่ค้นหา</div>
-                )}
+              </div>
+
+              {/* 💡 แถบโปรไฟล์และปุ่มล็อกเอาท์ด้านล่างเมนู */}
+              <div className="mt-auto border-t border-gray-100 p-4 bg-gray-50 flex items-center gap-3.5 z-20">
+                  <img src={user?.photoURL || 'https://via.placeholder.com/150'} alt={user?.displayName || 'User'} className="h-11 w-11 rounded-full border-2 border-brand/20 shadow-sm object-cover" />
+                  <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 text-[14px] truncate">{user?.displayName || 'ผู้ใช้งาน'}</p>
+                      <p className="text-gray-500 text-[11px] truncate">{user?.email || ''}</p>
+                  </div>
+                  <button onClick={handleSignOut} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="ออกจากระบบ">
+                      <Icon name="Zap" size={18} className="transform rotate-90" />
+                  </button>
               </div>
             </div>
 
@@ -2980,6 +3195,7 @@ ${promptAction}`;
               {activeApp === 'zone' && <HouseZoneTable sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} constructionProgress={constructionProgress} />}
               {activeApp === 'company' && <CompanyInfo />}
+              {activeApp === 'admin' && isAdmin && <AdminPanel isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
             </div>
