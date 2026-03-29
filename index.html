@@ -76,7 +76,7 @@
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
     // 💡 เพิ่มระบบ Auth ของ Google เข้ามาตรงนี้ค่ะ
     // 💡 เพิ่มระบบ Auth และระบบบังคับจำล็อกอิน (Persistence)
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
     
     const firebaseConfig = { apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
@@ -92,8 +92,7 @@
     window.firebaseAuth = auth; // 💡 ส่ง Auth ให้ React รู้จัก
     window.firebaseMessaging = messaging;
     
-    // 💡 เพิ่มคำสั่งของ Auth เข้าไปใน API
-    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
+    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
     
     window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/"; 
     window.dispatchEvent(new Event('firebaseLoaded'));
@@ -2521,18 +2520,24 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล + มีเกราะป้องกันแอปค้าง 100%)
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เพิ่มตาข่ายดักจับ Redirect จาก iOS PWA)
       useEffect(() => {
         if (!isFirebaseLoaded || !window.firebaseAuth) return;
         
         let unsubscribeUser = null; 
+
+        // 🚨 สำคัญมาก: เช็คว่ามีการล็อกอินค้างไว้จากการเด้งหน้าต่าง Redirect หรือไม่
+        window.firebaseAPI.getRedirectResult(window.firebaseAuth).catch((error) => {
+             console.error("Redirect Error:", error);
+             setErrorMessage("การเชื่อมต่อบัญชี Google ขัดข้อง กรุณาลองใหม่ค่ะ");
+             setAccessStatus('denied');
+        });
 
         const authSubscription = window.firebaseAPI.onAuthStateChanged(window.firebaseAuth, (firebaseUser) => {
           if (firebaseUser) {
               setUser(firebaseUser);
               setAccessStatus('checking');
 
-              // ป้องกันอีเมลว่างเปล่า
               const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase() : '';
               if (!userEmail) {
                   setErrorMessage('ไม่พบข้อมูลอีเมล กรุณาล็อกอินใหม่ค่ะ');
@@ -2541,7 +2546,6 @@ ${promptAction}`;
                   return;
               }
 
-              // 👑 กำหนดอีเมลของพี่บิว (แอดมิน)
               const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com'];
               const isAdminEmail = ADMIN_EMAILS.includes(userEmail); 
 
@@ -2553,7 +2557,6 @@ ${promptAction}`;
                           if (docSnap.exists()) {
                               const userData = docSnap.data();
                               if (userData.status === 'approved' || isAdminEmail) {
-                                  // ถ้าเป็นแอดมิน แต่ในระบบยังรออนุมัติ ให้ปรับสิทธิ์อัตโนมัติ
                                   if (isAdminEmail && userData.status !== 'approved') {
                                       window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' }).catch(()=>{});
                                   }
@@ -2562,7 +2565,6 @@ ${promptAction}`;
                                   setAccessStatus('waitlist');
                               }
                           } else {
-                              // ลงทะเบียนครั้งแรก
                               window.firebaseAPI.setDoc(userRef, {
                                   email: userEmail,
                                   name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
@@ -2573,28 +2575,15 @@ ${promptAction}`;
                               }).then(() => {
                                   setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
                               }).catch(err => {
-                                  console.error("Save Error:", err);
-                                  // ถ้าฐานข้อมูลล็อก แอดมินยังคงเข้าได้
                                   if (isAdminEmail) setAccessStatus('granted');
-                                  else {
-                                      setErrorMessage('ลงทะเบียนไม่สำเร็จ (กรุณาเช็ค Firebase Rules)');
-                                      setAccessStatus('denied');
-                                  }
+                                  else { setErrorMessage('ลงทะเบียนไม่สำเร็จ'); setAccessStatus('denied'); }
                               });
                           }
-                          // ✅ ปลดล็อกหน้าโหลด
                           setIsAuthLoaded(true);
                       },
                       (error) => {
-                          console.error("Database Read Error:", error);
-                          // 🚨 ตรงนี้แหละค่ะตัวแก้ค้าง! ถ้าฐานข้อมูลล็อก แอดมินจะทะลุผ่านได้ทันที
-                          if (isAdminEmail) {
-                              setAccessStatus('granted');
-                          } else {
-                              setErrorMessage('ไม่มีสิทธิ์อ่านฐานข้อมูล (Permission Denied)');
-                              setAccessStatus('denied');
-                          }
-                          // ✅ ปลดล็อกหน้าโหลด
+                          if (isAdminEmail) setAccessStatus('granted');
+                          else { setErrorMessage('ไม่มีสิทธิ์อ่านฐานข้อมูล'); setAccessStatus('denied'); }
                           setIsAuthLoaded(true); 
                       }
                   );
@@ -2618,32 +2607,18 @@ ${promptAction}`;
         };
       }, [isFirebaseLoaded]);
 
-      // 💡 ฟังก์ชันล็อกอิน (ใช้แบบ Popup + ดักจับ LINE เพื่อให้แอปหน้าจอโฮมจำรหัสได้)
       const handleGoogleSignIn = async () => {
-          setErrorMessage(''); 
-          setAccessStatus('checking'); // เปลี่ยนหน้าจอเป็นกำลังโหลดจะได้ไม่ดูค้าง
-          
-          // 🛡️ ดักจับการเปิดผ่านแอป LINE หรือ Facebook
-          const ua = navigator.userAgent || navigator.vendor || window.opera;
-          if (ua.indexOf("Line") > -1 || ua.indexOf("FBAN") > -1 || ua.indexOf("FBAV") > -1) {
-              setErrorMessage('⚠️ กรุณากดปุ่ม 3 จุดมุมขวาบน แล้วเลือก "เปิดในเบราว์เซอร์" ก่อนล็อกอินนะคะ');
-              setAccessStatus('denied');
-              return;
-          }
-
+          setErrorMessage(''); setAccessStatus('checking');
           try {
               try {
                   await window.firebaseAPI.setPersistence(window.firebaseAuth, window.firebaseAPI.browserLocalPersistence);
-              } catch (persistenceError) {}
+              } catch (e) { console.warn("Persistence Error", e); }
               
               const provider = new window.firebaseAPI.GoogleAuthProvider();
-              provider.setCustomParameters({ prompt: 'select_account' }); 
-              
-              // 💡 กลับมาใช้ signInWithPopup เพื่อไม่ให้มันเด้งหลุดออกจากแอปหน้าจอโฮม
-              await window.firebaseAPI.signInWithPopup(window.firebaseAuth, provider);
+              // 💡 ใช้ signInWithRedirect เท่านั้นสำหรับแอปหน้าจอโฮม
+              await window.firebaseAPI.signInWithRedirect(window.firebaseAuth, provider);
           } catch (error) {
-              console.error(error);
-              setErrorMessage('การล็อกอินถูกยกเลิก หรือเน็ตขัดข้อง กรุณาลองใหม่ค่ะ');
+              setErrorMessage('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
               setAccessStatus('denied');
           }
       };
