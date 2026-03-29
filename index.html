@@ -159,7 +159,8 @@
 
     const MAIN_MENUS = [
       { id: 'calendar', label: 'ปฏิทินการทำงาน', icon: 'CalendarIcon' }, { id: 'holidays', label: 'ปฏิทินวันหยุด', icon: 'CalendarIcon' },
-      { id: 'content', label: 'เช็คลิสต์คอนเทนต์', icon: 'CheckSquare' }, { id: 'schedule', label: 'สถานะบ้าน(ยังไม่เสร็จ)', icon: 'Home' },
+      { id: 'content', label: 'เช็คลิสต์คอนเทนต์', icon: 'CheckSquare' }, { id: 'schedule', label: 'บ้านยังไม่เสร็จ', icon: 'Home' },
+      { id: 'zone', label: 'แยกบ้านตามโซน', icon: 'MapPin' },
       { id: 'post', label: 'ตารางโพสต์บ้าน', icon: 'FileSignature' }, { id: 'gallery', label: 'รูปบ้านมาใหม่', icon: 'Image' },
       { id: 'company', label: 'ข้อมูลบริษัท', icon: 'Building' }, { id: 'ai', label: 'AI ผู้ช่วยบริษัท', icon: 'MessageCircle' },
     ];
@@ -541,6 +542,8 @@
     };
 
     const ConstructionSchedule = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
+        const [viewMode, setViewMode] = useState('unfinished'); 
+        
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -552,26 +555,81 @@
         const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
         const [historyToDelete, setHistoryToDelete] = useState(null);
 
-        const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_const_v6');
-            return saved ? JSON.parse(saved) : { 'สถานะ': ['ว่าง', 'ยื่นซ้อน', 'ยื่นซ้อนได้', 'ยื่นกู้', 'ประเมิน', 'รอโอน', 'โอนแล้ว', 'ขายแล้ว'], 'Website': ['ฝากขาย'] };
-        }); 
-        const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_const_v6');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
-        });
-
-        useEffect(() => { localStorage.setItem('s_h_val_const_v6', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_const_v6', JSON.stringify(visibleColumns)); }, [visibleColumns]);
-
         const validSheetData = getValidSheetData(sheetData);
-        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
         const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
+        // 💡 1. แยกระบบตัวกรองเป็น 2 สมอง (แยกความจำโหมด "กำลังทำ" กับ "ทั้งหมด")
+        const defaultUnfinishedHidden = { 'สถานะ': uniqueStatuses.filter(s => s !== 'ยังไม่เสร็จ'), 'Website': [] };
+        
+        const [hiddenValuesUnfinished, setHiddenValuesUnfinished] = useState(() => {
+            const saved = localStorage.getItem('s_h_val_unfin_v15');
+            return saved ? JSON.parse(saved) : null;
+        });
+        const [hiddenValuesAll, setHiddenValuesAll] = useState(() => {
+            const saved = localStorage.getItem('s_h_val_all_v15');
+            // โหมดทั้งหมด: โชว์ทุกอย่าง ยกเว้น "ขายแล้ว"
+            return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': [] };
+        });
+
+        const [visibleColsUnfinished, setVisibleColsUnfinished] = useState(() => {
+            const saved = localStorage.getItem('s_v_col_unfin_v15');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
+        });
+        const [visibleColsAll, setVisibleColsAll] = useState(() => {
+            const saved = localStorage.getItem('s_v_col_all_v15');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
+        });
+
+        // 💡 ติดตั้งค่าเริ่มต้นให้โหมดกำลังทำ (โชว์เฉพาะ 'ยังไม่เสร็จ')
+        useEffect(() => {
+            if (!hiddenValuesUnfinished && uniqueStatuses.length > 0) {
+                setHiddenValuesUnfinished(defaultUnfinishedHidden);
+            }
+        }, [uniqueStatuses.length]);
+
+        // เซฟความจำแยกลงเครื่อง
+        useEffect(() => { if(hiddenValuesUnfinished) localStorage.setItem('s_h_val_unfin_v15', JSON.stringify(hiddenValuesUnfinished)); }, [hiddenValuesUnfinished]);
+        useEffect(() => { localStorage.setItem('s_h_val_all_v15', JSON.stringify(hiddenValuesAll)); }, [hiddenValuesAll]);
+        useEffect(() => { localStorage.setItem('s_v_col_unfin_v15', JSON.stringify(visibleColsUnfinished)); }, [visibleColsUnfinished]);
+        useEffect(() => { localStorage.setItem('s_v_col_all_v15', JSON.stringify(visibleColsAll)); }, [visibleColsAll]);
+
+        // ตัวแปรสลับสมองอัตโนมัติตามโหมดที่เปิดอยู่
+        const currentHiddenValues = viewMode === 'unfinished' ? (hiddenValuesUnfinished || defaultUnfinishedHidden) : hiddenValuesAll;
+        const currentVisibleColumns = viewMode === 'unfinished' ? visibleColsUnfinished : visibleColsAll;
+
+        const toggleColumn = (col) => {
+            if (viewMode === 'unfinished') setVisibleColsUnfinished(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
+            else setVisibleColsAll(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
+        };
+
+        const toggleHideValue = (col, val) => {
+            if (viewMode === 'unfinished') {
+                setHiddenValuesUnfinished(prev => {
+                    const current = prev || defaultUnfinishedHidden;
+                    const arr = current[col] || [];
+                    return { ...current, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
+                });
+            } else {
+                setHiddenValuesAll(prev => {
+                    const arr = prev[col] || [];
+                    return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
+                });
+            }
+        };
+
+        const resetHideValue = (col) => {
+            if (viewMode === 'unfinished') setHiddenValuesUnfinished(prev => ({...prev, [col]: []}));
+            else setHiddenValuesAll(prev => ({...prev, [col]: []}));
+        };
+
         const filteredData = validSheetData.filter(row => {
-            if (hiddenValues['สถานะ']?.includes(safeTrim(row['สถานะ']))) return false;
-            if (hiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
+            const prog = constructionProgress[row.id] || {};
+            if (viewMode === 'unfinished' && prog.finishedDate) return false;
+
+            if (currentHiddenValues['สถานะ']?.includes(safeTrim(row['สถานะ']))) return false;
+            if (currentHiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
             if (searchQuery && !`${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])} ${safeTrim(row['ซอย'])}`.toLowerCase().includes(searchQuery.toLowerCase())) return false;
             return true;
         });
@@ -601,18 +659,10 @@
             }
         });
 
-        const toggleColumn = (col) => setVisibleColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
-        const toggleHideValue = (col, val) => setHiddenValues(prev => {
-            const arr = prev[col] || [];
-            return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
-        });
-
         const handleUpdateProgress = async (rowId, data) => {
             if (!isFirebaseLoaded) return;
             try { 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
-                
-                // แจ้ง Vercel API เมื่อมีการลงวันที่บ้านเสร็จ
                 if (data.finishedDate) {
                     const rowInfo = validSheetData.find(r => r.id === rowId);
                     if (rowInfo) {
@@ -631,13 +681,18 @@
             <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
                <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="Home" className="mr-2 md:mr-3 text-brand" size={24}/> สถานะบ้าน(ยังไม่เสร็จ)</h2>
+                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="Home" className="mr-2 md:mr-3 text-brand" size={24}/> {viewMode === 'unfinished' ? 'สถานะบ้าน (กำลังทำ)' : 'สถานะบ้านทั้งหมด'}</h2>
                         {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{sortedData.length} รายการ</span></div>}
                         <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                         <button onClick={() => setIsHistoryModalOpen(true)} className="ml-1 px-3 py-1.5 text-brand bg-brand/10 border border-brand/20 rounded-lg shadow-sm hover:bg-brand/20 transition-all font-bold text-[13px] flex items-center">
                             <Icon name="Clock" size={14} className="mr-1.5" /> ประวัติ
                         </button>
                     </div>
+               </div>
+
+               <div className="flex bg-gray-100 p-1.5 rounded-xl w-fit mb-4 md:mb-6 shrink-0 shadow-sm border border-gray-200">
+                    <button onClick={() => { setViewMode('unfinished'); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all ${viewMode === 'unfinished' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="ListTodo" size={16} className="mr-2" /> กำลังทำ (ยังไม่เสร็จ)</button>
+                    <button onClick={() => { setViewMode('all'); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all ${viewMode === 'all' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="Building" size={16} className="mr-2" /> บ้านทั้งหมด</button>
                </div>
 
                <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
@@ -678,7 +733,7 @@
                                             <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
                                             <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                                 {allColumns.map(col => (
-                                                    <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{col}</span></label>
+                                                    <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={currentVisibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{col}</span></label>
                                                 ))}
                                             </div>
                                         </div>
@@ -687,17 +742,17 @@
                             </div>
                             {uniqueStatuses.length > 0 && (
                                 <div className="relative shrink-0 w-full sm:w-auto">
-                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
-                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ {hiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueStatuses.length - hiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>} <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${currentHiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ {currentHiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueStatuses.length - currentHiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>} <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
                                     </button>
                                     {activeFilterDropdown === 'status' && (
                                         <>
                                             <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
                                             <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['สถานะ']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'สถานะ': []}))} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}</div>
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{currentHiddenValues['สถานะ']?.length > 0 && <button onClick={() => resetHideValue('สถานะ')} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}</div>
                                                 <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                                     {uniqueStatuses.map(st => (
-                                                        <label key={st} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues['สถานะ']?.includes(st)} onChange={() => toggleHideValue('สถานะ', st)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{st}</span></label>
+                                                        <label key={st} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!currentHiddenValues['สถานะ']?.includes(st)} onChange={() => toggleHideValue('สถานะ', st)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{st}</span></label>
                                                     ))}
                                                 </div>
                                             </div>
@@ -707,17 +762,17 @@
                             )}
                             {uniqueWebsites.length > 0 && (
                                 <div className="relative shrink-0 w-full sm:w-auto">
-                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
-                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website {hiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueWebsites.length - hiddenValues['Website'].length}/{uniqueWebsites.length}</span>} <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${currentHiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
+                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website {currentHiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueWebsites.length - currentHiddenValues['Website'].length}/{uniqueWebsites.length}</span>} <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
                                     </button>
                                     {activeFilterDropdown === 'website' && (
                                         <>
                                             <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
                                             <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues['Website']?.length > 0 && <button onClick={() => setHiddenValues(p => ({...p, 'Website': []}))} className="text-[11px] text-brand font-bold">แสดงทั้งหมด</button>}</div>
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{currentHiddenValues['Website']?.length > 0 && <button onClick={() => resetHideValue('Website')} className="text-[11px] text-brand font-bold">แสดงทั้งหมด</button>}</div>
                                                 <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
                                                     {uniqueWebsites.map(web => (
-                                                        <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{web}</span></label>
+                                                        <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!currentHiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{web}</span></label>
                                                     ))}
                                                 </div>
                                             </div>
@@ -727,7 +782,7 @@
                             )}
                         </div>
                         <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                            {visibleColumns.map((col, idx) => (
+                            {currentVisibleColumns.map((col, idx) => (
                                 <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
                             ))}
                         </div>
@@ -739,13 +794,12 @@
                    <table className="w-full text-left border-collapse min-w-max">
                       <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                         <tr>
-                          {/* แช่แข็งคอลัมน์ ลำดับ (ปรับให้แคบลงและลดขอบ) */}
                           <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
-                          {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                          {currentVisibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                        {currentVisibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
                         {sortedData.map((row, idx) => {
                           const statusVal = safeTrim(row['สถานะ']);
                           const style = getRowStyleClasses(statusVal);
@@ -753,9 +807,8 @@
 
                           return (
                               <tr key={row.id || idx} className={`border-b cursor-pointer transition-colors group ${style.row}`}>
-                                  {/* แช่แข็งคอลัมน์ ลำดับ ใน Body (ปรับให้แคบลง) */}
                                   <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
-                                  {visibleColumns.map(col => {
+                                  {currentVisibleColumns.map(col => {
                                       let content = null;
                                       if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
                                       else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
@@ -2058,6 +2111,275 @@ ${promptAction}`;
             </div>
         );
     };
+    const HouseZoneTable = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
+        const [activeCaretakerTab, setActiveCaretakerTab] = useState('All');
+
+        const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+        const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
+        const [searchQuery, setSearchQuery] = useState('');
+        const [isRefreshing, setIsRefreshing] = useState(false);
+        const [showFilters, setShowFilters] = useState(false);
+
+        const [hiddenValues, setHiddenValues] = useState(() => {
+            const saved = localStorage.getItem('s_h_val_zone_v4');
+            return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': [] };
+        }); 
+        const [visibleColumns, setVisibleColumns] = useState(() => {
+            const saved = localStorage.getItem('s_v_col_zone_v4');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+        });
+
+        useEffect(() => { localStorage.setItem('s_h_val_zone_v4', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_zone_v4', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+
+        const validSheetData = getValidSheetData(sheetData);
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+        
+        const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
+        const uniqueZones = [...new Set(validSheetData.map(item => safeTrim(item['ทำเล'])).filter(Boolean))];
+        const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
+        
+        const uniqueSalesLevels = ['รายการขายง่าย', 'รายการขายยาก', 'ไม่ระบุ'];
+        const uniqueCaretakers = ['May', 'Boom', 'Boat', 'ยังไม่ระบุ'];
+        const uniqueVideoStatuses = ['ถ่ายแล้ว', 'ยังไม่ถ่าย'];
+
+        const toggleColumn = (col) => setVisibleColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
+        const toggleHideValue = (col, val) => setHiddenValues(prev => {
+            const arr = prev[col] || [];
+            return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
+        });
+        const resetHideValue = (col) => setHiddenValues(prev => ({...prev, [col]: []}));
+
+        const filteredData = validSheetData.filter(row => {
+            const prog = constructionProgress[row.id] || {};
+            const currentSalesLvl = prog.salesLevel || safeTrim(row['ระดับการขาย']) || 'ไม่ระบุ';
+            const isVideoShot = prog.isVideoShot ?? (safeTrim(row['สถานะการถ่ายคลิป']) === 'ถ่ายแล้ว');
+            const videoStatus = isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย';
+
+            if (hiddenValues['สถานะ']?.includes(safeTrim(row['สถานะ']))) return false;
+            if (hiddenValues['ทำเล']?.includes(safeTrim(row['ทำเล']))) return false;
+            if (hiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
+            if (hiddenValues['ระดับการขาย']?.includes(currentSalesLvl)) return false;
+            if (hiddenValues['สถานะการถ่ายคลิป']?.includes(videoStatus)) return false;
+            if (searchQuery && !`${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])} ${safeTrim(row['ซอย'])} ${safeTrim(row['ทำเล'])}`.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+            return true;
+        });
+
+        const sortedData = [...filteredData].sort((a, b) => safeTrim(a['ทำเล']).localeCompare(safeTrim(b['ทำเล']), 'th'));
+
+        const groupedData = uniqueCaretakers.map(ct => ({
+            caretaker: ct,
+            houses: sortedData.filter(row => {
+                const prog = constructionProgress[row.id] || {};
+                const currentCt = prog.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || 'ยังไม่ระบุ';
+                return currentCt === ct || (ct === 'ยังไม่ระบุ' && !['May', 'Boom', 'Boat'].includes(currentCt));
+            })
+        })).filter(g => g.houses.length > 0 && (activeCaretakerTab === 'All' || g.caretaker === activeCaretakerTab));
+
+        const handleUpdateProgress = async (rowId, data) => {
+            if (!isFirebaseLoaded) return;
+            try { 
+                await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
+            } catch(err) {}
+        };
+
+        const caretakerTabs = [
+            { id: 'All', label: 'ทุกคน', icon: 'Users' },
+            { id: 'May', label: 'May', icon: 'User' },
+            { id: 'Boom', label: 'Boom', icon: 'User' },
+            { id: 'Boat', label: 'Boat', icon: 'User' },
+            { id: 'ยังไม่ระบุ', label: 'ยังไม่ระบุ', icon: 'HelpCircle' }
+        ];
+
+        return (
+            <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
+               <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="MapPin" className="mr-2 md:mr-3 text-brand" size={24}/> แยกบ้านตามโซน (รายบุคคล)</h2>
+                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
+                    </div>
+               </div>
+
+               <div className="flex bg-gray-100 p-1.5 rounded-xl w-full md:w-fit mb-4 md:mb-6 shrink-0 shadow-sm border border-gray-200 overflow-x-auto horizontal-scrollbar">
+                    {caretakerTabs.map(tab => (
+                        <button 
+                            key={tab.id}
+                            onClick={() => setActiveCaretakerTab(tab.id)} 
+                            className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all whitespace-nowrap ${activeCaretakerTab === tab.id ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}
+                        >
+                            <Icon name={tab.icon} size={16} className="mr-2" /> {tab.label}
+                        </button>
+                    ))}
+               </div>
+
+               <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
+                    <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
+                        <div className="flex items-center text-[14px] font-bold text-gray-700"><Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและตัวกรอง</div>
+                        <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500"><Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} /></div>
+                    </div>
+
+                    <div className={`flex-col xl:flex-row items-start xl:items-center w-full ${showFilters ? 'flex mt-4' : 'hidden xl:flex'}`}>
+                        <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0 hidden xl:block">ตัวจัดการข้อมูล:</span>
+                        <div className="flex flex-wrap gap-2.5 shrink-0 w-full xl:w-auto">
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                <input type="text" placeholder="ค้นหาโครงการ, ทำเล..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"/>
+                            </div>
+                            
+                            <div className="relative shrink-0 w-full sm:w-auto">
+                                <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-full sm:w-[200px] px-4 py-2 bg-white border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 shadow-sm"><Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" /></button>
+                                {isDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                            <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
+                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                {allColumns.map(col => (
+                                                    <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{col}</span></label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {[
+                                { key: 'ระดับการขาย', icon: 'Tag', options: uniqueSalesLevels },
+                                { key: 'สถานะการถ่ายคลิป', icon: 'Video', options: uniqueVideoStatuses },
+                                { key: 'ทำเล', icon: 'MapPin', options: uniqueZones },
+                                { key: 'สถานะ', icon: 'Search', options: uniqueStatuses },
+                                { key: 'Website', icon: 'Globe', options: uniqueWebsites }
+                            ].map(filter => filter.options.length > 0 && (
+                                <div key={filter.key} className="relative shrink-0 w-full sm:w-auto">
+                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === filter.key ? null : filter.key); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues[filter.key]?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
+                                        <Icon name={filter.icon} size={14} className="mr-1.5 text-gray-400" /> {filter.key} {hiddenValues[filter.key]?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{filter.options.length - hiddenValues[filter.key].length}/{filter.options.length}</span>} <Icon name={activeFilterDropdown === filter.key ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
+                                    </button>
+                                    {activeFilterDropdown === filter.key && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
+                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{hiddenValues[filter.key]?.length > 0 && <button onClick={() => resetHideValue(filter.key)} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}</div>
+                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                                    {filter.options.map(opt => (
+                                                        <label key={opt} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!hiddenValues[filter.key]?.includes(opt)} onChange={() => toggleHideValue(filter.key, opt)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{opt}</span></label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
+                            {visibleColumns.map((col, idx) => (
+                                <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
+                            ))}
+                        </div>
+                    </div>
+               </div>
+
+               <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
+                 <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                   <table className="w-full text-left border-collapse min-w-max">
+                      <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                        <tr>
+                          <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
+                          {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                        
+                        {groupedData.map((group, gIdx) => (
+                            <React.Fragment key={group.caretaker}>
+                                <tr className="bg-gray-100/80 border-y-2 border-gray-200">
+                                    <td colSpan={visibleColumns.length + 1} className="py-3 px-4 sticky left-0 z-10">
+                                        <div className="flex items-center">
+                                            <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center mr-3 shadow-md"><Icon name={group.caretaker === 'ยังไม่ระบุ' ? 'HelpCircle' : 'User'} size={16} /></div>
+                                            <span className="font-black text-[15px] text-gray-800">ผู้ดูแลบ้าน: <span className="text-brand">{group.caretaker}</span></span>
+                                            <span className="ml-3 px-2.5 py-1 bg-white rounded-full text-[11px] font-bold text-gray-500 shadow-sm">{group.houses.length} รายการ</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                {group.houses.map((row, idx) => {
+                                    const statusVal = safeTrim(row['สถานะ']);
+                                    const style = getRowStyleClasses(statusVal);
+                                    const prog = constructionProgress[row.id] || {};
+
+                                    return (
+                                        <tr key={row.id || idx} className={`border-b transition-colors group hover:bg-gray-50`}>
+                                            <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
+                                            {visibleColumns.map(col => {
+                                                let content = null;
+                                                const val = safeTrim(row[col]);
+                                                
+                                                if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{val || '-'}</span>;
+                                                else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                                else if (col === 'ทำเล') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
+                                                else if (col === 'ราคา') content = <span className="text-[14px] font-extrabold text-emerald-600">{val ? formatPriceInput(val) : '-'}</span>;
+                                                else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{val || '-'}</span>;
+                                                
+                                                // 💡 เปลี่ยนตรงนี้: จาก DatePicker เป็นแค่ตัวหนังสือแสดงข้อมูลเฉยๆ
+                                                else if (col === 'ทำเสร็จเมื่อ') {
+                                                    const fDate = prog.finishedDate;
+                                                    // แปลงจาก YYYY-MM-DD เป็น DD/MM/YYYY
+                                                    const displayDate = fDate ? fDate.split('-').reverse().join('/') : null;
+                                                    content = displayDate 
+                                                        ? <span className="text-[13px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">{displayDate}</span> 
+                                                        : <span className="text-[13px] text-gray-400">-</span>;
+                                                }
+
+                                                else if (col === 'ผู้ดูแลบ้าน') {
+                                                    const caretaker = prog.caretaker || val || '';
+                                                    content = (
+                                                        <select value={['May', 'Boom', 'Boat'].includes(caretaker) ? caretaker : ''} onChange={(e) => handleUpdateProgress(row.id, { caretaker: e.target.value })} className="px-2 py-1.5 text-[13px] font-bold text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand w-[90px] shadow-sm">
+                                                            <option value="">- เลือก -</option>
+                                                            <option value="May">May</option>
+                                                            <option value="Boom">Boom</option>
+                                                            <option value="Boat">Boat</option>
+                                                        </select>
+                                                    );
+                                                }
+                                                else if (col === 'ระดับการขาย') {
+                                                    const salesLevel = prog.salesLevel || val || '';
+                                                    let salesClass = 'bg-white text-gray-700 border-gray-300';
+                                                    if (salesLevel === 'รายการขายง่าย') salesClass = 'bg-green-50 text-green-700 border-green-300 font-bold';
+                                                    else if (salesLevel === 'รายการขายยาก') salesClass = 'bg-red-50 text-red-700 border-red-300 font-bold';
+                                                    content = (
+                                                        <select value={salesLevel} onChange={(e) => handleUpdateProgress(row.id, { salesLevel: e.target.value })} className={`px-2 py-1.5 text-[13px] rounded-lg outline-none border w-[130px] shadow-sm transition-colors ${salesClass}`}>
+                                                            <option value="" className="text-gray-500 bg-white">- เลือกระดับ -</option>
+                                                            <option value="รายการขายง่าย" className="text-green-700 bg-white">รายการขายง่าย</option>
+                                                            <option value="รายการขายยาก" className="text-red-700 bg-white">รายการขายยาก</option>
+                                                        </select>
+                                                    );
+                                                }
+                                                else if (col === 'สถานะการถ่ายคลิป') {
+                                                    const isVideoShot = prog.isVideoShot ?? (val === 'ถ่ายแล้ว');
+                                                    content = (
+                                                        <label className="flex items-center cursor-pointer group w-max">
+                                                            <input type="checkbox" checked={isVideoShot} onChange={(e) => handleUpdateProgress(row.id, { isVideoShot: e.target.checked })} className="w-5 h-5 accent-brand rounded cursor-pointer" />
+                                                            <span className={`ml-2 text-[13px] font-bold transition-colors ${isVideoShot ? 'text-brand' : 'text-gray-400 group-hover:text-gray-600'}`}>{isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'}</span>
+                                                        </label>
+                                                    );
+                                                }
+                                                else content = <span className="text-[14px] font-medium text-gray-600">{val || '-'}</span>;
+                                                
+                                                return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+                                            })}
+                                        </tr>
+                                    )
+                                })}
+                            </React.Fragment>
+                        ))}
+                        {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
+                      </tbody>
+                   </table>
+                 </div>
+               </div>
+            </div>
+        );
+    };
 
     function App() {
       const [activeApp, setActiveApp] = useState('calendar');
@@ -2096,7 +2418,7 @@ ${promptAction}`;
       const [contentChecklists, setContentChecklists] = useState({});
       const [constructionProgress, setConstructionProgress] = useState({});
       const [postTracking, setPostTracking] = useState({});
-      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '' });
+      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full' });
       const [houses, setHouses] = useState([]);
       const [aiMessages, setAiMessages] = useState([{ role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }]);
       const [sheetData, setSheetData] = useState([]);
@@ -2296,30 +2618,25 @@ ${promptAction}`;
 
       const handleOpenModal = (day = null, eventToEdit = null, prefillAssignee = '', prefillType = '') => {
         if (eventToEdit) {
-          setFormData({ type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: eventToEdit.leaveType || '' });
+          setFormData({ type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: eventToEdit.leaveType || '', leaveDuration: eventToEdit.leaveDuration || 'full' });
           setEditingEventId(eventToEdit.id); setIsModalOpen(true); return;
         }
         let dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : selectedDayString || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-        setFormData({ ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '' });
+        setFormData({ ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '', leaveDuration: 'full' });
         setEditingEventId(null); setIsModalOpen(true);
       };
 
-      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '' }); };
+      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full' }); };
 
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
-        const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? (formData.leaveType ? `ลา: ${formData.leaveType}` : 'วันลางาน') : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
+        const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? (formData.leaveType ? `ลา: ${formData.leaveType} ${formData.leaveDuration === 'half' ? '(ครึ่งวัน)' : ''}`.trim() : 'วันลางาน') : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
         try {
-          if (editingEventId) {
-              await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData);
-          } else {
+          if (editingEventId) { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData); } 
+          else {
               await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
               if (eventData.type === 'leave') {
-                  fetch(`${window.VERCEL_API_URL}/api/trigger`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'leave', data: eventData })
-                  }).catch(e => console.log('Vercel API error', e));
+                  fetch(`${window.VERCEL_API_URL}/api/trigger`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'leave', data: eventData }) }).catch(e => console.log('Vercel API error', e));
               }
           }
         } catch (error) { alert("พบข้อผิดพลาด กรุณาลองใหม่"); }
@@ -2558,10 +2875,11 @@ ${promptAction}`;
                                      const empLeaves = events.filter(ev => ev.type === 'leave' && ev.assignee === emp && ev.date.startsWith(`${year}-`));
                                      const stats = { 'ลาป่วย': 0, 'ลากิจ': 0, 'ลาพักร้อน': 0, 'ลางานศพ': 0, 'ลาคลอด': 0, 'ลาบวช': 0, 'ไม่ระบุ': 0 };
                                      
-                                     // นับสถิติ
+                                     // นับสถิติ (รองรับครึ่งวัน = 0.5, ข้อมูลเก่าที่ไม่มีค่าให้ตีเป็น 1)
                                      empLeaves.forEach(ev => { 
-                                         if (ev.leaveType && stats[ev.leaveType] !== undefined) stats[ev.leaveType]++; 
-                                         else stats['ไม่ระบุ']++; 
+                                         const increment = ev.leaveDuration === 'half' ? 0.5 : 1;
+                                         if (ev.leaveType && stats[ev.leaveType] !== undefined) stats[ev.leaveType] += increment; 
+                                         else stats['ไม่ระบุ'] += increment; 
                                      });
                                      
                                      const openLeaveDetails = (type) => {
@@ -2606,6 +2924,8 @@ ${promptAction}`;
                                        else if(lvType === 'ลาคลอด') label = 'คลอด';
                                        else if(lvType === 'ลาบวช') label = 'บวช';
                                        else label = 'ลา';
+                                       // เพิ่มสัญลักษณ์ถ้าเป็นครึ่งวัน
+                                       if (cellEv.find(e=>e.type==='leave')?.leaveDuration === 'half') label += ' ½';
                                    }
                                  }
                                  const isToday = (i+1) === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
@@ -2669,6 +2989,7 @@ ${promptAction}`;
               {activeApp === 'holidays' && renderHolidayTab()}
               {activeApp === 'content' && <ContentChecklist sheetData={sheetData} sheetError={sheetError} contentChecklists={contentChecklists} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'schedule' && <ConstructionSchedule sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
+              {activeApp === 'zone' && <HouseZoneTable sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'company' && <CompanyInfo />}
               {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
@@ -2760,12 +3081,33 @@ ${promptAction}`;
                       )}
 
                       {formData.type === 'leave' && (
-                        <div>
-                          <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ประเภทการลา</label>
-                          <select required value={formData.leaveType} onChange={e=>setFormData({...formData, leaveType:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-orange-500 transition-all text-[14px] text-gray-700">
-                            <option value="" disabled hidden>-- กรุณาเลือกประเภทการลา --</option>
-                            {LEAVE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ประเภทการลา</label>
+                            <select required value={formData.leaveType} onChange={e => {
+                                const selectedType = e.target.value;
+                                // 💡 ถ้าไม่ใช่ลาป่วย ให้โดนบังคับรีเซ็ตเป็น "เต็มวัน" อัตโนมัติ
+                                setFormData({...formData, leaveType: selectedType, leaveDuration: selectedType === 'ลาป่วย' ? formData.leaveDuration : 'full'});
+                            }} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-orange-500 transition-all text-[14px] text-gray-700">
+                              <option value="" disabled hidden>-- กรุณาเลือก --</option>
+                              {LEAVE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                          </div>
+                          
+                          {/* 💡 ซ่อน/แสดง ตัวเลือกระยะเวลา โผล่มาเฉพาะตอนเลือก "ลาป่วย" */}
+                          {formData.leaveType === 'ลาป่วย' && (
+                              <div>
+                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ระยะเวลา</label>
+                                <div className="flex space-x-4 mt-2.5">
+                                   <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
+                                      <input type="radio" checked={formData.leaveDuration !== 'half'} onChange={()=>setFormData({...formData, leaveDuration: 'full'})} className="mr-2 w-4 h-4 accent-orange-500" /> เต็มวัน
+                                   </label>
+                                   <label className="flex items-center text-[13px] font-bold text-gray-700 cursor-pointer">
+                                      <input type="radio" checked={formData.leaveDuration === 'half'} onChange={()=>setFormData({...formData, leaveDuration: 'half'})} className="mr-2 w-4 h-4 accent-orange-500" /> ครึ่งวัน
+                                   </label>
+                                </div>
+                              </div>
+                          )}
                         </div>
                       )}
                       
@@ -2988,7 +3330,7 @@ ${promptAction}`;
                               <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-2 relative group">
                                 <div className="flex justify-between items-start">
                                   <span className="text-[14px] font-extrabold text-brand flex items-center"><Icon name="CalendarIcon" size={14} className="mr-1.5 text-brand/70"/>{getFormattedDateThai(lv.date)}</span>
-                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${badgeStyle}`}>{badgeLabel}</span>
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${badgeStyle}`}>{badgeLabel} {lv.leaveDuration === 'half' ? '(ครึ่งวัน)' : ''}</span>
                                 </div>
                                 <div className="text-[13px] text-gray-600 mt-1 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                                   <span className="font-bold text-gray-700">หมายเหตุ: </span>
