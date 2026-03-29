@@ -458,7 +458,6 @@
                 <table className="w-full text-left border-collapse min-w-max">
                   <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                     <tr>
-                      {/* แช่แข็งคอลัมน์ ลำดับ (ปรับให้แคบลงและลดขอบ) */}
                       <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
                       {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
                     </tr>
@@ -478,12 +477,18 @@
                       return (
                         <React.Fragment key={row.id}>
                           <tr className={`border-b cursor-pointer transition-colors group ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
-                            {/* แช่แข็งคอลัมน์ ลำดับ ใน Body (ปรับให้แคบลง) */}
                             <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
                             {visibleColumns.map(col => {
                                 let content = null;
                                 if (col === 'หมู่บ้าน') {
-                                    const badgeContent = isComplete ? <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold shadow-sm"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span> : <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
+                                    let badgeContent;
+                                    if (isComplete) {
+                                        badgeContent = <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold shadow-sm"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span>;
+                                    } else if (completedTasks >= 4) {
+                                        badgeContent = <span className="mr-3 px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-full border border-yellow-400 text-[11px] font-bold shadow-sm">ใกล้ครบแล้ว ({completedTasks}/{totalTasks})</span>;
+                                    } else {
+                                        badgeContent = <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
+                                    }
                                     content = <div className="flex items-center">{badgeContent}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
                                 } else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
                                 } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
@@ -2376,6 +2381,9 @@ ${promptAction}`;
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [showSplash, setShowSplash] = useState(true);
       const [splashFade, setSplashFade] = useState(false);
+      
+      // 💡 ตัวแปรสำหรับช่องค้นหาเมนู (ต้องอยู่ตรงนี้ถึงจะไม่พัง)
+      const [menuSearchQuery, setMenuSearchQuery] = useState('');
 
       useEffect(() => {
         const timer1 = setTimeout(() => setSplashFade(true), 800);
@@ -2415,24 +2423,17 @@ ${promptAction}`;
       const [sheetError, setSheetError] = useState(null);
       const [manualRefreshKey, setManualRefreshKey] = useState(0);
 
-      // --- เพิ่ม State สำหรับ Popup ดูประวัติการลา ---
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
-
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 ระบบขออนุญาตแจ้งเตือน (แก้ปัญหาแจ้งเตือนเบิ้ล และทับกัน)
-      const isNotificationRequested = useRef(false); // ตัวป้องกันการรันซ้ำ
+      const isNotificationRequested = useRef(false); 
 
-      // 💡 ระบบจัดการ Push Notification ฉบับอัปเกรด (แก้จอไม่เด้ง & กันเบิ้ล)
       useEffect(() => {
         if (!isFirebaseLoaded) return;
 
         const initMessaging = async () => {
             try {
-                // 1. ลงทะเบียน Service Worker ก่อน
                 const registration = await navigator.serviceWorker.register('/sw.js');
-
-                // 2. สร้างฟังก์ชันขอ Token และบันทึกลง Firebase (แยกเครื่องชัดเจน)
                 const getAndSaveToken = async () => {
                     const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
                         vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
@@ -2441,46 +2442,33 @@ ${promptAction}`;
                     if (token) {
                         await window.firebaseAPI.setDoc(
                             window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), 
-                            { 
-                                token: token, 
-                                device: navigator.userAgent, // เก็บข้อมูลด้วยว่าเครื่องไหน
-                                updatedAt: new Date().toISOString() 
-                            }, 
-                            { merge: true } // กันการเซฟทับ
+                            { token: token, device: navigator.userAgent, updatedAt: new Date().toISOString() }, 
+                            { merge: true }
                         );
                     }
                 };
 
-                // 3. ตรวจสอบสิทธิ์
                 if (Notification.permission === 'granted') {
-                    // ถ้าเคยอนุญาตแล้ว ดึง Token ได้เลย
                     getAndSaveToken();
                 } else if (Notification.permission !== 'denied') {
-                    // 🚨 ถ้ายังไม่เคยขอสิทธิ์ "ต้องรอให้ผู้ใช้แตะหน้าจอก่อน" ค่อยขอสิทธิ์
                     const handleFirstTouch = async () => {
                         const permission = await Notification.requestPermission();
                         if (permission === 'granted') {
                             getAndSaveToken();
                         }
-                        // ขอเสร็จแล้วลบตัวดักจับการแตะทิ้ง
                         window.removeEventListener('click', handleFirstTouch);
                         window.removeEventListener('touchstart', handleFirstTouch);
                     };
-                    // ดักจับการจิ้มหน้าจอของพนักงาน
                     window.addEventListener('click', handleFirstTouch);
                     window.addEventListener('touchstart', handleFirstTouch);
                 }
-            } catch (e) {
-                console.error('FCM Error:', e);
-            }
+            } catch (e) { console.error('FCM Error:', e); }
         };
 
         initMessaging();
 
-        // 4. ดักจับข้อความตอนเปิดเว็บทิ้งไว้ (ป้องกันการแจ้งเตือนเบิ้ลในหน้าเว็บ)
         const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { 
             console.log('มีแจ้งเตือนเข้าตอนเปิดเว็บ:', payload); 
-            // ไม่ต้องใส่คำสั่งโชว์ Notification ตรงนี้ เพราะเดี๋ยวระบบหลังบ้านจะจัดการเอง
         });
 
         return () => {
@@ -2574,10 +2562,7 @@ ${promptAction}`;
       const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
       const getFirstDayOfMonth = (year, month) => { const day = new Date(year, month, 1).getDay(); return (day + 6) % 7; };
       const year = currentDate.getFullYear(), month = currentDate.getMonth(), daysInMonth = getDaysInMonth(year, month);
-      
-      // 💡 น้อง Up แก้ไขให้ตรงนี้รับค่ามาตรงๆ ไม่ต้องบวกเลขซ้อนแล้วค่ะ
       const startDayIndex = getFirstDayOfMonth(year, month); 
-      
       const totalCells = startDayIndex + daysInMonth;
       const emptyEndCells = (7 - (totalCells % 7)) % 7;
 
@@ -2821,9 +2806,7 @@ ${promptAction}`;
                    <table className="w-full text-center border-collapse min-w-max">
                      <thead className="sticky top-0 z-40 shadow-sm bg-white">
                        <tr>
-                         {/* แช่แข็งคอลัมน์ ลำดับ */}
                          <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 min-w-[45px] max-w-[45px] sticky left-0 z-50">ลำดับ</th>
-                         {/* แช่แข็งคอลัมน์ ชื่อพนักงาน (ปรับให้แคบลงสุดๆ) */}
                          <th rowSpan={2} className="border border-gray-200 border-r-gray-300 border-r-2 bg-[#e5e7eb] py-2 px-1 text-[13px] font-bold text-gray-700 min-w-[70px] max-w-[70px] w-[70px] sticky left-[45px] z-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">ชื่อพนักงาน</th>
                          <th rowSpan={2} className="border border-gray-200 bg-[#e5e7eb] p-2 text-[12px] font-bold text-gray-700 min-w-[140px]">สถิติการลา (ปี {year + 543})</th>
                          {Array.from({ length: daysInMonth }).map((_, i) => (
@@ -2848,24 +2831,19 @@ ${promptAction}`;
                          <React.Fragment key={dept.id}>
                            <tr>
                              <td colSpan={daysInMonth + 3} className="border border-gray-200 bg-gray-50 p-0">
-                               {/* ทำให้ชื่อทีมแช่แข็งอยู่ฝั่งซ้ายเสมอแม้เลื่อนตาราง */}
                                <div className="sticky left-0 w-max p-2 pl-4 text-[13px] font-bold text-left text-brand z-20">ทีม {dept.id}</div>
                              </td>
                            </tr>
                            {dept.members.map((emp, idx) => (
                              <tr key={emp} className="group transition-colors">
-                               {/* แช่แข็งคอลัมน์ ลำดับ ใน Body */}
                                <td className="border border-gray-200 p-2 text-[12px] text-gray-500 bg-white group-hover:bg-gray-50 sticky left-0 z-30">{idx + 1}</td>
-                               {/* แช่แข็งคอลัมน์ ชื่อพนักงาน ใน Body (ปรับให้แคบลงสุดๆ และลดขอบซ้ายขวา) */}
                                <td className="border border-gray-200 border-r-gray-300 border-r-2 py-2 px-1.5 text-[13px] font-bold text-gray-700 text-left bg-white group-hover:bg-gray-50 sticky left-[45px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] max-w-[70px] w-[70px] truncate" title={emp}>{emp}</td>
                                
                                <td className="border border-gray-200 p-1.5 text-[10px] text-gray-600 bg-white group-hover:bg-gray-50 text-left">
                                   {(() => {
-                                     // ดึงข้อมูลเฉพาะวันลางาน (ไม่เอาวันหยุด)
                                      const empLeaves = events.filter(ev => ev.type === 'leave' && ev.assignee === emp && ev.date.startsWith(`${year}-`));
                                      const stats = { 'ลาป่วย': 0, 'ลากิจ': 0, 'ลาพักร้อน': 0, 'ลางานศพ': 0, 'ลาคลอด': 0, 'ลาบวช': 0, 'ไม่ระบุ': 0 };
                                      
-                                     // นับสถิติ (รองรับครึ่งวัน = 0.5, ข้อมูลเก่าที่ไม่มีค่าให้ตีเป็น 1)
                                      empLeaves.forEach(ev => { 
                                          const increment = ev.leaveDuration === 'half' ? 0.5 : 1;
                                          if (ev.leaveType && stats[ev.leaveType] !== undefined) stats[ev.leaveType] += increment; 
@@ -2888,7 +2866,6 @@ ${promptAction}`;
                                                <div onClick={() => openLeaveDetails('ลาบวช')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}`}>บวช: {stats['ลาบวช']}/-</div>
                                                {stats['ไม่ระบุ'] > 0 && <div onClick={() => openLeaveDetails('ไม่ระบุ')} className="text-red-500 col-span-2 hover:bg-red-100 rounded px-1 font-bold">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
                                             </div>
-                                            {/* ปุ่มดูประวัติทั้งหมด */}
                                             <button onClick={() => openLeaveDetails('all')} className="mt-auto w-full py-1.5 text-[10px] font-bold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded flex items-center justify-center transition-colors shadow-sm border border-brand/20">
                                                 <Icon name="ListTodo" size={12} className="mr-1" /> ประวัติการลา
                                             </button>
@@ -2914,7 +2891,6 @@ ${promptAction}`;
                                        else if(lvType === 'ลาคลอด') label = 'คลอด';
                                        else if(lvType === 'ลาบวช') label = 'บวช';
                                        else label = 'ลา';
-                                       // เพิ่มสัญลักษณ์ถ้าเป็นครึ่งวัน
                                        if (cellEv.find(e=>e.type==='leave')?.leaveDuration === 'half') label += ' ½';
                                    }
                                  }
@@ -2952,18 +2928,40 @@ ${promptAction}`;
                  <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Startup Up Logo" className="h-[65px] object-contain drop-shadow-sm" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
               </div>
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1.5 custom-scrollbar bg-transparent" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                <div className="w-full px-2 pt-2 pb-3 relative z-10 bg-transparent">
-                    <span className="text-[13px] font-bold text-gray-400 tracking-widest uppercase block leading-loose">เมนูระบบ</span>
+                <div className="w-full px-2 pt-2 pb-1 relative z-10 bg-transparent">
+                    <span className="text-[13px] font-bold text-gray-400 tracking-widest uppercase block mb-3">เมนูระบบ</span>
+                    
+                    {/* 💡 ช่องพิมพ์ค้นหาเมนู */}
+                    <div className="relative mb-2">
+                        <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหาเมนู..." 
+                            value={menuSearchQuery}
+                            onChange={(e) => setMenuSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-8 py-2.5 bg-white border border-gray-200 rounded-xl text-[13px] outline-none focus:border-brand transition-all shadow-sm"
+                        />
+                        {menuSearchQuery && (
+                            <button onClick={() => setMenuSearchQuery('')} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <Icon name="X" size={14} />
+                            </button>
+                        )}
+                    </div>
                 </div>
-                {MAIN_MENUS.map(menu => {
+                
+                {/* 💡 กรองเมนูตามคำที่ค้นหา */}
+                {MAIN_MENUS.filter(menu => menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase())).map(menu => {
                   const isActive = activeApp === menu.id;
                   return (
-                    <button key={menu.id} onClick={() => { setActiveApp(menu.id); setSelectedUser('All'); setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 shrink-0 ${isActive ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}>
+                    <button key={menu.id} onClick={() => { setActiveApp(menu.id); setSelectedUser('All'); setIsSidebarOpen(false); setMenuSearchQuery(''); }} className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 shrink-0 ${isActive ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'}`}>
                       <Icon name={menu.icon} size={20} className={`${isActive ? 'text-brand' : 'text-gray-400'}`} />
                       <span className="text-[14px]">{menu.label}</span>
                     </button>
                   )
                 })}
+                {MAIN_MENUS.filter(menu => menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase())).length === 0 && (
+                    <div className="text-center py-6 text-[12px] font-medium text-gray-400">ไม่พบเมนูที่ค้นหา</div>
+                )}
               </div>
             </div>
 
@@ -3076,7 +3074,6 @@ ${promptAction}`;
                             <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ประเภทการลา</label>
                             <select required value={formData.leaveType} onChange={e => {
                                 const selectedType = e.target.value;
-                                // 💡 ถ้าไม่ใช่ลาป่วย ให้โดนบังคับรีเซ็ตเป็น "เต็มวัน" อัตโนมัติ
                                 setFormData({...formData, leaveType: selectedType, leaveDuration: selectedType === 'ลาป่วย' ? formData.leaveDuration : 'full'});
                             }} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-orange-500 transition-all text-[14px] text-gray-700">
                               <option value="" disabled hidden>-- กรุณาเลือก --</option>
@@ -3084,7 +3081,6 @@ ${promptAction}`;
                             </select>
                           </div>
                           
-                          {/* 💡 ซ่อน/แสดง ตัวเลือกระยะเวลา โผล่มาเฉพาะตอนเลือก "ลาป่วย" */}
                           {formData.leaveType === 'ลาป่วย' && (
                               <div>
                                 <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ระยะเวลา</label>
@@ -3295,7 +3291,6 @@ ${promptAction}`;
 
             {/* Modal ดูรายละเอียดการลา */}
             {leaveDetailsData && (() => {
-              // จัดการชื่อหัวข้อให้แสดงผลถูกต้อง
               const titleType = leaveDetailsData.type === 'all' ? 'การลางานทั้งหมด' : (leaveDetailsData.type === 'ไม่ระบุ' ? 'การลาที่รอระบุประเภท' : leaveDetailsData.type);
               
               return (
@@ -3312,7 +3307,6 @@ ${promptAction}`;
                     {leaveDetailsData.leaves.length > 0 ? (
                       <div className="space-y-3">
                         {leaveDetailsData.leaves.map((lv, idx) => {
-                           // จัดสีป้ายกำกับตามประเภทการหยุด
                            const badgeStyle = lv.leaveType ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-red-100 text-red-800 border-red-200';
                            const badgeLabel = lv.leaveType || 'รอระบุประเภท';
                            
@@ -3326,7 +3320,6 @@ ${promptAction}`;
                                   <span className="font-bold text-gray-700">หมายเหตุ: </span>
                                   {lv.note ? <span className="whitespace-pre-wrap leading-relaxed">{lv.note}</span> : <span className="text-gray-400 italic">ไม่มีการระบุหมายเหตุเพิ่มเติม</span>}
                                 </div>
-                                {/* ปุ่มแก้ไข */}
                                 <button onClick={() => { setLeaveDetailsData(null); handleOpenModal(null, lv); }} className="absolute bottom-4 right-4 text-gray-400 hover:text-brand bg-white p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 shadow-sm" title="แก้ไข">
                                    <Icon name="Edit" size={14} />
                                 </button>
