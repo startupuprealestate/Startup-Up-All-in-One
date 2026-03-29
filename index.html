@@ -2521,7 +2521,7 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
 
-      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล)
+      // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (เชื่อมฐานข้อมูล + แก้จอขาว 100%)
       useEffect(() => {
         if (!isFirebaseLoaded || !window.firebaseAuth) return;
         
@@ -2532,26 +2532,27 @@ ${promptAction}`;
               setUser(firebaseUser);
               setAccessStatus('checking');
 
-              // 🛡️ จุดแก้จอขาวที่ 2: ดักจับอีเมลเผื่อระบบ Google ส่งมาไม่สมบูรณ์
-              const rawEmail = firebaseUser.email || '';
-              const userEmail = rawEmail.toLowerCase();
-              
+              // ดักจับ Error กรณีอีเมลไม่มา
+              const userEmail = firebaseUser.email ? firebaseUser.email.toLowerCase() : '';
               if (!userEmail) {
-                  setErrorMessage('ไม่พบข้อมูลอีเมลจากบัญชี Google นี้ค่ะ');
+                  setErrorMessage('ดึงอีเมลไม่สำเร็จ กรุณาล็อกอินใหม่');
                   setAccessStatus('denied');
                   setIsAuthLoaded(true);
                   return;
               }
 
-              const isAdminEmail = ADMIN_EMAILS.includes(userEmail);
-              
+              // กำหนดอีเมลแอดมิน (เข้าได้เลยไม่ต้องรอ)
+              const isAdminEmail = ['startup.up.real.estate@gmail.com'].includes(userEmail); 
+
               try {
                   const userRef = window.firebaseAPI.doc(window.firebaseDB, "users", userEmail);
+                  
                   unsubscribeUser = window.firebaseAPI.onSnapshot(userRef, 
                       (docSnap) => {
                           if (docSnap.exists()) {
                               const userData = docSnap.data();
                               if (userData.status === 'approved' || isAdminEmail) {
+                                  // แอบอัปเดตสิทธิ์แอดมินให้อัตโนมัติ
                                   if (isAdminEmail && userData.status !== 'approved') {
                                       window.firebaseAPI.updateDoc(userRef, { status: 'approved', role: 'admin' }).catch(()=>{});
                                   }
@@ -2560,6 +2561,7 @@ ${promptAction}`;
                                   setAccessStatus('waitlist');
                               }
                           } else {
+                              // ถ้ายังไม่มีชื่อในระบบ ให้สร้างใหม่
                               window.firebaseAPI.setDoc(userRef, {
                                   email: userEmail,
                                   name: firebaseUser.displayName || 'ไม่ระบุชื่อ',
@@ -2570,20 +2572,25 @@ ${promptAction}`;
                               }).then(() => {
                                   setAccessStatus(isAdminEmail ? 'granted' : 'waitlist');
                               }).catch(err => {
-                                  setErrorMessage('บันทึกข้อมูลล้มเหลว: ' + err.message);
+                                  setErrorMessage('บันทึกข้อมูลไม่สำเร็จ');
                                   setAccessStatus('denied');
                               });
                           }
                           setIsAuthLoaded(true);
                       },
                       (error) => {
-                          setErrorMessage('ดึงข้อมูลไม่ได้ (ตรวจสอบ Rules ใน Firebase)');
-                          setAccessStatus('denied');
+                          console.error("User Fetch Error:", error);
+                          // ตัวกันกระแทก: ถ้าฐานข้อมูลพัง แอดมินต้องยังเข้าได้ ไม่จอขาว
+                          if (isAdminEmail) {
+                              setAccessStatus('granted');
+                          } else {
+                              setErrorMessage('ฐานข้อมูลถูกล็อก กรุณาติดต่อแอดมิน');
+                              setAccessStatus('denied');
+                          }
                           setIsAuthLoaded(true);
                       }
                   );
               } catch (err) {
-                  setErrorMessage('ระบบขัดข้อง: ' + err.message);
                   setAccessStatus('denied');
                   setIsAuthLoaded(true);
               }
