@@ -1661,19 +1661,7 @@ ${promptAction}`;
         const handleDownloadSingle = async (url, filename) => {
             try {
                 if (navigator.canShare && window.innerWidth < 768) {
-                    const response = await fetch('/api/trigger', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        action: 'leave',
-        data: {
-            assignee: "บิว", 
-            leaveType: "ลากิจ",
-            date: "30 มี.ค. - 31 มี.ค. 69",
-            reason: "ไปทำธุระที่ธนาคาร"
-        }
-    })
-});
+                    const response = await fetch(url);
                     const blob = await response.blob();
                     const file = new File([blob], filename || 'New_Home.jpg', { type: blob.type });
                     
