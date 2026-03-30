@@ -3133,21 +3133,19 @@ ${promptAction}`;
           );
       }
 
-      // 🛑 หน้าล็อกอินด้วย Google (Denied) - เวอร์ชัน Minimalist ที่สุด
+      // 🛑 หน้าล็อกอินด้วย Google (Denied) - เวอร์ชันปรับระยะห่าง (ไม่มีปุ่มล็อกเอาท์)
       if (accessStatus === 'denied') {
           return (
             <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out">
-              <div className="bg-white p-12 rounded-3xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center gap-8 text-center relative">
+              <div className="bg-white p-10 md:p-12 rounded-3xl shadow-2xl w-full max-w-sm flex flex-col items-center justify-center text-center relative">
                   
-                  {/* ✅ ข้อความหัวข้อสีเขียวเข้ม */}
-                  <h2 className="text-xl font-bold text-[#0b3d1b] mb-12">ระบบจัดการหลังบ้าน</h2>
+                  {/* ✅ ข้อความหัวข้อสีเขียวเข้ม (ขยับลงมาใกล้ปุ่ม) */}
+                  <h2 className="text-xl font-bold text-[#0b3d1b] mb-6">Startup Up All in One</h2>
                   
-                  {errorMessage && <p className="text-red-500 text-[12px] font-bold bg-red-50 p-3 rounded-lg w-full text-center border border-red-200">{errorMessage}</p>}
+                  {errorMessage && <p className="text-red-500 text-[12px] font-bold bg-red-50 p-3 rounded-lg w-full text-center border border-red-200 mb-4">{errorMessage}</p>}
                   
-                  {/* ✅ ปุ่มล็อกอิน Google แบบคลีนๆ */}
+                  {/* ✅ ปุ่มล็อกอิน Google */}
                   <button onClick={handleGoogleSignIn} className="flex items-center justify-center gap-3.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 px-8 py-3 rounded-full text-[14px] font-bold shadow-sm transition-all w-full">
-                      
-                      {/* 💡 วาดโลโก้ G ด้วยโค้ด SVG (รับประกันรูปขึ้น 100% ไม่พึ่งลิงก์นอก) */}
                       <svg viewBox="0 0 48 48" className="w-5 h-5">
                           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
                           <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
@@ -3155,7 +3153,6 @@ ${promptAction}`;
                           <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
                           <path fill="none" d="M0 0h48v48H0z"></path>
                       </svg>
-
                       เข้าสู่ระบบด้วย Google
                   </button>
               </div>
@@ -3218,15 +3215,18 @@ ${promptAction}`;
                 })}
               </div>
 
-              {/* 💡 แถบโปรไฟล์และปุ่มล็อกเอาท์ด้านล่างเมนู */}
-              <div className="mt-auto border-t border-gray-100 p-4 bg-gray-50 flex items-center gap-3.5 z-20">
-                  <img src={user?.photoURL || 'https://via.placeholder.com/150'} alt={user?.displayName || 'User'} className="h-11 w-11 rounded-full border-2 border-brand/20 shadow-sm object-cover" />
-                  <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 text-[14px] truncate">{user?.displayName || 'ผู้ใช้งาน'}</p>
-                      <p className="text-gray-500 text-[11px] truncate">{user?.email || ''}</p>
+              {/* 💡 แถบโปรไฟล์และปุ่มล็อกเอาท์ด้านล่างเมนู (มีปุ่มออกระบบที่นี่ที่เดียว) */}
+              <div className="mt-auto border-t border-gray-100 p-4 bg-gray-50 flex flex-col gap-3 z-20 shrink-0">
+                  <div className="flex items-center gap-3.5">
+                      <img src={user?.photoURL || 'https://via.placeholder.com/150'} alt={user?.displayName || 'User'} className="h-10 w-10 rounded-full border-2 border-brand/20 shadow-sm object-cover shrink-0" />
+                      <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-900 text-[13px] truncate">{user?.displayName || 'ผู้ใช้งาน'}</p>
+                          <p className="text-gray-500 text-[10px] truncate">{user?.email || ''}</p>
+                      </div>
                   </div>
-                  <button onClick={handleSignOut} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="ออกจากระบบ">
-                      <Icon name="Zap" size={18} className="transform rotate-90" />
+                  {/* ✅ ปุ่มกดออกจากระบบแบบเต็มตา สังเกตง่าย */}
+                  <button onClick={handleSignOut} className="w-full py-2.5 flex items-center justify-center gap-2 text-red-500 hover:text-white hover:bg-red-500 bg-red-50 border border-red-100 rounded-xl transition-all font-bold text-[12px] shadow-sm">
+                      <Icon name="Zap" size={14} className="transform rotate-90" /> ออกจากระบบ
                   </button>
               </div>
             </div>
