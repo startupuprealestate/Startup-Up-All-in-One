@@ -1,86 +1,58 @@
 import admin from 'firebase-admin';
 
-// 1. ตรวจสอบการเชื่อมต่อ Firebase Admin
+// 💡 1. ยืนยันตัวตนกับ Firebase (ดึงรหัสจาก Vercel Environment)
 if (!admin.apps.length) {
-  // ดึงค่า JSON ก้อนใหญ่ที่พี่ตั้งไว้ มาแปลงเป็น Object
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            // แก้ปัญหาการอ่านเว้นบรรทัดของ Private Key ใน Vercel
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+    });
 }
 
 export default async function handler(req, res) {
-  // รับเฉพาะ POST Request เท่านั้น
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
+    // รับเฉพาะคำสั่ง POST
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  try {
     const { action, data } = req.body;
-    let title = 'มีการอัปเดตใหม่ในระบบ';
-    let body = 'คลิกเพื่อดูรายละเอียด';
-
-    // 2. จัดเตรียมข้อความแจ้งเตือนตาม Action ที่ส่งมาจากหน้าเว็บ
-    if (action === 'leave') {
-      title = `แจ้งเตือน: ${data.leaveType || 'การลางาน'} 📅`;
-      body = `คุณ ${data.assignee} ได้เพิ่มรายการ${data.leaveType || 'ลา'} ในวันที่ ${data.date}`;
-    } else if (action === 'house') {
-      title = 'อัปเดต: บ้านทำเสร็จแล้ว 🏠';
-      body = `โครงการ ${data.houseName} ลงวันที่ตรวจรับทำเสร็จเรียบร้อยแล้ว`;
-    }
-
-    // 3. ดึง Token ของมือถือ/คอม "ทุกเครื่อง" จากคอลเลกชัน fcm_tokens
     const db = admin.firestore();
-    const tokensSnapshot = await db.collection('fcm_tokens').get();
-    
-    if (tokensSnapshot.empty) {
-      return res.status(200).json({ message: 'ยังไม่มีใครกดอนุญาตรับการแจ้งเตือนในระบบเลยค่ะ' });
+
+    try {
+        // 💡 2. ไปกวาด Token มือถือของทุกคนในบริษัทมา
+        const tokensSnap = await db.collection('fcm_tokens').get();
+        const allTokens = tokensSnap.docs.map(doc => doc.data().token).filter(Boolean);
+
+        if (allTokens.length === 0) return res.status(200).json({ message: 'ไม่มีเครื่องไหนเปิดรับการแจ้งเตือน' });
+
+        let payload = null;
+
+        // 💡 3. ตรวจสอบว่าเป็นการแจ้งเตือนแบบไหน
+        if (action === 'leave') {
+            payload = {
+                notification: {
+                    title: '📌 แจ้งเตือนวันหยุด/ลางานใหม่',
+                    body: `คุณ ${data.assignee} ได้ลง ${data.leaveType || 'วันหยุด'} วันที่ ${data.date}`
+                }
+            };
+        } else if (action === 'house') {
+            payload = {
+                notification: {
+                    title: '🏠 อัปเดตบ้านสร้างเสร็จ!',
+                    body: `โครงการ ${data.houseName} สร้างเสร็จเรียบร้อยแล้ว!`
+                }
+            };
+        }
+
+        // 💡 4. ยิงข้อความเข้ามือถือทุกคนพร้อมกัน
+        if (payload) {
+            await admin.messaging().sendEachForMulticast({ ...payload, tokens: allTokens });
+        }
+
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
-
-    // เอาเฉพาะ string token ออกมาใส่ Array
-    const tokens = tokensSnapshot.docs.map(doc => doc.data().token);
-
-    // 4. สร้าง Payload ส่งแบบหลายเครื่อง
-    const message = {
-      notification: { title, body },
-      tokens: tokens, // <--- ส่ง Token เข้าไปเป็น Array
-    };
-
-    // 5. สั่งยิงแจ้งเตือน
-    const response = await admin.messaging().sendEachForMulticast(message);
-    
-    // 6. ระบบทำความสะอาด: ลบ Token ที่หมดอายุ
-    if (response.failureCount > 0) {
-       const failedTokens = [];
-       response.responses.forEach((resp, idx) => {
-         if (!resp.success) {
-           if (resp.error.code === 'messaging/invalid-registration-token' ||
-               resp.error.code === 'messaging/registration-token-not-registered') {
-             failedTokens.push(tokens[idx]);
-           }
-         }
-       });
-       
-       if(failedTokens.length > 0) {
-           const batch = db.batch();
-           tokensSnapshot.docs.forEach(doc => {
-               if (failedTokens.includes(doc.data().token)) {
-                   batch.delete(doc.ref);
-               }
-           });
-           await batch.commit();
-       }
-    }
-
-    return res.status(200).json({ 
-        success: true, 
-        sentCount: response.successCount, 
-        failedCount: response.failureCount 
-    });
-
-  } catch (error) {
-    console.error('Error sending notification:', error);
-    return res.status(500).json({ error: error.message });
-  }
 }
