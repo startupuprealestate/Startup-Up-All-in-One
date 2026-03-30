@@ -1,89 +1,80 @@
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
 
-let isFirebaseInitialized = false;
-let initError = null;
-
-// ป้องกันการ Initialize ซ้ำ และดักจับ Error อย่างละเอียด
 if (!admin.apps.length) {
-  try {
-    if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-      throw new Error("ไม่พบตัวแปร FIREBASE_SERVICE_ACCOUNT ใน Vercel Environment Variables");
-    }
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
     });
-    isFirebaseInitialized = true;
-  } catch (error) {
-    console.error('Firebase Admin Init Error:', error);
-    initError = error.message;
-  }
-} else {
-  isFirebaseInitialized = true;
 }
 
-module.exports = async function handler(req, res) {
-  // ถ้าระบบหลังบ้านยังเชื่อมต่อ Firebase ไม่สำเร็จ ให้แสดง Error ทันที
-  if (!isFirebaseInitialized) {
-    return res.status(500).json({ 
-        error: "เชื่อมต่อ Firebase ไม่สำเร็จ", 
-        details: initError || "Unknown Init Error"
-    });
-  }
-
-  const db = admin.firestore();
-  const now = new Date();
-  
-  // หาวันที่ของ "พรุ่งนี้"
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  
-  try {
-    const tokensSnap = await db.collection('fcm_tokens').get();
-    const tokens = tokensSnap.docs.map(doc => doc.data().token);
+export default async function handler(req, res) {
+    const db = admin.firestore();
     
-    if (tokens.length === 0) return res.status(200).json({ message: 'No devices registered' });
+    // 💡 1. ดึงเวลาปัจจุบัน และแปลงเป็นเวลาประเทศไทย (UTC+7)
+    const now = new Date();
+    const thaiTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    const todayStr = `${thaiTime.getFullYear()}-${String(thaiTime.getMonth() + 1).padStart(2, '0')}-${String(thaiTime.getDate()).padStart(2, '0')}`;
 
-    // ดึงกิจกรรม (event) ทั้งหมด
-    const eventsSnap = await db.collection('events').where('type', '==', 'event').get();
-    const notifications = [];
-    const batch = db.batch();
+    try {
+        // 💡 2. ค้นหากิจกรรมทั้งหมดที่กำลังจะมาถึง
+        const eventsSnap = await db.collection('events').where('date', '>=', todayStr).get();
+        const notificationsToSend = [];
 
-    eventsSnap.forEach(doc => {
-      const ev = doc.data();
-      if (ev.time && ev.date && !ev.notified24h) {
-        const [y, m, d] = ev.date.split('-');
-        
-        // เช็คว่ากิจกรรมนี้ตรงกับ "วันพรุ่งนี้" หรือไม่
-        const isEventTomorrow = parseInt(y) === tomorrow.getFullYear() && 
-                                parseInt(m) === (tomorrow.getMonth() + 1) && 
-                                parseInt(d) === tomorrow.getDate();
-        
-        if (isEventTomorrow) {
-           notifications.push({
-             title: `🚨 พรุ่งนี้มี: ${ev.activity}`,
-             body: `เวลา: ${ev.time} น.\nผู้รับผิดชอบ: ${ev.assignee}\nหมายเหตุ: ${ev.note || '-'}`
-           });
-           batch.update(doc.ref, { notified24h: true });
+        eventsSnap.forEach(doc => {
+            const ev = doc.data();
+            // ข้ามถ้าไม่มีเวลา หรือไม่ได้ตั้งเตือนล่วงหน้า (ตั้งเป็น 0 หรือว่าง)
+            if (!ev.time || !ev.reminder || ev.reminder === "0") return;
+
+            const [evHour, evMin] = ev.time.split(':').map(Number);
+            const reminderMins = parseInt(ev.reminder);
+
+            // คำนวณเวลาที่กิจกรรมเริ่ม (ในไทย)
+            const [eY, eM, eD] = ev.date.split('-').map(Number);
+            const eventDateObj = new Date(eY, eM - 1, eD, evHour, evMin);
+
+            // ลบเวลาแจ้งเตือนล่วงหน้าออก จะได้ "เวลาที่ต้องแจ้งเตือนเป๊ะๆ"
+            const alertDateObj = new Date(eventDateObj.getTime() - (reminderMins * 60000));
+
+            // 💡 3. ตรวจสอบว่า "เวลาที่ต้องแจ้งเตือน" ตรงกับ "เวลาปัจจุบัน" (ระดับนาที) หรือไม่
+            if (
+                alertDateObj.getFullYear() === thaiTime.getFullYear() &&
+                alertDateObj.getMonth() === thaiTime.getMonth() &&
+                alertDateObj.getDate() === thaiTime.getDate() &&
+                alertDateObj.getHours() === thaiTime.getHours() &&
+                alertDateObj.getMinutes() === thaiTime.getMinutes()
+            ) {
+                // ถ้าตรงเป๊ะ ให้เตรียมส่งแจ้งเตือน
+                let timeText = reminderMins >= 1440 ? `${reminderMins/1440} วัน` : reminderMins >= 60 ? `${reminderMins/60} ชม.` : `${reminderMins} นาที`;
+                notificationsToSend.push({
+                    assignee: ev.assignee,
+                    title: '⏰ แจ้งเตือนกิจกรรม',
+                    body: `"${ev.activity}" จะเริ่มในอีก ${timeText} (เวลา ${ev.time} น.)`
+                });
+            }
+        });
+
+        // 💡 4. ส่งข้อความไปหาเจ้าของงานทีละคน
+        let sentCount = 0;
+        for (const alert of notificationsToSend) {
+            // หา Token ของพนักงานคนนั้น (ดูจากชื่อ)
+            const tokensSnap = await db.collection('fcm_tokens').where('ownerName', '==', alert.assignee).get();
+            const tokens = tokensSnap.docs.map(t => t.data().token).filter(Boolean);
+
+            if (tokens.length > 0) {
+                await admin.messaging().sendEachForMulticast({
+                    notification: { title: alert.title, body: alert.body },
+                    tokens: tokens
+                });
+                sentCount++;
+            }
         }
-      }
-    });
 
-    if (notifications.length > 0) {
-      const messages = notifications.map(notif => ({
-         notification: notif,
-         tokens: tokens
-      }));
-      
-      for (const msg of messages) {
-         await admin.messaging().sendEachForMulticast(msg);
-      }
-      await batch.commit();
+        res.status(200).json({ success: true, message: `Checked events. Sent ${sentCount} reminders.` });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
     }
-
-    res.status(200).json({ sentCount: notifications.length });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
-  }
 }
