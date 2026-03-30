@@ -2462,6 +2462,125 @@ ${promptAction}`;
         );
     };
     
+    const ReminderPickerComponent = ({ value, onChange }) => {
+  // แปลงนาทีรวม เป็น ชั่วโมง และ นาที
+  const totalMins = parseInt(value || 0);
+  const initialHour = String(Math.floor(totalMins / 60)).padStart(2, '0');
+  const initialMinute = String(totalMins % 60).padStart(2, '0');
+
+  const [selectedHour, setSelectedHour] = useState(initialHour);
+  const [selectedMinute, setSelectedMinute] = useState(initialMinute);
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
+
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+  // อัปเดต state เมื่อข้อมูลจากหน้าหลักเปลี่ยน
+  useEffect(() => {
+    setSelectedHour(String(Math.floor(parseInt(value || 0) / 60)).padStart(2, '0'));
+    setSelectedMinute(String(parseInt(value || 0) % 60).padStart(2, '0'));
+  }, [value]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        setShowPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [pickerRef]);
+
+  const handleDesktopSelect = (hour, minute) => {
+    onChange((parseInt(hour) * 60 + parseInt(minute)).toString());
+    setShowPicker(false);
+  };
+
+  const handleMobileSubmit = () => {
+    onChange((parseInt(selectedHour) * 60 + parseInt(selectedMinute)).toString());
+    setShowPicker(false);
+  };
+
+  const handleReset = () => {
+    setSelectedHour('00');
+    setSelectedMinute('00');
+  };
+
+  // ข้อความแสดงผลในปุ่ม
+  const displayTime = (selectedHour === '00' && selectedMinute === '00') 
+    ? "เตือนเมื่อถึงเวลา" 
+    : `${selectedHour} ชม. ${selectedMinute} นาที`;
+
+  return (
+    <div className="w-full">
+      <label className="block text-[13px] font-bold text-gray-600 mb-1.5 flex items-center">
+         {/* เปลี่ยนชื่อ Icon เป็น "Bell" หรือ "lucide:bell" ตามที่โปรเจกต์พี่บิวใช้นะคะ */}
+         <Icon icon="lucide:bell" className="mr-1" /> เตือนล่วงหน้า
+      </label>
+      <div className="relative" ref={pickerRef}>
+        <button
+          type="button"
+          onClick={() => setShowPicker(!showPicker)}
+          className="w-full px-3 py-2.5 bg-brand/5 border border-brand/20 rounded-[8px] flex items-center justify-between outline-none focus:border-brand text-[14px] font-bold text-brand shadow-sm cursor-pointer"
+        >
+          <span>{displayTime}</span>
+          <Icon icon="lucide:chevron-down" className="text-brand/70" />
+        </button>
+
+        {/* 1. Desktop Time Picker Overlay */}
+        <div className={`absolute top-full right-0 z-20 mt-1 bg-white border border-gray-200 rounded-[8px] shadow-lg md:block hidden ${showPicker ? 'block' : 'hidden'}`}>
+          <div className="flex h-48 overflow-hidden">
+            <div className="w-20 border-r border-gray-100 overflow-y-auto no-scrollbar scroll-snap-type-y-mandatory">
+              {hours.map(hour => (
+                <button key={`h-${hour}`} type="button" onClick={() => { setSelectedHour(hour); handleDesktopSelect(hour, selectedMinute); }} className={`block w-full text-center px-4 py-2.5 text-sm ${selectedHour === hour ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {hour}
+                </button>
+              ))}
+            </div>
+            <div className="w-20 overflow-y-auto no-scrollbar scroll-snap-type-y-mandatory">
+              {minutes.map(minute => (
+                <button key={`m-${minute}`} type="button" onClick={() => { setSelectedMinute(minute); handleDesktopSelect(selectedHour, minute); }} className={`block w-full text-center px-4 py-2.5 text-sm ${selectedMinute === minute ? 'bg-brand/10 text-brand font-bold' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  {minute}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Mobile Time Picker Modal Overlay */}
+        {showPicker && (
+          <div className="fixed inset-0 z-[101] bg-black/60 flex items-end md:hidden" onClick={() => setShowPicker(false)}>
+            <div className="bg-white rounded-t-xl w-full max-w-sm p-5 relative shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-3">
+                 <button type="button" onClick={handleReset} className="text-gray-600 text-[14px] font-medium">รีเซ็ต</button>
+                 <span className="text-lg font-semibold text-gray-800">เตือนล่วงหน้า</span>
+                 <button type="button" onClick={handleMobileSubmit} className="text-brand text-[14px] font-bold">ยืนยัน</button>
+              </div>
+              
+              <div className="relative h-48 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center shadow-inner">
+                 <div className="absolute inset-x-0 h-10 bg-brand/5 border-t border-b border-brand/10" style={{top: 'calc(50% - 20px)'}}></div>
+                 <div className="flex h-full w-full max-w-xs justify-center items-center overflow-hidden">
+                    <div className="w-1/2 h-full overflow-y-auto no-scrollbar ios-wheel-scroller">
+                        {hours.map(hour => (
+                            <div key={`mh-${hour}`} className={`flex items-center justify-center text-lg font-bold ios-wheel-item ${selectedHour === hour ? 'text-brand' : 'text-gray-700'}`} onClick={() => setSelectedHour(hour)}>{hour} ชม.</div>
+                        ))}
+                    </div>
+                    <div className="w-1/2 h-full overflow-y-auto no-scrollbar ios-wheel-scroller">
+                        {minutes.map(minute => (
+                            <div key={`mm-${minute}`} className={`flex items-center justify-center text-lg font-bold ios-wheel-item ${selectedMinute === minute ? 'text-brand' : 'text-gray-700'}`} onClick={() => setSelectedMinute(minute)}>{minute} นาที</div>
+                        ))}
+                    </div>
+                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+    
     function App() {
       // 💡 ตัวแปรระบบ Login
       const [user, setUser] = useState(null); 
@@ -3350,25 +3469,46 @@ ${promptAction}`;
                                 </select>
                               </div>
                               
-                              {/* 💡 อัปเกรด 2: เปลี่ยนเป็นปุ่มกด ลด/เพิ่ม ตัวเลขด้านหน้าและหลัง */}
+                              {/* 💡 อัปเกรด: เปลี่ยนช่องเตือนล่วงหน้าเป็นแบบ ชั่วโมง : นาที */}
                               <div>
-                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5 flex items-center"><Icon name="Bell" size={14} className="mr-1"/> เตือนล่วงหน้า (นาที)</label>
-                                <div className="flex items-center justify-between bg-white border border-gray-300 rounded-[8px] p-1.5 shadow-sm">
-                                    {/* ปุ่มด้านหน้า (ลดเวลา ทีละ 5 นาที) */}
-                                    <button type="button" onClick={() => setFormData(p => ({...p, reminder: Math.max(0, parseInt(p.reminder||0) - 5).toString()}))} className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-gray-600 rounded-md transition-colors shrink-0">
-                                        <Icon name="Minus" size={18}/>
-                                    </button>
+                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5 flex items-center">
+                                    <Icon name="Bell" size={14} className="mr-1"/> เตือนล่วงหน้า
+                                </label>
+                                <div className="flex space-x-2 items-center">
                                     
-                                    {/* ตัวเลขตรงกลาง (กดพิมพ์เองได้ด้วย) */}
-                                    <div className="flex items-baseline flex-1 justify-center">
-                                        <input type="number" value={formData.reminder} onChange={e => setFormData({...formData, reminder: e.target.value})} className="w-12 text-center font-black text-[18px] text-brand outline-none bg-transparent" />
-                                        <span className="text-[12px] font-bold text-gray-500 ml-1">นาที</span>
-                                    </div>
+                                    {/* กล่องเลือกชั่วโมง */}
+                                    <select 
+                                        value={Math.floor(parseInt(formData.reminder || 0) / 60)} 
+                                        onChange={e => {
+                                            const newHours = parseInt(e.target.value);
+                                            const currentMins = parseInt(formData.reminder || 0) % 60;
+                                            setFormData({...formData, reminder: ((newHours * 60) + currentMins).toString()});
+                                        }}
+                                        className="flex-1 px-2 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 font-bold text-center shadow-sm cursor-pointer"
+                                    >
+                                        {Array.from({length: 24}, (_, i) => (
+                                            <option key={`rem-h-${i}`} value={i}>{i} ชม.</option>
+                                        ))}
+                                    </select>
 
-                                    {/* ปุ่มด้านหลัง (เพิ่มเวลา ทีละ 5 นาที) */}
-                                    <button type="button" onClick={() => setFormData(p => ({...p, reminder: (parseInt(p.reminder||0) + 5).toString()}))} className="w-10 h-10 flex items-center justify-center bg-brand/10 hover:bg-brand/20 text-brand rounded-md transition-colors shrink-0">
-                                        <Icon name="Plus" size={18}/>
-                                    </button>
+                                    <span className="font-bold text-gray-400">:</span>
+
+                                    {/* กล่องเลือกนาที */}
+                                    <select 
+                                        value={parseInt(formData.reminder || 0) % 60} 
+                                        onChange={e => {
+                                            const currentHours = Math.floor(parseInt(formData.reminder || 0) / 60);
+                                            const newMins = parseInt(e.target.value);
+                                            setFormData({...formData, reminder: ((currentHours * 60) + newMins).toString()});
+                                        }}
+                                        className="flex-1 px-2 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 font-bold text-center shadow-sm cursor-pointer"
+                                    >
+                                        {/* สร้างตัวเลือกนาที ทีละ 5 นาที จะได้เลือกง่ายๆ ค่ะ */}
+                                        {Array.from({length: 12}, (_, i) => i * 5).map(m => (
+                                            <option key={`rem-m-${m}`} value={m}>{m} นาที</option>
+                                        ))}
+                                    </select>
+
                                 </div>
                               </div>
                           </div>
