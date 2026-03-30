@@ -28,13 +28,22 @@ export default async function handler(req, res) {
         let payload = null;
 
         // 💡 3. ตรวจสอบว่าเป็นการแจ้งเตือนแบบไหน
-        if (action === 'leave') {
-            payload = {
-                notification: {
-                    title: '📌 แจ้งเตือนวันหยุด/ลางานใหม่',
-                    body: `คุณ ${data.assignee} ได้ลง ${data.leaveType || 'วันหยุด'} วันที่ ${data.date}`
-                }
-            };
+if (action === 'leave') {
+    // ดึงข้อมูลรายละเอียดการลา (ตรวจสอบชื่อตัวแปรให้ตรงกับที่ส่งมาจากหน้าบ้านนะคะ)
+    const requester = data.assignee || 'สมาชิกในทีม';
+    const type = data.leaveType || 'ลางาน';
+    const dateRange = data.date || '-';
+    const reason = data.reason || 'ไม่ได้ระบุเหตุผล';
+
+    payload = {
+        notification: {
+            title: '📢 แจ้งลางาน',
+            body: `คุณ ${requester} ขอลง ${type}\nวันที่: ${dateRange}\nเหตุผล: ${reason}`,
+            icon: 'https://startup-up-all-in-one.vercel.app/icon-192x192.png',
+            badge: 'https://startup-up-all-in-one.vercel.app/icon-192x192.png'
+        }
+    };
+}
         } else if (action === 'house') {
             payload = {
                 notification: {
