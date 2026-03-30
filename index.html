@@ -78,7 +78,7 @@
     // 💡 เพิ่มระบบ Auth และระบบบังคับจำล็อกอิน (Persistence)
     import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
     
-    const firebaseConfig = { apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", storageBucket: "startupuprealestate-e4b0a.firebasestorage.app", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
+    const firebaseConfig = { apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app); // 💡 เปิดใช้งาน Auth
@@ -2762,41 +2762,39 @@ ${promptAction}`;
         if (!isFirebaseLoaded || !user || accessStatus !== 'granted') return;
 
         const initMessaging = async () => {
+    try {
+        console.log("เริ่มเช็ค Messaging..."); // ดูใน Console ว่าข้อความนี้ขึ้นไหม
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        
+        const getAndSaveToken = async () => {
             try {
-                const registration = await navigator.serviceWorker.register('/sw.js');
-                const getAndSaveToken = async () => {
-                    const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
-                        vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
-                        serviceWorkerRegistration: registration 
-                    }); 
-                    if (token) {
-                        await window.firebaseAPI.setDoc(
-                            window.firebaseAPI.doc(window.firebaseDB, "fcm_tokens", token), 
-                            { 
-                                token: token, 
-                                device: navigator.userAgent, 
-                                ownerEmail: user.email, // ผูกกับอีเมลเป๊ะๆ
-                                ownerName: user.displayName,
-                                updatedAt: new Date().toISOString() 
-                            }, 
-                            { merge: true }
-                        );
-                    }
-                };
-
-                if (Notification.permission === 'granted') getAndSaveToken();
-                else if (Notification.permission !== 'denied') {
-                    const handleFirstTouch = async () => {
-                        const permission = await Notification.requestPermission();
-                        if (permission === 'granted') getAndSaveToken();
-                        window.removeEventListener('click', handleFirstTouch);
-                        window.removeEventListener('touchstart', handleFirstTouch);
-                    };
-                    window.addEventListener('click', handleFirstTouch);
-                    window.addEventListener('touchstart', handleFirstTouch);
+                const token = await window.firebaseAPI.getToken(window.firebaseMessaging, { 
+                    vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
+                    serviceWorkerRegistration: registration 
+                }); 
+                if (token) {
+                    console.log("ได้ Token แล้ว:", token); // ถ้าขึ้นอันนี้แปลว่าสำเร็จ!
+                    // ... โค้ด setDoc เดิมของพี่บิว ...
+                } else {
+                    console.log("ไม่ได้ Token (User อาจจะยังไม่อนุญาต)");
                 }
-            } catch (e) { console.error('FCM Error:', e); }
+            } catch (e) {
+                console.error("Token Error:", e); // ดูว่าฟ้อง Quota exceeded ตรงนี้ไหม
+            }
         };
+
+        if (Notification.permission === 'granted') {
+            getAndSaveToken();
+        } else if (Notification.permission === 'default') {
+            // บังคับถาม
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') getAndSaveToken();
+        } else {
+            console.log("สถานะแจ้งเตือนปัจจุบันคือ:", Notification.permission); 
+            // ถ้าขึ้น 'denied' พี่บิวต้องไปปลดล็อกใน Settings > Notifications ของ iPhone ค่ะ
+        }
+    } catch (e) { console.error('FCM Init Error:', e); }
+};
 
         initMessaging();
         const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { console.log('มีแจ้งเตือน:', payload); });
