@@ -2,18 +2,26 @@ import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
     try {
-        // 💡 ล้างช่องว่างหรือเครื่องหมายคำพูดที่อาจแฝงมาหัวท้าย
-        const rawConfig = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
-        const serviceAccount = JSON.parse(rawConfig);
+        const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
         
+        // ตรวจสอบว่ามีข้อมูลไหม
+        if (!serviceAccountRaw) {
+            throw new Error("Missing FIREBASE_SERVICE_ACCOUNT environment variable");
+        }
+
+        // พยายามแปลงเป็น Object (รองรับทั้งแบบ String และ Object)
+        const serviceAccount = typeof serviceAccountRaw === 'string' 
+            ? JSON.parse(serviceAccountRaw.trim().replace(/^'|'$/g, '').replace(/^"|"$/g, ''))
+            : serviceAccountRaw;
+
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount)
         });
-        console.log("Firebase Admin Initialized Successfully!");
+        console.log("✅ Firebase Admin Connected!");
     } catch (error) {
-        console.error("Firebase Init Error:", error.message);
-        // แสดงค่าที่อ่านได้ออกมาดู (เบลอรหัสลับ) เพื่อเช็คว่ามาครบไหม
-        console.log("Config length:", process.env.FIREBASE_SERVICE_ACCOUNT?.length);
+        console.error("❌ Firebase Init Error:", error.message);
+        // ส่ง Error กลับไปที่หน้า Log เพื่อดูว่าค่าที่อ่านได้คืออะไร (เอาแค่ 20 ตัวแรกเพื่อความปลอดภัย)
+        throw new Error(`Init Failed: ${error.message}. Data start with: ${process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 20)}`);
     }
 }
 
