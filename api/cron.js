@@ -1,28 +1,14 @@
 import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
-    try {
-        const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
-        
-        // ตรวจสอบว่ามีข้อมูลไหม
-        if (!serviceAccountRaw) {
-            throw new Error("Missing FIREBASE_SERVICE_ACCOUNT environment variable");
-        }
-
-        // พยายามแปลงเป็น Object (รองรับทั้งแบบ String และ Object)
-        const serviceAccount = typeof serviceAccountRaw === 'string' 
-            ? JSON.parse(serviceAccountRaw.trim().replace(/^'|'$/g, '').replace(/^"|"$/g, ''))
-            : serviceAccountRaw;
-
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-        });
-        console.log("✅ Firebase Admin Connected!");
-    } catch (error) {
-        console.error("❌ Firebase Init Error:", error.message);
-        // ส่ง Error กลับไปที่หน้า Log เพื่อดูว่าค่าที่อ่านได้คืออะไร (เอาแค่ 20 ตัวแรกเพื่อความปลอดภัย)
-        throw new Error(`Init Failed: ${error.message}. Data start with: ${process.env.FIREBASE_SERVICE_ACCOUNT?.substring(0, 20)}`);
-    }
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            // 💡 บรรทัดนี้สำคัญมาก: มันจะเปลี่ยน \n ใน Vercel ให้เป็นบรรทัดใหม่ที่ Firebase อ่านออก
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+    });
 }
 
 export default async function handler(req, res) {
