@@ -3469,47 +3469,60 @@ ${promptAction}`;
                                 </select>
                               </div>
                               
-                              {/* 💡 อัปเกรด: เปลี่ยนช่องเตือนล่วงหน้าเป็นแบบ ชั่วโมง : นาที */}
-                              <div>
+                              {/* 💡 อัปเกรดล่าสุด: เลือกเตือนล่วงหน้า ก่อน (เลข) (หน่วย) */}
+                              <div className="flex flex-col justify-end">
                                 <label className="block text-[13px] font-bold text-gray-600 mb-1.5 flex items-center">
                                     <Icon name="Bell" size={14} className="mr-1"/> เตือนล่วงหน้า
                                 </label>
-                                <div className="flex space-x-2 items-center">
-                                    
-                                    {/* กล่องเลือกชั่วโมง */}
-                                    <select 
-                                        value={Math.floor(parseInt(formData.reminder || 0) / 60)} 
-                                        onChange={e => {
-                                            const newHours = parseInt(e.target.value);
-                                            const currentMins = parseInt(formData.reminder || 0) % 60;
-                                            setFormData({...formData, reminder: ((newHours * 60) + currentMins).toString()});
-                                        }}
-                                        className="flex-1 px-2 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 font-bold text-center shadow-sm cursor-pointer"
-                                    >
-                                        {Array.from({length: 24}, (_, i) => (
-                                            <option key={`rem-h-${i}`} value={i}>{i} ชม.</option>
-                                        ))}
-                                    </select>
+                                
+                                {/* ใช้ฟังก์ชันคำนวณแยกตัวเลขและหน่วยออกจากจำนวนนาทีรวม */}
+                                {(() => {
+                                    let totalMins = parseInt(formData.reminder || 0);
+                                    let unit = 'minutes';
+                                    let num = totalMins;
 
-                                    <span className="font-bold text-gray-400">:</span>
+                                    if (totalMins > 0 && totalMins % 1440 === 0) {
+                                        unit = 'days';
+                                        num = totalMins / 1440;
+                                    } else if (totalMins > 0 && totalMins % 60 === 0) {
+                                        unit = 'hours';
+                                        num = totalMins / 60;
+                                    }
 
-                                    {/* กล่องเลือกนาที */}
-                                    <select 
-                                        value={parseInt(formData.reminder || 0) % 60} 
-                                        onChange={e => {
-                                            const currentHours = Math.floor(parseInt(formData.reminder || 0) / 60);
-                                            const newMins = parseInt(e.target.value);
-                                            setFormData({...formData, reminder: ((currentHours * 60) + newMins).toString()});
-                                        }}
-                                        className="flex-1 px-2 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 font-bold text-center shadow-sm cursor-pointer"
-                                    >
-                                        {/* สร้างตัวเลือกนาที ทีละ 5 นาที จะได้เลือกง่ายๆ ค่ะ */}
-                                        {Array.from({length: 12}, (_, i) => i * 5).map(m => (
-                                            <option key={`rem-m-${m}`} value={m}>{m} นาที</option>
-                                        ))}
-                                    </select>
+                                    return (
+                                        <div className="flex space-x-2 items-center">
+                                            <span className="text-[13px] font-bold text-gray-500 whitespace-nowrap">ก่อน</span>
+                                            
+                                            {/* 1. กล่องกรอกตัวเลข */}
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                value={num} 
+                                                onChange={e => {
+                                                    const val = parseInt(e.target.value || 0);
+                                                    const multiplier = unit === 'days' ? 1440 : (unit === 'hours' ? 60 : 1);
+                                                    setFormData({...formData, reminder: (val * multiplier).toString()});
+                                                }}
+                                                className="w-16 px-2 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[15px] text-gray-800 font-bold text-center shadow-sm"
+                                            />
 
-                                </div>
+                                            {/* 2. กล่องเลือกหน่วยเวลา */}
+                                            <select 
+                                                value={unit} 
+                                                onChange={e => {
+                                                    const newUnit = e.target.value;
+                                                    const multiplier = newUnit === 'days' ? 1440 : (newUnit === 'hours' ? 60 : 1);
+                                                    setFormData({...formData, reminder: (num * multiplier).toString()});
+                                                }}
+                                                className="flex-1 px-2 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 font-bold shadow-sm cursor-pointer"
+                                            >
+                                                <option value="minutes">นาที</option>
+                                                <option value="hours">ชั่วโมง</option>
+                                                <option value="days">วัน</option>
+                                            </select>
+                                        </div>
+                                    );
+                                })()}
                               </div>
                           </div>
                         </>
