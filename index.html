@@ -2981,8 +2981,15 @@ ${promptAction}`;
           if (editingEventId) { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData); } 
           else {
               await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
+              
+              // 💡 ถ้าเป็นการลา ให้ส่งแจ้งเตือนพร้อมเหตุผล (note) ทันที
               if (eventData.type === 'leave') {
-                  fetch(`${window.VERCEL_API_URL}/api/trigger`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'leave', data: eventData }) }).catch(e => console.log('Vercel API error', e));
+                  sendNotification({
+                      assignee: eventData.assignee,
+                      leaveType: eventData.leaveType,
+                      date: eventData.date,
+                      reason: eventData.note 
+                  });
               }
           }
         } catch (error) { alert("พบข้อผิดพลาด กรุณาลองใหม่"); }
@@ -3814,6 +3821,22 @@ ${promptAction}`;
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
+    
+async function sendNotification(leaveData) {
+    try {
+        await fetch('/api/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'leave',
+                data: leaveData
+            })
+        });
+        console.log("Notification sent!");
+    } catch (e) {
+        console.error("Notification failed", e);
+    }
+}
   </script>
 </body>
 </html>
