@@ -29,12 +29,12 @@ export default async function handler(req, res) {
             const requester = data.assignee || 'สมาชิกในทีม';
             const type = data.leaveType || 'ลางาน';
             const dateRange = data.date || '-';
-            const reason = data.reason || 'ไม่ได้ระบุเหตุผล';
+            const reason = data.reason || data.note || data.details || 'ไม่ได้ระบุเหตุผล';
 
             payload = {
                 notification: {
-                    title: '📢 แจ้งลางานใหม่',
-                    body: `คุณ ${requester} ขอลง ${type}\nวันที่: ${dateRange}\nเหตุผล: ${reason}`,
+                    title: '🚨 แจ้งลางาน',
+                    body: `${requester} ${type}\nวันที่: ${dateRange}\nเหตุผล: ${reason}`,
                 },
                 // เพิ่มข้อมูลสำหรับ iOS ให้เด้งดีขึ้น
                 android: { priority: 'high' },
