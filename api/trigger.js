@@ -1,10 +1,20 @@
 import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
+    try {
+        // 💡 ล้างช่องว่างหรือเครื่องหมายคำพูดที่อาจแฝงมาหัวท้าย
+        const rawConfig = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+        const serviceAccount = JSON.parse(rawConfig);
+        
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log("Firebase Admin Initialized Successfully!");
+    } catch (error) {
+        console.error("Firebase Init Error:", error.message);
+        // แสดงค่าที่อ่านได้ออกมาดู (เบลอรหัสลับ) เพื่อเช็คว่ามาครบไหม
+        console.log("Config length:", process.env.FIREBASE_SERVICE_ACCOUNT?.length);
+    }
 }
 
 export default async function handler(req, res) {
