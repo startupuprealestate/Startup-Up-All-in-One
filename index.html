@@ -2982,12 +2982,15 @@ ${promptAction}`;
           else {
               await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
               
-              // 💡 ถ้าเป็นการลา ให้ส่งแจ้งเตือนพร้อมเหตุผล (note) ทันที
               if (eventData.type === 'leave') {
+                  // 💡 ส่วนที่แก้ไข: จาก join('/') เป็น join('-')
+                  // จะเปลี่ยนจาก ปี-เดือน-วัน (2026-03-30) เป็น วัน-เดือน-ปี (30-03-2026)
+                  const displayDate = eventData.date ? eventData.date.split('-').reverse().join('-') : '-';
+
                   sendNotification({
                       assignee: eventData.assignee,
                       leaveType: eventData.leaveType,
-                      date: eventData.date,
+                      date: displayDate, // ส่งวันที่รูปแบบใหม่ (วัน-เดือน-ปี)
                       reason: eventData.note 
                   });
               }
