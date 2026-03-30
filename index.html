@@ -2769,40 +2769,48 @@ ${promptAction}`;
 
     // 💡 2. สร้างฟังก์ชันขอ Token (จะถูกเรียกตอนกดปุ่ม)
     const requestAndSaveToken = async () => {
-      try {
+    try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          // ขอ Token จริงๆ
-          const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
-            vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
-            serviceWorkerRegistration: registration 
-          });
+            const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
+                vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
+                serviceWorkerRegistration: registration 
+            });
 
-          if (token) {
-            console.log("ได้ Token ของ iPhone แล้ว 🎉:", token);
-            // 💡 3. ถ้าล็อกอินอยู่ ให้ส่ง Token ไปเก็บใน Firestore
-            if (window.firebaseAuth?.currentUser) {
-              const user = window.firebaseAuth.currentUser;
-              await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseFirestore, "fcm_tokens", user.email), {
-                token: token,
-                ownerEmail: user.email,
-                ownerName: user.displayName || "Unknown User",
-                device: navigator.userAgent,
-                updatedAt: new Date().toISOString()
-              });
-              alert("เปิดการแจ้งเตือนสำเร็จแล้วค่ะ! ✅");
-              // ลบปุ่มกระตุ้นทิ้ง
-              document.getElementById('notification-blocker')?.remove();
+            if (token) {
+                console.log("ได้ Token แล้ว:", token);
+                
+                const user = window.firebaseAuth?.currentUser;
+                if (user) {
+                    // ตรวจสอบตัวแปร Firestore (db)
+                    const db = window.db || window.firebaseFirestore; 
+
+                    if (db) {
+                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
+                            token: token,
+                            ownerEmail: user.email,
+                            ownerName: user.displayName || "Unknown User",
+                            device: navigator.userAgent,
+                            updatedAt: new Date().toISOString()
+                        });
+                        alert("เปิดการแจ้งเตือนสำเร็จแล้ว! ✅");
+                        document.getElementById('notification-blocker')?.remove();
+                    } else {
+                        console.error("Firestore instance not found");
+                        alert("ระบบฐานข้อมูลยังไม่พร้อม กรุณารอสักครู่แล้วลองใหม่");
+                    }
+                } else {
+                    alert("กรุณาล็อกอินเข้าสู่ระบบก่อนเปิดการแจ้งเตือน");
+                }
             }
-          }
         } else {
-          alert("พี่บิวต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือนนะคะ!");
+            alert("ต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือน");
         }
-      } catch (error) {
-        console.error("Token Error ❌:", error);
+    } catch (error) {
+        console.error("Token Error:", error);
         alert(`เกิดข้อผิดพลาด: ${error.message}`);
-      }
-    };
+    }
+};
 
     // 💡 4. ตรวจสอบ Permission ปัจจุบัน
     if (Notification.permission === 'granted') {
@@ -2818,7 +2826,7 @@ ${promptAction}`;
       blocker.innerHTML = `
         <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; padding:20px; text-align:center;">
           <h2 style="color:white; margin-bottom:10px;">🔔 ต้องเปิดการแจ้งเตือนค่ะ! 🔔</h2>
-          <p style="color:white; margin-bottom:20px; font-size:14px;">เพื่อให้ระบบสามารถส่งแจ้งเตือนลา/งาน เข้ามือถือได้ทันทีค่ะ พี่บิวแค่กดปุ่มสีเขียวด้านล่าง แล้วรอหน้าต่างของ iPhone เด้งขึ้นมา... จากนั้นกด 'อนุญาต' (Allow) ก็เสร็จแล้วค่ะ!</p>
+          <p style="color:white; margin-bottom:20px; font-size:14px;">เพื่อให้ระบบสามารถส่งแจ้งเตือนลา/งาน เข้ามือถือได้ทันทีค่ะ แค่กดปุ่มสีเขียวด้านล่าง แล้วรอหน้าต่างของ iPhone เด้งขึ้นมา... จากนั้นกด 'อนุญาต' (Allow) ก็เสร็จแล้วค่ะ!</p>
           <button id="request-permission-btn" style="background:#28a745; color:white; padding:15px 30px; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer; width:100%; max-width:250px;">👉 กดเพื่อเปิดการแจ้งเตือน 👈</button>
         </div>
       `;
