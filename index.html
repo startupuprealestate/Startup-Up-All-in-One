@@ -1661,7 +1661,19 @@ ${promptAction}`;
         const handleDownloadSingle = async (url, filename) => {
             try {
                 if (navigator.canShare && window.innerWidth < 768) {
-                    const response = await fetch(url);
+                    const response = await fetch('/api/trigger', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        action: 'leave',
+        data: {
+            assignee: "บิว", 
+            leaveType: "ลากิจ",
+            date: "30 มี.ค. - 31 มี.ค. 69",
+            reason: "ไปทำธุระที่ธนาคาร"
+        }
+    })
+});
                     const blob = await response.blob();
                     const file = new File([blob], filename || 'New_Home.jpg', { type: blob.type });
                     
@@ -2516,7 +2528,7 @@ ${promptAction}`;
   return (
     <div className="w-full">
       <label className="block text-[13px] font-bold text-gray-600 mb-1.5 flex items-center">
-         {/* เปลี่ยนชื่อ Icon เป็น "Bell" หรือ "lucide:bell" ตามที่โปรเจกต์พี่บิวใช้นะคะ */}
+         {/* เปลี่ยนชื่อ Icon เป็น "Bell" หรือ "lucide:bell" ตามที่โปรเจกต์ใช้ */}
          <Icon icon="lucide:bell" className="mr-1" /> เตือนล่วงหน้า
       </label>
       <div className="relative" ref={pickerRef}>
@@ -2795,13 +2807,13 @@ ${promptAction}`;
         } else if (!user) {
           alert("กรุณาล็อกอินก่อนเปิดการแจ้งเตือนนะคะ");
         } else {
-          // ถ้ายังหา db ไม่เจออีก ให้ใช้คำสั่งเข้าถึงตรงๆ (ถ้าพี่ใช้แบบ CDN)
+          // ถ้ายังหา db ไม่เจออีก ให้ใช้คำสั่งเข้าถึงตรงๆ (ถ้าใช้แบบ CDN)
           console.error("Firestore not found, trying fallback...");
           alert("รอระบบฐานข้อมูลสักครู่ (ประมาณ 3 วินาที) แล้วลองกดใหม่อีกครั้งนะคะ");
         }
       }
     } else {
-      alert("พี่บิวต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือนนะคะ");
+      alert("ต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือน");
     }
   } catch (error) {
     console.error("Token Error:", error);
@@ -2815,7 +2827,7 @@ ${promptAction}`;
       requestAndSaveToken();
     } else if (Notification.permission === 'denied') {
       // ถ้าโดนปฏิเสธ ต้องบอกให้ไปเปิดใน Settings
-      alert("พี่บิวเคยปฏิเสธแจ้งเตือนไว้ค่ะ ต้องไปเปิดสวิตช์ใน Settings iPhone นะคะ!");
+      alert("เคยปฏิเสธแจ้งเตือนไว้ค่ะ ต้องไปเปิดสวิตช์ใน Settings iPhone!");
     } else {
       // 💡 5. สร้างปุ่มลอยกลางจอเพื่อกระตุ้น Permission
       const blocker = document.createElement('div');
