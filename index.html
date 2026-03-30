@@ -2510,7 +2510,8 @@ ${promptAction}`;
       const [contentChecklists, setContentChecklists] = useState({});
       const [constructionProgress, setConstructionProgress] = useState({});
       const [postTracking, setPostTracking] = useState({});
-      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full' });
+      // 💡 เพิ่มตัวแปร reminder (ตั้งเวลาเตือนล่วงหน้า)
+      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0' });
       const [houses, setHouses] = useState([]);
       const [aiMessages, setAiMessages] = useState([{ role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }]);
       const [sheetData, setSheetData] = useState([]);
@@ -2810,7 +2811,7 @@ ${promptAction}`;
         setEditingEventId(null); setIsModalOpen(true);
       };
 
-      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full' }); };
+      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0' }); };
 
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
@@ -3325,18 +3326,51 @@ ${promptAction}`;
                         <>
                           <div className="w-full">
                             <label className="block text-[13px] font-bold text-gray-600 mb-1.5">เวลา (ชั่วโมง : นาที)</label>
-                            <div className="flex space-x-2 items-center">
-                              <select value={formData.hour} onChange={e=>setFormData({...formData, hour:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{HOURS.map(h=><option key={h}>{h}</option>)}</select>
-                              <span className="font-bold text-gray-400">:</span>
-                              <select value={formData.minute} onChange={e=>setFormData({...formData, minute:e.target.value})} className="px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] flex-1 outline-none focus:border-brand text-center text-[14px] text-gray-700">{MINUTES.map(m=><option key={m}>{m}</option>)}</select>
-                            </div>
+                            {/* 💡 อัปเกรด 1: ใช้ Native Time Picker ให้มือถือเด้งวงล้อปัดเลื่อนตัวเลขขึ้นลงได้ */}
+                            <input 
+                                type="time" 
+                                required 
+                                value={`${formData.hour}:${formData.minute}`} 
+                                onChange={e => {
+                                    if(e.target.value) {
+                                        const [h, m] = e.target.value.split(':');
+                                        setFormData({...formData, hour: h, minute: m});
+                                    }
+                                }} 
+                                className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[15px] font-bold text-gray-700 text-center shadow-sm cursor-pointer"
+                            />
                           </div>
-                          <div>
-                            <label className="block text-[13px] font-bold text-gray-600 mb-1.5">สิ่งที่ต้องทำ</label>
-                            <select required value={formData.activity} onChange={e=>setFormData({...formData, activity:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700">
-                              <option value="" disabled hidden>ระบุสิ่งที่ต้องทำ</option>
-                              {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
-                            </select>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5">สิ่งที่ต้องทำ</label>
+                                <select required value={formData.activity} onChange={e=>setFormData({...formData, activity:e.target.value})} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 shadow-sm">
+                                  <option value="" disabled hidden>ระบุสิ่งที่ต้องทำ</option>
+                                  {ACTIVITIES.map(a => <option key={a}>{a}</option>)}
+                                </select>
+                              </div>
+                              
+                              {/* 💡 อัปเกรด 2: เปลี่ยนเป็นปุ่มกด ลด/เพิ่ม ตัวเลขด้านหน้าและหลัง */}
+                              <div>
+                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5 flex items-center"><Icon name="Bell" size={14} className="mr-1"/> เตือนล่วงหน้า (นาที)</label>
+                                <div className="flex items-center justify-between bg-white border border-gray-300 rounded-[8px] p-1.5 shadow-sm">
+                                    {/* ปุ่มด้านหน้า (ลดเวลา ทีละ 5 นาที) */}
+                                    <button type="button" onClick={() => setFormData(p => ({...p, reminder: Math.max(0, parseInt(p.reminder||0) - 5).toString()}))} className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-200 text-gray-600 rounded-md transition-colors shrink-0">
+                                        <Icon name="Minus" size={18}/>
+                                    </button>
+                                    
+                                    {/* ตัวเลขตรงกลาง (กดพิมพ์เองได้ด้วย) */}
+                                    <div className="flex items-baseline flex-1 justify-center">
+                                        <input type="number" value={formData.reminder} onChange={e => setFormData({...formData, reminder: e.target.value})} className="w-12 text-center font-black text-[18px] text-brand outline-none bg-transparent" />
+                                        <span className="text-[12px] font-bold text-gray-500 ml-1">นาที</span>
+                                    </div>
+
+                                    {/* ปุ่มด้านหลัง (เพิ่มเวลา ทีละ 5 นาที) */}
+                                    <button type="button" onClick={() => setFormData(p => ({...p, reminder: (parseInt(p.reminder||0) + 5).toString()}))} className="w-10 h-10 flex items-center justify-center bg-brand/10 hover:bg-brand/20 text-brand rounded-md transition-colors shrink-0">
+                                        <Icon name="Plus" size={18}/>
+                                    </button>
+                                </div>
+                              </div>
                           </div>
                         </>
                       )}
