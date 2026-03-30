@@ -81,6 +81,7 @@
     const firebaseConfig = { apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", authDomain: "startupuprealestate-e4b0a.firebaseapp.com", projectId: "startupuprealestate-e4b0a", messagingSenderId: "966000130004", appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    window.db = db; // 👈 เติมบรรทัดนี้ลงไป เพื่อให้ฟังก์ชันอื่นมองเห็นถังข้อมูลค่ะ
     const auth = getAuth(app); // 💡 เปิดใช้งาน Auth
     const messaging = getMessaging(app);
 
@@ -2767,49 +2768,45 @@ ${promptAction}`;
     const registration = await navigator.serviceWorker.register('/sw.js');
     console.log("Service Worker registered ✅");
 
-    // 💡 2. สร้างฟังก์ชันขอ Token (จะถูกเรียกตอนกดปุ่ม)
     const requestAndSaveToken = async () => {
-    try {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-            const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
-                vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
-                serviceWorkerRegistration: registration 
-            });
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
+        vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
+        serviceWorkerRegistration: registration 
+      });
 
-            if (token) {
-                console.log("ได้ Token แล้ว:", token);
-                
-                const user = window.firebaseAuth?.currentUser;
-                if (user) {
-                    // ตรวจสอบตัวแปร Firestore (db)
-                    const db = window.db || window.firebaseFirestore; 
+      if (token) {
+        // 💡 พยายามหาถังข้อมูล (db) จากทุกที่
+        const db = window.db || window.firebaseFirestore || (typeof db !== 'undefined' ? db : null);
+        const user = window.firebaseAuth?.currentUser;
 
-                    if (db) {
-                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
-                            token: token,
-                            ownerEmail: user.email,
-                            ownerName: user.displayName || "Unknown User",
-                            device: navigator.userAgent,
-                            updatedAt: new Date().toISOString()
-                        });
-                        alert("เปิดการแจ้งเตือนสำเร็จแล้ว! ✅");
-                        document.getElementById('notification-blocker')?.remove();
-                    } else {
-                        console.error("Firestore instance not found");
-                        alert("ระบบฐานข้อมูลยังไม่พร้อม กรุณารอสักครู่แล้วลองใหม่");
-                    }
-                } else {
-                    alert("กรุณาล็อกอินเข้าสู่ระบบก่อนเปิดการแจ้งเตือน");
-                }
-            }
+        if (db && user) {
+          await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
+            token: token,
+            ownerEmail: user.email,
+            ownerName: user.displayName || "Unknown User",
+            device: navigator.userAgent,
+            updatedAt: new Date().toISOString()
+          });
+          alert("เปิดการแจ้งเตือนสำเร็จแล้วค่ะ! ✅");
+          document.getElementById('notification-blocker')?.remove();
+        } else if (!user) {
+          alert("กรุณาล็อกอินก่อนเปิดการแจ้งเตือนนะคะ");
         } else {
-            alert("ต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือน");
+          // ถ้ายังหา db ไม่เจออีก ให้ใช้คำสั่งเข้าถึงตรงๆ (ถ้าพี่ใช้แบบ CDN)
+          console.error("Firestore not found, trying fallback...");
+          alert("รอระบบฐานข้อมูลสักครู่ (ประมาณ 3 วินาที) แล้วลองกดใหม่อีกครั้งนะคะ");
         }
-    } catch (error) {
-        console.error("Token Error:", error);
-        alert(`เกิดข้อผิดพลาด: ${error.message}`);
+      }
+    } else {
+      alert("พี่บิวต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือนนะคะ");
     }
+  } catch (error) {
+    console.error("Token Error:", error);
+    alert(`เกิดข้อผิดพลาด: ${error.message}`);
+  }
 };
 
     // 💡 4. ตรวจสอบ Permission ปัจจุบัน
