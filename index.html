@@ -2896,7 +2896,10 @@ ${promptAction}`;
                     <div className="flex items-center justify-between w-full">
                        <h2 className="text-[20px] font-extrabold text-gray-800 tracking-tight">ปฏิทินวางแผน</h2>
                        <div className="flex items-center gap-2">
-                           <button onClick={() => setIsDeleteMonthModalOpen(true)} className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"><Icon name="Trash" size={16} /></button>
+                           {/* 💡 ซ่อนปุ่มถังขยะในมือถือ โชว์เฉพาะแอดมิน */}
+                           {isAdmin && (
+                               <button onClick={() => setIsDeleteMonthModalOpen(true)} className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"><Icon name="Trash" size={16} /></button>
+                           )}
                            <button onClick={() => { setSelectedDayString(''); handleOpenModal(); }} className="flex items-center bg-brand text-white px-3 py-2 rounded-lg text-[13px] font-bold shadow-sm">
                               <Icon name="Plus" size={14} className="mr-1" /> เพิ่ม
                            </button>
@@ -2937,9 +2940,12 @@ ${promptAction}`;
                        </div>
                     </div>
                     <div className="flex items-center gap-3">
-                       <button onClick={() => setIsDeleteMonthModalOpen(true)} className="flex items-center gap-1.5 bg-[#ef4444] hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-[13px] font-bold transition-all shadow-sm">
-                          <Icon name="Trash" size={14} /> ลบเดือนนี้
-                       </button>
+                       {/* 💡 ซ่อนปุ่มลบเดือนนี้ โชว์เฉพาะแอดมิน */}
+                       {isAdmin && (
+                           <button onClick={() => setIsDeleteMonthModalOpen(true)} className="flex items-center gap-1.5 bg-[#ef4444] hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-[13px] font-bold transition-all shadow-sm">
+                              <Icon name="Trash" size={14} /> ลบเดือนนี้
+                           </button>
+                       )}
                        <button onClick={() => { setSelectedDayString(''); handleOpenModal(); }} className="flex items-center gap-1.5 bg-brand text-white px-5 py-2.5 rounded-lg text-[13px] font-bold shadow-md hover:bg-brandLight transition-all">
                           <Icon name="Plus" size={14} /> เพิ่มกิจกรรม
                        </button>
