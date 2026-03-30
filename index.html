@@ -2769,55 +2769,51 @@ ${promptAction}`;
     console.log("Service Worker registered ✅");
 
     const requestAndSaveToken = async () => {
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
-        vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
-        serviceWorkerRegistration: registration 
-      });
-
-      if (token) {
-        // 💡 พยายามหาถังข้อมูล (db) จากทุกที่
-        const db = window.db || window.firebaseFirestore || (typeof db !== 'undefined' ? db : null);
-        const user = window.firebaseAuth?.currentUser;
-
-        if (db && user) {
-          await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
-            token: token,
-            ownerEmail: user.email,
-            ownerName: user.displayName || "Unknown User",
-            device: navigator.userAgent,
-            updatedAt: new Date().toISOString()
-          });
-          alert("เปิดการแจ้งเตือนสำเร็จแล้วค่ะ! ✅");
+      try {
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+          // 💡 1. เพิ่มบรรทัดนี้: สั่งลบหน้าต่าง Blocker ทิ้งทันทีที่กดยืนยันสำเร็จ
           document.getElementById('notification-blocker')?.remove();
-        } else if (!user) {
-          alert("กรุณาล็อกอินก่อนเปิดการแจ้งเตือนนะคะ");
+
+          const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
+            vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
+            serviceWorkerRegistration: registration 
+          });
+
+          if (token) {
+            const db = window.db || window.firebaseFirestore;
+            const user = window.firebaseAuth?.currentUser;
+            if (db && user) {
+              await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
+                token: token,
+                ownerEmail: user.email,
+                ownerName: user.displayName || "Unknown User",
+                device: navigator.userAgent,
+                updatedAt: new Date().toISOString()
+              });
+              alert("เปิดการแจ้งเตือนสำเร็จแล้วค่ะ! ✅");
+            }
+          }
         } else {
-          // ถ้ายังหา db ไม่เจออีก ให้ใช้คำสั่งเข้าถึงตรงๆ (ถ้าใช้แบบ CDN)
-          console.error("Firestore not found, trying fallback...");
-          alert("รอระบบฐานข้อมูลสักครู่ (ประมาณ 3 วินาที) แล้วลองกดใหม่อีกครั้งนะคะ");
+          alert("ต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือนนะคะ");
         }
+      } catch (error) {
+        console.error("Token Error:", error);
       }
-    } else {
-      alert("ต้องกด 'อนุญาต' เพื่อรับการแจ้งเตือน");
-    }
-  } catch (error) {
-    console.error("Token Error:", error);
-    alert(`เกิดข้อผิดพลาด: ${error.message}`);
-  }
-};
+    };
 
     // 💡 4. ตรวจสอบ Permission ปัจจุบัน
     if (Notification.permission === 'granted') {
-      // ถ้าเคยอนุญาตแล้ว ให้ไปขอ Token เลย (แต่ใน iOS มักจะไม่ผ่านรอบนี้)
+      // ✅ เพิ่มบรรทัดนี้ลงไป เพื่อสั่งลบหน้าต่างดำทันทีถ้าอนุญาตแล้ว
+      document.getElementById('notification-blocker')?.remove();
       requestAndSaveToken();
     } else if (Notification.permission === 'denied') {
-      // ถ้าโดนปฏิเสธ ต้องบอกให้ไปเปิดใน Settings
-      alert("เคยปฏิเสธแจ้งเตือนไว้ค่ะ ต้องไปเปิดสวิตช์ใน Settings iPhone!");
+      alert("เคยปฏิเสธแจ้งเตือนไว้ค่ะ ต้องไปเปิดสวิตช์ใน Settings iPhone นะคะ!");
     } else {
       // 💡 5. สร้างปุ่มลอยกลางจอเพื่อกระตุ้น Permission
+      // ... โค้ดสร้าง blocker ตัวเดิมของคุณ ...
+     
       const blocker = document.createElement('div');
       blocker.id = 'notification-blocker';
       blocker.innerHTML = `
