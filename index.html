@@ -2399,7 +2399,6 @@ ${promptAction}`;
             const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
                 const loaded = [];
                 snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
-                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
                 loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
                 setUsersList(loaded);
             });
@@ -2895,7 +2894,7 @@ ${promptAction}`;
           const loaded = {}; snapshot.forEach((doc) => { loaded[doc.id] = doc.data(); }); setPostTracking(loaded);
         });
 
-        // 👇 ก๊อปปี้ตั้งแต่ตรงนี้ ไปวางทับ unsubscribeSheet ตัวเดิม
+        // 💡 เริ่มก๊อปปี้วางทับตั้งแต่ตรงนี้ครับ (โหลดข้อมูล Sheet แบบไม่ซ้ำ + ประหยัดโควต้า)
         const { query, where } = window.firebaseAPI;
         const sheetQuery = query(
             collection(window.firebaseDB, "google_sheet_data"), 
@@ -2907,7 +2906,7 @@ ${promptAction}`;
             const loadedData = []; 
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                // สร้าง ID ถาวรจาก ชื่อโครงการ + บ้านเลขที่
+                // สร้าง ID ถาวร: โครงการ-เลขที่บ้าน (แก้ปัญหาข้อมูลเลื่อน/ซ้ำ)
                 const permanentId = `${safeTrim(data['หมู่บ้าน'])}-${safeTrim(data['บ้านเลขที่'])}`.replace(/\s+/g, '');
                 loadedData.push({ id: permanentId, ...data, originalRowId: doc.id }); 
             }); 
@@ -2916,7 +2915,6 @@ ${promptAction}`;
           },
           (error) => { console.error("Firebase Read Error:", error); setSheetError(error.message); }
         );
-        // 👆 ถึงตรงนี้ครับ
 
         return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); unsubscribeChecklists(); unsubscribeProgress(); unsubscribePostTracking(); };
       }, [isFirebaseLoaded, accessStatus]);
