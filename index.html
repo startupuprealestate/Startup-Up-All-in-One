@@ -2399,6 +2399,7 @@ ${promptAction}`;
             const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
                 const loaded = [];
                 snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
+                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
                 loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
                 setUsersList(loaded);
             });
@@ -2415,8 +2416,6 @@ ${promptAction}`;
             if(!window.confirm('ลบผู้ใช้นี้ออกจากระบบ? (ถ้าเขาล็อกอินใหม่ จะกลับไปเป็นสถานะรออนุมัติ)')) return;
             try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId)); } catch (e) {}
         };
-
-        // ... (โค้ด return ของ AdminPanel เหมือนเดิม) ...
 
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
