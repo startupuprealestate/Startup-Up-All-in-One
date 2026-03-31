@@ -193,17 +193,7 @@
     });
 
     const safeTrim = (v) => v ? String(v).trim() : '';
-    
-    // 👇 วางทับบรรทัด const getValidSheetData เดิมด้วยก้อนนี้ครับ
-    const getValidSheetData = (d) => {
-        const uniqueMap = new Map();
-        d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])))
-         .forEach(item => {
-            uniqueMap.set(item.id, item); // กรองซ้ำ: จำ ID เดียว
-         });
-        return Array.from(uniqueMap.values()).sort((a, b) => safeTrim(a['หมู่บ้าน']).localeCompare(safeTrim(b['หมู่บ้าน']), 'th'));
-    };
-    
+    const getValidSheetData = (d) => d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && Object.keys(r).some(k => k !== 'id' && safeTrim(r[k]) !== '') && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่']))).sort((a, b) => (parseInt(a.id.replace('row_', '')) || 0) - (parseInt(b.id.replace('row_', '')) || 0));
     const getFormattedDateThai = (dStr) => { if (!dStr) return ''; const [y, m, d] = dStr.split('-'); return `${parseInt(d, 10)} ${MONTHS_TH[parseInt(m, 10) - 1]} ${parseInt(y, 10) + 543}`; };
     const parseThaiDate = (dStr) => {
         if (!dStr) return null; const s = String(dStr).trim();
@@ -2399,6 +2389,7 @@ ${promptAction}`;
             const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
                 const loaded = [];
                 snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
+                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
                 loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
                 setUsersList(loaded);
             });
@@ -2415,8 +2406,6 @@ ${promptAction}`;
             if(!window.confirm('ลบผู้ใช้นี้ออกจากระบบ? (ถ้าเขาล็อกอินใหม่ จะกลับไปเป็นสถานะรออนุมัติ)')) return;
             try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId)); } catch (e) {}
         };
-
-        // ... (โค้ด return ของ AdminPanel เหมือนเดิม) ...
 
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
@@ -2896,28 +2885,10 @@ ${promptAction}`;
           const loaded = {}; snapshot.forEach((doc) => { loaded[doc.id] = doc.data(); }); setPostTracking(loaded);
         });
 
-        // 👇 ก๊อปปี้ตั้งแต่ตรงนี้ ไปวางทับ unsubscribeSheet ตัวเดิม
-        const { query, where } = window.firebaseAPI;
-        const sheetQuery = query(
-            collection(window.firebaseDB, "google_sheet_data"), 
-            where("สถานะ", "not-in", ["ขายแล้ว", "โอนแล้ว"])
-        );
-
-        const unsubscribeSheet = onSnapshot(sheetQuery, 
-          (snapshot) => { 
-            const loadedData = []; 
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                // สร้าง ID ถาวรจาก ชื่อโครงการ + บ้านเลขที่
-                const permanentId = `${safeTrim(data['หมู่บ้าน'])}-${safeTrim(data['บ้านเลขที่'])}`.replace(/\s+/g, '');
-                loadedData.push({ id: permanentId, ...data, originalRowId: doc.id }); 
-            }); 
-            setSheetData(loadedData); 
-            setSheetError(null); 
-          },
+        const unsubscribeSheet = onSnapshot(collection(window.firebaseDB, "google_sheet_data"), 
+          (snapshot) => { const loadedData = []; snapshot.forEach((doc) => loadedData.push({ id: doc.id, ...doc.data() })); setSheetData(loadedData); setSheetError(null); },
           (error) => { console.error("Firebase Read Error:", error); setSheetError(error.message); }
         );
-        // 👆 ถึงตรงนี้ครับ
 
         return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); unsubscribeChecklists(); unsubscribeProgress(); unsubscribePostTracking(); };
       }, [isFirebaseLoaded, accessStatus]);
