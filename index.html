@@ -2770,9 +2770,6 @@ ${promptAction}`;
               try {
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') {
-                  // ✅ ลบหน้าต่างดำทิ้งทันทีที่กดปุ่มสำเร็จ
-                  document.getElementById('notification-blocker')?.remove();
-
                   const token = await window.firebaseAPI.getToken(window.firebaseMessaging, {
                     vapidKey: 'BBbi30QAW3t-vHxHicSuHICjJYa_CoVNrYo-WDcEnZqmKpxXCQDhxQj81A_7xo-5_GZsNGOCZSag8Bflfzg3WSA',
                     serviceWorkerRegistration: registration 
@@ -2781,47 +2778,53 @@ ${promptAction}`;
                   if (token) {
                     const db = window.db || window.firebaseFirestore;
                     if (db && user) {
-                      await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
-                        token: token,
-                        ownerEmail: user.email,
-                        ownerName: user.displayName || "Unknown User",
-                        device: navigator.userAgent,
-                        updatedAt: new Date().toISOString()
-                      });
-                      alert("เปิดการแจ้งเตือนสำเร็จแล้วค่ะ! ✅");
+                      // 💡 เช็ค Token เก่าใน LocalStorage
+                      const savedToken = localStorage.getItem('fcm_token_saved');
+
+                      // 💡 บันทึกลงฐานข้อมูลเฉพาะถ้า Token เปลี่ยนไป หรือยังไม่เคยเซฟ
+                      if (savedToken !== token) {
+                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
+                          token: token,
+                          ownerEmail: user.email,
+                          ownerName: user.displayName || "Unknown User",
+                          device: navigator.userAgent,
+                          updatedAt: new Date().toISOString()
+                        });
+                        localStorage.setItem('fcm_token_saved', token);
+                        alert("เปิดการแจ้งเตือนสำเร็จแล้วค่ะ! ✅");
+                      }
+                      
+                      // ลบหน้าต่างดำออกทันที
+                      document.getElementById('notification-blocker')?.remove();
                     }
                   }
                 }
               } catch (error) { console.error("Token Error:", error); }
             };
 
-            // 💡 4. ตรวจสอบสถานะ: ถ้าเคยอนุญาตแล้ว ให้ลบปุ่มทิ้งและขอ Token เงียบๆ
+            // 💡 4. ตรวจสอบสถานะ: ถ้าเคยอนุญาตแล้ว ให้ลบหน้าต่างดำทิ้งทันทีและทำงานเงียบๆ
             if (Notification.permission === 'granted') {
               document.getElementById('notification-blocker')?.remove();
               requestAndSaveToken();
             } 
             else if (Notification.permission === 'denied') {
-              // ถ้าโดนบล็อกไปแล้ว ให้ซ่อนหน้าต่างดำด้วย (ไม่งั้นจะกดอะไรไม่ได้เลย)
               document.getElementById('notification-blocker')?.remove();
-              console.warn("Notifications are blocked by user.");
             } 
             else {
-              // 💡 5. สร้างปุ่มลอยกลางจอเฉพาะตอนที่ยังไม่เคยเลือก (default)
+              // 💡 5. สร้างหน้าต่างขออนุญาต (โชว์เฉพาะคนที่ยังไม่เคยเลือก)
               if (!document.getElementById('notification-blocker')) {
                 const blocker = document.createElement('div');
                 blocker.id = 'notification-blocker';
                 blocker.innerHTML = `
                   <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; padding:20px; text-align:center; backdrop-blur: 5px;">
-                    <h2 style="color:white; margin-bottom:10px;">🔔 ต้องเปิดการแจ้งเตือนค่ะ! 🔔</h2>
-                    <p style="color:rgba(255,255,255,0.8); margin-bottom:20px; font-size:14px; max-width:300px;">เพื่อให้ระบบส่งแจ้งเตือน "แจ้งลางาน" เข้ามือถือได้ทันทีค่ะ<br><br>กดปุ่มด้านล่าง แล้วเลือก <b>"อนุญาต" (Allow)</b> นะคะ</p>
-                    <button id="request-permission-btn" style="background:#169000; color:white; padding:15px 30px; border:none; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer; width:100%; max-width:260px; box-shadow: 0 4px 15px rgba(22,144,0,0.4);">👉 กดเพื่อเปิดการแจ้งเตือน 👈</button>
-                    <button id="close-blocker-btn" style="background:transparent; color:rgba(255,255,255,0.5); border:none; margin-top:20px; font-size:12px; cursor:pointer; text-decoration:underline;">ไว้ทำทีหลัง (ปิดหน้าต่างนี้)</button>
+                    <h2 style="color:white; margin-bottom:10px;">🔔 รับการแจ้งเตือน 🔔</h2>
+                    <p style="color:rgba(255,255,255,0.8); margin-bottom:20px; font-size:14px; max-width:300px;">เพื่อให้น้อง Up ส่งแจ้งเตือน "แจ้งลางาน" เข้ามือถือพี่ได้ทันทีค่ะ<br><br>กดปุ่มแล้วเลือก <b>"อนุญาต" (Allow)</b> นะคะ</p>
+                    <button id="request-permission-btn" style="background:#169000; color:white; padding:15px 30px; border:none; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer; width:100%; max-width:260px; shadow: 0 4px 15px rgba(22,144,0,0.4);">👉 กดเปิดการแจ้งเตือน 👈</button>
+                    <button id="close-blocker-btn" style="background:transparent; color:rgba(255,255,255,0.4); border:none; margin-top:25px; font-size:12px; cursor:pointer; text-decoration:underline;">ปิดหน้าต่างนี้ (ไว้ทำทีหลัง)</button>
                   </div>
                 `;
                 document.body.appendChild(blocker);
-
                 document.getElementById('request-permission-btn').addEventListener('click', requestAndSaveToken);
-                // เพิ่มปุ่มปิดเผื่อกรณีมันค้าง พี่จะได้กดปิดเองได้
                 document.getElementById('close-blocker-btn').addEventListener('click', () => blocker.remove());
               }
             }
