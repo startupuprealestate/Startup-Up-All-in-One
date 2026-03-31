@@ -2416,6 +2416,8 @@ ${promptAction}`;
             try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId)); } catch (e) {}
         };
 
+        // ... (โค้ด return ของ AdminPanel เหมือนเดิม) ...
+
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <div className="flex items-center justify-between mb-6 shrink-0">
@@ -2894,7 +2896,7 @@ ${promptAction}`;
           const loaded = {}; snapshot.forEach((doc) => { loaded[doc.id] = doc.data(); }); setPostTracking(loaded);
         });
 
-        // 💡 เริ่มก๊อปปี้วางทับตั้งแต่ตรงนี้ครับ (โหลดข้อมูล Sheet แบบไม่ซ้ำ + ประหยัดโควต้า)
+        // 👇 ก๊อปปี้ตั้งแต่ตรงนี้ ไปวางทับ unsubscribeSheet ตัวเดิม
         const { query, where } = window.firebaseAPI;
         const sheetQuery = query(
             collection(window.firebaseDB, "google_sheet_data"), 
@@ -2906,7 +2908,7 @@ ${promptAction}`;
             const loadedData = []; 
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                // สร้าง ID ถาวร: โครงการ-เลขที่บ้าน (แก้ปัญหาข้อมูลเลื่อน/ซ้ำ)
+                // สร้าง ID ถาวรจาก ชื่อโครงการ + บ้านเลขที่
                 const permanentId = `${safeTrim(data['หมู่บ้าน'])}-${safeTrim(data['บ้านเลขที่'])}`.replace(/\s+/g, '');
                 loadedData.push({ id: permanentId, ...data, originalRowId: doc.id }); 
             }); 
@@ -2915,6 +2917,7 @@ ${promptAction}`;
           },
           (error) => { console.error("Firebase Read Error:", error); setSheetError(error.message); }
         );
+        // 👆 ถึงตรงนี้ครับ
 
         return () => { unsubscribeEvents(); unsubscribeDeps(); unsubscribeHouses(); unsubscribeSheet(); unsubscribeChecklists(); unsubscribeProgress(); unsubscribePostTracking(); };
       }, [isFirebaseLoaded, accessStatus]);
