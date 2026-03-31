@@ -555,7 +555,6 @@
 
     const ConstructionSchedule = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
         const [viewMode, setViewMode] = useState('unfinished'); 
-        
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -563,25 +562,20 @@
         const [searchQuery, setSearchQuery] = useState('');
         const [isRefreshing, setIsRefreshing] = useState(false);
         const [showFilters, setShowFilters] = useState(false);
-        
         const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
         const [historyToDelete, setHistoryToDelete] = useState(null);
 
         const validSheetData = getValidSheetData(sheetData);
+        // 💡 เพิ่มหัวข้อคอลัมน์ใหม่ที่นี่
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
-        const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
-        // 💡 1. แยกระบบตัวกรองเป็น 2 สมอง (แยกความจำโหมด "กำลังทำ" กับ "ทั้งหมด")
-        const defaultUnfinishedHidden = { 'สถานะ': uniqueStatuses.filter(s => s !== 'ยังไม่เสร็จ'), 'Website': [] };
-        
         const [hiddenValuesUnfinished, setHiddenValuesUnfinished] = useState(() => {
             const saved = localStorage.getItem('s_h_val_unfin_v15');
             return saved ? JSON.parse(saved) : null;
         });
         const [hiddenValuesAll, setHiddenValuesAll] = useState(() => {
             const saved = localStorage.getItem('s_h_val_all_v15');
-            // โหมดทั้งหมด: โชว์ทุกอย่าง ยกเว้น "ขายแล้ว"
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': [] };
         });
 
@@ -594,21 +588,7 @@
             return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         });
 
-        // 💡 ติดตั้งค่าเริ่มต้นให้โหมดกำลังทำ (โชว์เฉพาะ 'ยังไม่เสร็จ')
-        useEffect(() => {
-            if (!hiddenValuesUnfinished && uniqueStatuses.length > 0) {
-                setHiddenValuesUnfinished(defaultUnfinishedHidden);
-            }
-        }, [uniqueStatuses.length]);
-
-        // เซฟความจำแยกลงเครื่อง
-        useEffect(() => { if(hiddenValuesUnfinished) localStorage.setItem('s_h_val_unfin_v15', JSON.stringify(hiddenValuesUnfinished)); }, [hiddenValuesUnfinished]);
-        useEffect(() => { localStorage.setItem('s_h_val_all_v15', JSON.stringify(hiddenValuesAll)); }, [hiddenValuesAll]);
-        useEffect(() => { localStorage.setItem('s_v_col_unfin_v15', JSON.stringify(visibleColsUnfinished)); }, [visibleColsUnfinished]);
-        useEffect(() => { localStorage.setItem('s_v_col_all_v15', JSON.stringify(visibleColsAll)); }, [visibleColsAll]);
-
-        // ตัวแปรสลับสมองอัตโนมัติตามโหมดที่เปิดอยู่
-        const currentHiddenValues = viewMode === 'unfinished' ? (hiddenValuesUnfinished || defaultUnfinishedHidden) : hiddenValuesAll;
+        const currentHiddenValues = viewMode === 'unfinished' ? (hiddenValuesUnfinished || { 'สถานะ': uniqueStatuses.filter(s => s !== 'ยังไม่เสร็จ') }) : hiddenValuesAll;
         const currentVisibleColumns = viewMode === 'unfinished' ? visibleColsUnfinished : visibleColsAll;
 
         const toggleColumn = (col) => {
@@ -617,58 +597,26 @@
         };
 
         const toggleHideValue = (col, val) => {
-            if (viewMode === 'unfinished') {
-                setHiddenValuesUnfinished(prev => {
-                    const current = prev || defaultUnfinishedHidden;
-                    const arr = current[col] || [];
-                    return { ...current, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
-                });
-            } else {
-                setHiddenValuesAll(prev => {
-                    const arr = prev[col] || [];
-                    return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
-                });
-            }
-        };
-
-        const resetHideValue = (col) => {
-            if (viewMode === 'unfinished') setHiddenValuesUnfinished(prev => ({...prev, [col]: []}));
-            else setHiddenValuesAll(prev => ({...prev, [col]: []}));
+            const setter = viewMode === 'unfinished' ? setHiddenValuesUnfinished : setHiddenValuesAll;
+            setter(prev => {
+                const current = prev || { 'สถานะ': [], 'Website': [] };
+                const arr = current[col] || [];
+                return { ...current, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
+            });
         };
 
         const filteredData = validSheetData.filter(row => {
             const prog = constructionProgress[row.id] || {};
             if (viewMode === 'unfinished' && prog.finishedDate) return false;
-
             if (currentHiddenValues['สถานะ']?.includes(safeTrim(row['สถานะ']))) return false;
-            if (currentHiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
-            if (searchQuery && !`${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])} ${safeTrim(row['ซอย'])}`.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+            if (searchQuery && !`${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])}`.toLowerCase().includes(searchQuery.toLowerCase())) return false;
             return true;
         });
 
-        const sortOptions = [
-            { value: 'default', label: 'ค่าเริ่มต้น' }, { value: 'start_asc', label: 'เริ่มทำ: เก่า ➔ ใหม่' }, { value: 'start_desc', label: 'เริ่มทำ: ใหม่ ➔ เก่า' },
-            { value: 'finish_asc', label: 'ทำเสร็จเมื่อ: เก่า ➔ ใหม่' }, { value: 'finish_desc', label: 'ทำเสร็จเมื่อ: ใหม่ ➔ เก่า' },
-            { value: 'days_asc', label: 'รวมเวลา: น้อย ➔ มาก' }, { value: 'days_desc', label: 'รวมเวลา: มาก ➔ น้อย' }
-        ];
-
         const sortedData = [...filteredData].sort((a, b) => {
             const progA = constructionProgress[a.id] || {}, progB = constructionProgress[b.id] || {};
-            switch (sortBy) {
-                case 'start_asc': return (parseThaiDate(safeTrim(a['เริ่มทำ']))?.getTime()||Infinity) - (parseThaiDate(safeTrim(b['เริ่มทำ']))?.getTime()||Infinity);
-                case 'start_desc': return (parseThaiDate(safeTrim(b['เริ่มทำ']))?.getTime()||-Infinity) - (parseThaiDate(safeTrim(a['เริ่มทำ']))?.getTime()||-Infinity);
-                case 'finish_asc': return (progA.finishedDate ? new Date(progA.finishedDate).getTime() : Infinity) - (progB.finishedDate ? new Date(progB.finishedDate).getTime() : Infinity);
-                case 'finish_desc': return (progB.finishedDate ? new Date(progB.finishedDate).getTime() : -Infinity) - (progA.finishedDate ? new Date(progA.finishedDate).getTime() : -Infinity);
-                case 'days_asc': {
-                    const daysA = calculateDays(safeTrim(a['เริ่มทำ']), progA.finishedDate), daysB = calculateDays(safeTrim(b['เริ่มทำ']), progB.finishedDate);
-                    return (daysA === '-' ? Infinity : daysA) - (daysB === '-' ? Infinity : daysB);
-                }
-                case 'days_desc': {
-                    const daysA = calculateDays(safeTrim(a['เริ่มทำ']), progA.finishedDate), daysB = calculateDays(safeTrim(b['เริ่มทำ']), progB.finishedDate);
-                    return (daysB === '-' ? -Infinity : daysB) - (daysA === '-' ? -Infinity : daysA);
-                }
-                default: return 0;
-            }
+            if (sortBy === 'days_desc') return (calculateDays(safeTrim(b['เริ่มทำ']), progB.finishedDate) || 0) - (calculateDays(safeTrim(a['เริ่มทำ']), progA.finishedDate) || 0);
+            return 0;
         });
 
         const handleUpdateProgress = async (rowId, data) => {
@@ -678,12 +626,11 @@
                 if (data.finishedDate) {
                     const rowInfo = validSheetData.find(r => r.id === rowId);
                     if (rowInfo) {
-                        const houseName = `${safeTrim(rowInfo['หมู่บ้าน'])} ${safeTrim(rowInfo['บ้านเลขที่'])} ${safeTrim(rowInfo['ซอย'])}`.trim();
                         fetch(`${window.VERCEL_API_URL}/api/trigger`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'house', data: { houseName, finishedDate: data.finishedDate } })
-                        }).catch(e => console.log('Vercel API error', e));
+                            body: JSON.stringify({ action: 'house', data: { houseName: safeTrim(rowInfo['หมู่บ้าน']), finishedDate: data.finishedDate } })
+                        }).catch(e => console.log('API error', e));
                     }
                 }
             } catch(err) {}
@@ -691,201 +638,116 @@
 
         return (
             <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
-               <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
+                <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
                         <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="Home" className="mr-2 md:mr-3 text-brand" size={24}/> {viewMode === 'unfinished' ? 'สถานะบ้าน (กำลังทำ)' : 'สถานะบ้านทั้งหมด'}</h2>
-                        {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{sortedData.length} รายการ</span></div>}
-                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
-                        <button onClick={() => setIsHistoryModalOpen(true)} className="ml-1 px-3 py-1.5 text-brand bg-brand/10 border border-brand/20 rounded-lg shadow-sm hover:bg-brand/20 transition-all font-bold text-[13px] flex items-center">
-                            <Icon name="Clock" size={14} className="mr-1.5" /> ประวัติ
-                        </button>
+                        <button onClick={() => setIsHistoryModalOpen(true)} className="ml-1 px-3 py-1.5 text-brand bg-brand/10 border border-brand/20 rounded-lg shadow-sm font-bold text-[13px] flex items-center"><Icon name="Clock" size={14} className="mr-1.5" /> ประวัติ</button>
                     </div>
-               </div>
+                </div>
 
-               <div className="flex bg-gray-100 p-1.5 rounded-xl w-fit mb-4 md:mb-6 shrink-0 shadow-sm border border-gray-200">
-                    <button onClick={() => { setViewMode('unfinished'); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all ${viewMode === 'unfinished' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="ListTodo" size={16} className="mr-2" /> กำลังทำ (ยังไม่เสร็จ)</button>
-                    <button onClick={() => { setViewMode('all'); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all ${viewMode === 'all' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}><Icon name="Building" size={16} className="mr-2" /> บ้านทั้งหมด</button>
-               </div>
+                <div className="flex bg-gray-100 p-1.5 rounded-xl w-fit mb-4 md:mb-6 shrink-0 shadow-sm border border-gray-200">
+                    <button onClick={() => setViewMode('unfinished')} className={`px-4 py-2.5 rounded-lg text-[13px] font-bold transition-all ${viewMode === 'unfinished' ? 'bg-white text-brand shadow-sm' : 'text-gray-500'}`}>กำลังทำ</button>
+                    <button onClick={() => setViewMode('all')} className={`px-4 py-2.5 rounded-lg text-[13px] font-bold transition-all ${viewMode === 'all' ? 'bg-white text-brand shadow-sm' : 'text-gray-500'}`}>บ้านทั้งหมด</button>
+                </div>
 
-               <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
-                    <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
-                        <div className="flex items-center text-[14px] font-bold text-gray-700"><Icon name="Search" size={16} className="mr-2 text-brand" /> ค้นหาและจัดการข้อมูล</div>
-                        <div className="bg-gray-50 p-1.5 rounded-lg text-gray-500"><Icon name={showFilters ? "ChevronUp" : "ChevronDown"} size={16} /></div>
-                    </div>
-
-                    <div className={`flex-col xl:flex-row items-start xl:items-center w-full ${showFilters ? 'flex mt-4' : 'hidden xl:flex'}`}>
-                        <span className="text-[14px] font-bold text-gray-700 mr-4 mb-3 xl:mb-0 shrink-0 hidden xl:block">ตัวจัดการข้อมูล:</span>
-                        <div className="flex flex-wrap gap-2.5 shrink-0 w-full xl:w-auto">
-                            <div className="relative shrink-0 w-full sm:w-auto">
-                                <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                                <input type="text" placeholder="ค้นหาโครงการ, เลขที่..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full sm:w-[200px] pl-9 pr-4 py-2 bg-white border border-gray-300 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"/>
-                            </div>
-                            <div className="relative shrink-0 w-full sm:w-auto">
-                                <button onClick={() => { setIsSortDropdownOpen(!isSortDropdownOpen); setIsDropdownOpen(false); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-full sm:min-w-[200px] px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm"><div className="flex items-center"><Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> {sortOptions.find(o => o.value === sortBy)?.label || 'เรียงตาม...'}</div><Icon name={isSortDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" /></button>
-                                {isSortDropdownOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setIsSortDropdownOpen(false)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">เลือกการจัดเรียง</div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {sortOptions.map(opt => (
-                                                    <label key={opt.value} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="radio" checked={sortBy === opt.value} onChange={() => { setSortBy(opt.value); setIsSortDropdownOpen(false); }} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{opt.label}</span></label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                            <div className="relative shrink-0 w-full sm:w-auto">
-                                <button onClick={() => { setIsDropdownOpen(!isDropdownOpen); setIsSortDropdownOpen(false); setActiveFilterDropdown(null); }} className="flex items-center justify-between w-full sm:w-[200px] px-4 py-2 bg-white border border-gray-200 hover:border-brand rounded-xl text-[13px] font-bold text-gray-700 shadow-sm"><Icon name="ListTodo" size={14} className="mr-1.5 text-gray-400" /> เลือกคอลัมน์ <Icon name={isDropdownOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" /></button>
-                                {isDropdownOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setIsDropdownOpen(false)}></div>
-                                        <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                            <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
-                                            <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {allColumns.map(col => (
-                                                    <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={currentVisibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{col}</span></label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                            {uniqueStatuses.length > 0 && (
-                                <div className="relative shrink-0 w-full sm:w-auto">
-                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'status' ? null : 'status'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${currentHiddenValues['สถานะ']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
-                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> สถานะ {currentHiddenValues['สถานะ']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueStatuses.length - currentHiddenValues['สถานะ'].length}/{uniqueStatuses.length}</span>} <Icon name={activeFilterDropdown === 'status' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                                    </button>
-                                    {activeFilterDropdown === 'status' && (
-                                        <>
-                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{currentHiddenValues['สถานะ']?.length > 0 && <button onClick={() => resetHideValue('สถานะ')} className="text-[11px] text-brand hover:underline font-bold">แสดงทั้งหมด</button>}</div>
-                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                    {uniqueStatuses.map(st => (
-                                                        <label key={st} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!currentHiddenValues['สถานะ']?.includes(st)} onChange={() => toggleHideValue('สถานะ', st)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{st}</span></label>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                            {uniqueWebsites.length > 0 && (
-                                <div className="relative shrink-0 w-full sm:w-auto">
-                                    <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === 'website' ? null : 'website'); setIsDropdownOpen(false); setIsSortDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${currentHiddenValues['Website']?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
-                                        <Icon name="Search" size={14} className="mr-1.5 text-gray-400" /> Website {currentHiddenValues['Website']?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{uniqueWebsites.length - currentHiddenValues['Website'].length}/{uniqueWebsites.length}</span>} <Icon name={activeFilterDropdown === 'website' ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
-                                    </button>
-                                    {activeFilterDropdown === 'website' && (
-                                        <>
-                                            <div className="fixed inset-0 z-10" onClick={() => setActiveFilterDropdown(null)}></div>
-                                            <div className="absolute top-full left-0 mt-2 w-[220px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
-                                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center"><span className="text-[12px] font-bold text-gray-500">ซ่อน/แสดง</span>{currentHiddenValues['Website']?.length > 0 && <button onClick={() => resetHideValue('Website')} className="text-[11px] text-brand font-bold">แสดงทั้งหมด</button>}</div>
-                                                <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                    {uniqueWebsites.map(web => (
-                                                        <label key={web} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={!currentHiddenValues['Website']?.includes(web)} onChange={() => toggleHideValue('Website', web)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{web}</span></label>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                            {currentVisibleColumns.map((col, idx) => (
-                                <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
+                {/* 🛠️ ส่วนจัดการตัวกรองและคอลัมน์ */}
+                <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 shrink-0 flex flex-wrap gap-2">
+                    <input type="text" placeholder="ค้นหา..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-brand w-full sm:w-[200px]" />
+                    <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 flex items-center shadow-sm">เลือกคอลัมน์ <Icon name="ChevronDown" size={14} className="ml-2"/></button>
+                    {isDropdownOpen && (
+                        <div className="absolute mt-12 bg-white border border-gray-200 shadow-xl rounded-xl z-50 p-2 grid grid-cols-2 gap-1">
+                            {allColumns.map(col => (
+                                <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer text-[12px] font-bold text-gray-600"><input type="checkbox" checked={currentVisibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-2 w-4 h-4 accent-brand" />{col}</label>
                             ))}
                         </div>
-                    </div>
-               </div>
+                    )}
+                </div>
 
-               <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
-                 <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                   <table className="w-full text-left border-collapse min-w-max">
-                      <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
+                  <div className="overflow-auto custom-scrollbar flex-1 relative bg-white">
+                    <table className="w-full text-left border-collapse min-w-max">
+                      <thead className="sticky top-0 z-20 bg-gray-50 shadow-sm border-b border-gray-100">
                         <tr>
-                          <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
+                          <th className="py-4 px-4 text-[12px] font-extrabold text-gray-400 text-center border-r border-gray-200 sticky left-0 z-30 bg-gray-50 w-[50px]">ลำดับ</th>
                           {currentVisibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
                         </tr>
                       </thead>
                       <tbody>
-                        {currentVisibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
                         {sortedData.map((row, idx) => {
                           const statusVal = safeTrim(row['สถานะ']);
                           const style = getRowStyleClasses(statusVal);
                           const prog = constructionProgress[row.id] || {};
-
                           return (
-                              <tr key={row.id || idx} className={`border-b cursor-pointer transition-colors group ${style.row}`}>
-                                  <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
+                              <tr key={row.id || idx} className="border-b transition-colors hover:bg-gray-50/50">
+                                  <td className="py-4 px-2 text-center text-[13px] font-bold border border-gray-200 sticky left-0 z-10 bg-white text-gray-400">{idx + 1}</td>
                                   {currentVisibleColumns.map(col => {
                                       let content = null;
-                                      if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
-                                      else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                      if (col === 'หมู่บ้าน') content = <span className="text-[15px] font-extrabold text-gray-900">{safeTrim(row['หมู่บ้าน'])}</span>;
                                       else if (col === 'พื้นที่') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row['ขนาด']) || safeTrim(row['พื้นที่']) || '-'}</span>;
-else if (col === 'ห้องนอน') content = <span className="text-[14px] font-medium text-gray-700 text-center block">{safeTrim(row['ห้องนอน']) || safeTrim(row['นอน']) || '-'}</span>;
-else if (col === 'ห้องน้ำ') content = <span className="text-[14px] font-medium text-gray-700 text-center block">{safeTrim(row['ห้องน้ำ']) || safeTrim(row['น้ำ']) || '-'}</span>;
-                                      else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
-                                      else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
-                                      else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
+                                      else if (col === 'ห้องนอน') content = <span className="text-[14px] font-medium text-gray-700 text-center block">{safeTrim(row['ห้องนอน']) || safeTrim(row['นอน']) || '-'}</span>;
+                                      else if (col === 'ห้องน้ำ') content = <span className="text-[14px] font-medium text-gray-700 text-center block">{safeTrim(row['ห้องน้ำ']) || safeTrim(row['น้ำ']) || '-'}</span>;
+                                      else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg bg-white border border-gray-300 w-[110px] text-center" />;
                                       else if (col === 'การตรวจงาน') {
                                           const count = prog.inspectionCount || 0;
                                           content = (
-                                              <div className="flex items-center space-x-3">
-                                                  <div className="flex items-center bg-white rounded-lg p-1 border border-gray-200">
-                                                      <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} disabled={count === 0} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-red-500 disabled:opacity-40"><Icon name="Minus" size={14} /></button>
-                                                      <span className="w-8 text-center text-[14px] font-extrabold text-brand">{count}</span>
-                                                      <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="w-7 h-7 flex items-center justify-center rounded-md text-gray-500 hover:text-brand"><Icon name="Plus" size={14} /></button>
-                                                  </div>
-                                                  {count > 0 ? <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">ตรวจครั้งที่ {count}</span> : <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">ยังไม่ได้ตรวจ</span>}
+                                              <div className="flex items-center space-x-2">
+                                                  <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} className="p-1.5 bg-gray-100 rounded-md"><Icon name="Minus" size={12}/></button>
+                                                  <span className="font-bold text-brand w-4 text-center">{count}</span>
+                                                  <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="p-1.5 bg-gray-100 rounded-md"><Icon name="Plus" size={12}/></button>
                                               </div>
                                           );
                                       }
-                                      else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                      else content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>;
-                                      return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+                                      else if (col === 'สถานะบ้าน' || col === 'สถานะ') content = <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${style.badge}`}>{statusVal}</span>;
+                                      else content = <span className="text-[14px] text-gray-600">{safeTrim(row[col]) || '-'}</span>;
+                                      return <td key={col} className="py-4 px-5 border border-gray-200">{content}</td>;
                                   })}
                               </tr>
                           )
                         })}
-                        {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
                       </tbody>
-                   </table>
-                 </div>
-               </div>
+                    </table>
+                  </div>
+                </div>
 
-               {/* History Modal */}
-               {isHistoryModalOpen && (() => {
+                {isHistoryModalOpen && (() => {
                     const completedHouses = validSheetData.filter(row => constructionProgress[row.id]?.finishedDate).sort((a, b) => new Date(constructionProgress[b.id].finishedDate).getTime() - new Date(constructionProgress[a.id].finishedDate).getTime());
                     return (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
                             <div className="bg-surface rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl relative border border-gray-100">
-                                <div className="flex justify-between items-center p-4 md:p-5 border-b border-gray-100 shrink-0">
+                                <div className="flex justify-between items-center p-5 border-b border-gray-100 shrink-0">
                                     <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name="Clock" className="mr-2 text-brand" size={20} /> ประวัติบ้านที่ทำเสร็จแล้ว</h3>
                                     <button onClick={() => setIsHistoryModalOpen(false)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors"><Icon name="X" size={16}/></button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
                                     {completedHouses.length > 0 ? (
-                                        <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                                             <table className="w-full text-left border-collapse">
                                                 <thead className="bg-gray-50 border-b border-gray-200">
                                                     <tr>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">โครงการ</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">บ้านเลขที่</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">วันที่ทำเสร็จ</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">ตรวจงาน</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase text-center w-[80px]">ลบ</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {completedHouses.map((row, idx) => {
                                                         const pName = safeTrim(row['หมู่บ้าน']), hNo = safeTrim(row['บ้านเลขที่']);
+                                                        const prog = constructionProgress[row.id] || {};
+                                                        const count = prog.inspectionCount || 0;
                                                         return (
                                                             <tr key={row.id} className={`hover:bg-gray-50 transition-colors ${idx !== completedHouses.length - 1 ? 'border-b border-gray-100' : ''}`}>
                                                                 <td className="p-3 text-[14px] font-bold text-gray-800">{pName || '-'}</td>
                                                                 <td className="p-3 text-[14px] text-gray-600">{hNo || '-'}</td>
-                                                                <td className="p-3 text-[13px] font-bold text-emerald-600">{getFormattedDateThai(constructionProgress[row.id].finishedDate)}</td>
+                                                                <td className="p-3 text-[13px] font-bold text-emerald-600">{getFormattedDateThai(prog.finishedDate)}</td>
+                                                                <td className="p-3">
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: Math.max(0, count - 1) })} className="p-1 bg-gray-100 rounded hover:bg-gray-200"><Icon name="Minus" size={12}/></button>
+                                                                        <span className="font-bold text-brand w-4 text-center text-sm">{count}</span>
+                                                                        <button onClick={() => handleUpdateProgress(row.id, { inspectionCount: count + 1 })} className="p-1 bg-gray-100 rounded hover:bg-gray-200"><Icon name="Plus" size={12}/></button>
+                                                                    </div>
+                                                                </td>
                                                                 <td className="p-3 text-center">
                                                                     <button onClick={() => setHistoryToDelete({ id: row.id, label: `${pName} ${hNo}`.trim() })} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash" size={16} /></button>
                                                                 </td>
@@ -902,22 +764,21 @@ else if (col === 'ห้องน้ำ') content = <span className="text-[14px]
                             </div>
                         </div>
                     );
-               })()}
+                })()}
 
-               {/* Delete History Confirm Modal */}
-               {historyToDelete && (
-                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                   <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
-                     <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
-                     <h3 className="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบประวัติ?</h3>
-                     <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบประวัติการทำเสร็จของ <b>{historyToDelete.label}</b> ใช่หรือไม่? <br/>(สถานะวันทำเสร็จจะถูกล้างค่าเป็นค่าว่าง)</p>
-                     <div className="flex justify-center space-x-2">
-                       <button onClick={() => setHistoryToDelete(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">ยกเลิก</button>
-                       <button onClick={async () => { await handleUpdateProgress(historyToDelete.id, { finishedDate: "" }); setHistoryToDelete(null); }} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors">ลบประวัติ</button>
-                     </div>
-                   </div>
-                 </div>
-               )}
+                {historyToDelete && (
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                      <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">ยืนยันการลบประวัติ?</h3>
+                      <p className="text-sm text-gray-500 mb-5 leading-relaxed">คุณต้องการลบประวัติของ <b>{historyToDelete.label}</b> ใช่หรือไม่?</p>
+                      <div className="flex justify-center space-x-2">
+                        <button onClick={() => setHistoryToDelete(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">ยกเลิก</button>
+                        <button onClick={async () => { await handleUpdateProgress(historyToDelete.id, { finishedDate: "" }); setHistoryToDelete(null); }} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700">ลบประวัติ</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
             </div>
         );
     };
@@ -2287,11 +2148,16 @@ ${promptAction}`;
                  <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                    <table className="w-full text-left border-collapse min-w-max">
                       <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
-                        <tr>
-                          <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
-                          {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                        </tr>
-                      </thead>
+  <tr>
+    <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
+    {/* 💡 ปรับความกว้างคอลัมน์หมู่บ้านตรงนี้ครับ */}
+    {visibleColumns.map(col => (
+      <th key={col} className={`py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200 ${col === 'หมู่บ้าน' ? 'min-w-[120px] max-w-[150px]' : ''}`}>
+        {col}
+      </th>
+    ))}
+  </tr>
+</thead>
                       <tbody>
                         {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
                         
