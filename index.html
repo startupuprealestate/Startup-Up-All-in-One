@@ -72,7 +72,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-    import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+   import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, query, where } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
     import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
     // 💡 เพิ่มระบบ Auth ของ Google เข้ามาตรงนี้ค่ะ
     // 💡 เพิ่มระบบ Auth และระบบบังคับจำล็อกอิน (Persistence)
@@ -93,7 +93,7 @@
     window.firebaseAuth = auth; // 💡 ส่ง Auth ให้ React รู้จัก
     window.firebaseMessaging = messaging;
     
-    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
+    window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence, query, where };
     
     window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/"; 
     window.dispatchEvent(new Event('firebaseLoaded'));
@@ -466,43 +466,52 @@
                       {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
                     </tr>
                   </thead>
-                  <tbody>
-                    {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
-                    
-                    {filteredData.map((row, idx) => {
-                      const statusVal = safeTrim(row['สถานะ']);
-                      const style = getRowStyleClasses(statusVal);
-                      const checklist = contentChecklists[row.id] || {};
-                      const hasOther = !!checklist['other_checked'];
-                      const completedTasks = taskOptions.filter(opt => checklist[opt.key]).length + (hasOther ? 1 : 0);
-                      const totalTasks = taskOptions.length + (hasOther ? 1 : 0);
-                      const isComplete = completedTasks > 0 && completedTasks === totalTasks;
+<tbody>
+  {filteredData.map((row, idx) => {
+    const statusVal = safeTrim(row['สถานะ']);
+    const style = getRowStyleClasses(statusVal);
+    const checklist = contentChecklists[row.id] || {};
+    const hasOther = !!checklist['other_checked'];
+    const completedTasks = taskOptions.filter(opt => checklist[opt.key]).length + (hasOther ? 1 : 0);
+    const totalTasks = taskOptions.length + (hasOther ? 1 : 0);
+    const isComplete = completedTasks > 0 && completedTasks === totalTasks;
 
-                      return (
-                        <React.Fragment key={row.id}>
-                          <tr className={`border-b cursor-pointer transition-colors group ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
-                            <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
-                            {visibleColumns.map(col => {
-                                let content = null;
-                                if (col === 'หมู่บ้าน') {
-                                    let badgeContent;
-                                    if (isComplete) {
-                                        badgeContent = <span className="mr-3 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[11px] font-bold shadow-sm"><Icon name="Check" size={12} className="inline-block mr-1"/>ครบแล้ว</span>;
-                                    } else if (completedTasks >= 4) {
-                                        badgeContent = <span className="mr-3 px-2.5 py-1 bg-yellow-100 text-yellow-800 rounded-full border border-yellow-400 text-[11px] font-bold shadow-sm">ใกล้ครบแล้ว ({completedTasks}/{totalTasks})</span>;
-                                    } else {
-                                        badgeContent = <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
-                                    }
-                                    content = <div className="flex items-center">{badgeContent}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
-                                } else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                } else if (col === 'พื้นที่') { content = <span className="text-[14px] font-medium text-gray-600">{safeTrim(row['ขนาด']) || safeTrim(row['พื้นที่']) || '-'}</span>;
-                                } else if (col === 'ห้องนอน') { content = <span className="text-[14px] font-medium text-gray-600 text-center block">{safeTrim(row['ห้องนอน']) || safeTrim(row['นอน']) || '-'}</span>;
-                                } else if (col === 'ห้องน้ำ') { content = <span className="text-[14px] font-medium text-gray-600 text-center block">{safeTrim(row['ห้องน้ำ']) || safeTrim(row['น้ำ']) || '-'}</span>;
-                                } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                } else { content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; }
-                                return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
-                            })}
-                          </tr>
+    return (
+      <React.Fragment key={row.id}>
+        <tr className={`border-b cursor-pointer transition-colors group ${style.row}`} onClick={() => setExpandedRowId(prev => prev === row.id ? null : row.id)}>
+          <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
+          {visibleColumns.map(col => {
+            let content = null;
+
+            // 💡 วางทับจุดนี้ครับ (เริ่มก๊อปปี้ไปวางทับได้เลย)
+            if (col === 'หมู่บ้าน') {
+                let badgeContent;
+                if (isComplete) {
+                    badgeContent = <span className="mr-2 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold shadow-sm">ครบ</span>;
+                } else if (completedTasks >= 4) {
+                    badgeContent = <span className="mr-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full border border-yellow-400 text-[10px] font-bold shadow-sm">ใกล้</span>;
+                } else {
+                    badgeContent = <span className="mr-2 px-2 py-0.5 bg-red-50 text-red-600 rounded-full border border-red-100 text-[10px] font-bold shadow-sm">ไม่ครบ</span>;
+                }
+                content = (
+                    <div className="flex items-center">
+                        {badgeContent}
+                        <span className={`text-[14px] font-extrabold ${style.text} truncate max-w-[100px] md:max-w-[150px]`} title={safeTrim(row['หมู่บ้าน'])}>
+                            {safeTrim(row['หมู่บ้าน']) || '-'}
+                        </span>
+                    </div>
+                );
+            } 
+            // 💡 (จุดสิ้นสุดการวางทับ) แล้วทำงานต่อที่โค้ดเดิมด้านล่าง
+            else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+            } else if (col === 'พื้นที่') { content = <span className="text-[14px] font-medium text-gray-600">{safeTrim(row['ขนาด']) || safeTrim(row['พื้นที่']) || '-'}</span>;
+            } else if (col === 'ห้องนอน') { content = <span className="text-[14px] font-medium text-gray-600 text-center block">{safeTrim(row['ห้องนอน']) || safeTrim(row['นอน']) || '-'}</span>;
+            } else if (col === 'ห้องน้ำ') { content = <span className="text-[14px] font-medium text-gray-600 text-center block">{safeTrim(row['ห้องน้ำ']) || safeTrim(row['น้ำ']) || '-'}</span>;
+            } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+            } else { content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; }
+            return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
+          })}
+        </tr>
                           {expandedRowId === row.id && (
                               <tr className="border-b border-gray-100 bg-gray-50/50">
                                   <td colSpan={visibleColumns.length + 1} className="p-0 border border-gray-200">
@@ -2150,12 +2159,12 @@ ${promptAction}`;
                       <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
   <tr>
     <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
-    {/* 💡 ปรับความกว้างคอลัมน์หมู่บ้านตรงนี้ครับ */}
-    {visibleColumns.map(col => (
-      <th key={col} className={`py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200 ${col === 'หมู่บ้าน' ? 'min-w-[120px] max-w-[150px]' : ''}`}>
-        {col}
-      </th>
-    ))}
+    // แก้ตรงหัวตารางให้สอดคล้องกัน
+{visibleColumns.map(col => (
+  <th key={col} className={`py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200 ${col === 'หมู่บ้าน' ? 'min-w-[120px] max-w-[150px]' : ''}`}>
+    {col}
+  </th>
+))}
   </tr>
 </thead>
                       <tbody>
@@ -2257,15 +2266,29 @@ ${promptAction}`;
 
         useEffect(() => {
             if (!isFirebaseLoaded) return;
-            const { collection, onSnapshot } = window.firebaseAPI;
-            const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
-                const loaded = [];
-                snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
-                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
-                loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
-                setUsersList(loaded);
-            });
-            return () => unsubscribe();
+            const { collection, onSnapshot, query, where } = window.firebaseAPI;
+            
+            // สร้าง Query เพื่อประหยัด Read (ดึงเฉพาะที่ยังไม่จบงาน)
+            const sheetQuery = query(
+                collection(window.firebaseDB, "google_sheet_data"), 
+                where("สถานะ", "not-in", ["ขายแล้ว", "โอนแล้ว"])
+            );
+
+            const unsubscribeSheet = onSnapshot(sheetQuery, 
+              (snapshot) => { 
+                const loadedData = []; 
+                snapshot.forEach((doc) => loadedData.push({ id: doc.id, ...doc.data() })); 
+                setSheetData(loadedData); 
+                setSheetError(null); 
+              },
+              (error) => { 
+                console.error("Firebase Read Error:", error); 
+                setSheetError(error.message); 
+              }
+            );
+
+            // 💡 แก้ไขตรงนี้ให้ชื่อตรงกับตัวแปรด้านบนครับ
+            return () => unsubscribeSheet();
         }, [isFirebaseLoaded]);
 
         const handleUpdateStatus = async (emailId, newStatus) => {
