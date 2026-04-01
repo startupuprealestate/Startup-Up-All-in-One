@@ -1,6 +1,5 @@
 import admin from 'firebase-admin';
 
-// ตรวจสอบการเชื่อมต่อ Firebase หลังบ้าน
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -12,53 +11,67 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
+  // บังคับให้ Vercel ไม่ทำ Cache หน้าเว็บ (ป้องกันปัญหาต้องรีเฟรชเอง)
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  
   try {
     const db = admin.firestore();
     const messaging = admin.messaging();
-    const now = Date.now(); // เวลาปัจจุบัน
+    
+    // 💡 แก้ไขเรื่องเวลา: ใช้เวลาปัจจุบันแบบสากลและเผื่อบัฟเฟอร์ 1 นาที
+    const now = Date.now() + 60000; 
 
-    // 1. ค้นหากิจกรรมที่ "ถึงเวลาเตือนแล้ว" และ "ยังไม่ได้เตือน"
     const eventsRef = db.collection('events');
+    // ดึงรายการที่ถึงเวลาแล้ว และยังไม่ได้แจ้งเตือน
     const snapshot = await eventsRef
         .where('isNotified', '==', false)
         .where('notifyAt', '<=', now)
+        .limit(10) // ดึงมาทีละ 10 รายการเพื่อประหยัด Read
         .get();
 
     if (snapshot.empty) {
-      return res.status(200).json({ message: 'ยังไม่มีกิจกรรมที่ต้องแจ้งเตือนในนาทีนี้' });
+      return res.status(200).json({ status: "ok", message: 'ไม่มีงานที่ค้างส่ง' });
     }
 
     let notifiedCount = 0;
 
-    // 2. วนลูปส่งแจ้งเตือนทีละรายการ
-    for (const doc of snapshot.docs) {
-      const event = doc.data();
+    for (const eventDoc of snapshot.docs) {
+      const event = eventDoc.data();
 
-      // ค้นหา Token ของคนที่ต้องรับผิดชอบงานนี้
-      const userTokensRef = await db.collection('fcm_tokens').where('ownerName', '==', event.assignee).get();
+      // ค้นหา Token ของพนักงานคนนั้นๆ
+      const userTokensRef = await db.collection('fcm_tokens')
+                                    .where('ownerName', '==', event.assignee)
+                                    .get();
 
       if (!userTokensRef.empty) {
-        const tokenDoc = userTokensRef.docs[0].data();
-        
-        // ส่งข้อความเข้ามือถือ
-        await messaging.send({
-          token: tokenDoc.token,
-          notification: {
-            title: '⏰ แจ้งเตือนกิจกรรม!',
-            body: `คุณมีกิจกรรม: ${event.activity}\nเวลา: ${event.time} น.`,
+        for (const tokenDoc of userTokensRef.docs) {
+          const tokenData = tokenDoc.data();
+          try {
+            await messaging.send({
+              token: tokenData.token,
+              notification: {
+                title: '🔔 แจ้งเตือน: ' + event.activity,
+                body: `ถึงเวลาแล้วค่ะ! (${event.time} น.)\nรายละเอียด: ${event.note || '-'}`,
+              },
+              // ตั้งค่าสำหรับ Android/iOS ให้เด้งแรงๆ
+              android: { priority: 'high' },
+              apns: { payload: { aps: { sound: 'default' } } }
+            });
+          } catch (sendErr) {
+            console.log("Token นี้อาจจะหมดอายุ:", tokenData.ownerEmail);
           }
-        });
+        }
       }
 
-      // 3. อัปเดตในฐานข้อมูลว่า "เตือนแล้วนะ จะได้ไม่เตือนซ้ำ"
-      await doc.ref.update({ isNotified: true });
+      // ✅ บันทึกทันทีว่าแจ้งเตือนแล้ว
+      await eventDoc.ref.update({ isNotified: true });
       notifiedCount++;
     }
 
-    res.status(200).json({ success: true, message: `ส่งแจ้งเตือนสำเร็จ ${notifiedCount} รายการ` });
+    return res.status(200).json({ success: true, count: notifiedCount });
 
   } catch (error) {
-    console.error("Error sending reminders:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Error:", error);
+    return res.status(500).json({ error: error.message });
   }
 }
