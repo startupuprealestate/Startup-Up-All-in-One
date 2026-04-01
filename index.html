@@ -2382,23 +2382,51 @@ ${promptAction}`;
 
     const AdminPanel = ({ isFirebaseLoaded }) => {
         const [usersList, setUsersList] = useState([]);
+        const [nicknames, setNicknames] = useState({}); // 💡 เพิ่มตัวแปรเก็บชื่อเล่นตอนพิมพ์
 
         useEffect(() => {
             if (!isFirebaseLoaded) return;
             const { collection, onSnapshot } = window.firebaseAPI;
             const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
                 const loaded = [];
-                snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
-                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
+                const initialNicknames = {};
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    loaded.push({ id: doc.id, ...data });
+                    // ดึงชื่อเล่นเดิมมาแสดง (ถ้าเคยตั้งไว้)
+                    if (data.systemName) initialNicknames[doc.id] = data.systemName;
+                });
                 loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
                 setUsersList(loaded);
+                setNicknames(prev => ({...initialNicknames, ...prev}));
             });
             return () => unsubscribe();
         }, [isFirebaseLoaded]);
 
         const handleUpdateStatus = async (emailId, newStatus) => {
             try {
-                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), { status: newStatus, updatedAt: new Date().toISOString() });
+                const updateData = { status: newStatus, updatedAt: new Date().toISOString() };
+                
+                // 💡 บังคับให้ใส่ชื่อเล่นก่อนกดอนุมัติ
+                if (newStatus === 'approved') {
+                    const nameInput = nicknames[emailId];
+                    if (!nameInput || !nameInput.trim()) {
+                        alert("⚠️ กรุณากรอก 'ชื่อในปฏิทิน' ของพนักงานคนนี้ก่อนกดอนุมัติค่ะ (เช่น Boom, Boat, May)");
+                        return;
+                    }
+                    updateData.systemName = nameInput.trim();
+                }
+                
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), updateData);
+            } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+        };
+
+        const handleSaveNickname = async (emailId) => {
+            const nameInput = nicknames[emailId];
+            if (!nameInput || !nameInput.trim()) return;
+            try {
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), { systemName: nameInput.trim(), updatedAt: new Date().toISOString() });
+                alert("✅ อัปเดตชื่อในปฏิทินสำเร็จ โค้ดหลังบ้านจำชื่อนี้แล้วค่ะ!");
             } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
         };
 
@@ -2418,7 +2446,7 @@ ${promptAction}`;
                             <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
                                     <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">ผู้ใช้งาน</th>
-                                    <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">อีเมลบัญชี</th>
+                                    <th className="p-4 text-[13px] font-extrabold text-brand whitespace-nowrap">ชื่อในปฏิทิน (ต้องตั้งให้ตรง!)</th>
                                     <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">สถานะ</th>
                                     <th className="p-4 text-[13px] font-extrabold text-gray-500 text-center whitespace-nowrap">จัดการสิทธิ์</th>
                                 </tr>
@@ -2431,11 +2459,25 @@ ${promptAction}`;
                                                 <img src={u.photoURL || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full border border-gray-200 object-cover shadow-sm" alt="profile"/>
                                                 <div>
                                                     <div className="font-bold text-[14px] text-gray-800">{u.name}</div>
-                                                    <div className="text-[11px] text-gray-400 mt-0.5">ลงทะเบียน: {new Date(u.registeredAt).toLocaleDateString('th-TH')}</div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5">{u.email}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4 text-[13px] font-medium text-gray-600">{u.email}</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={nicknames[u.id] || ''} 
+                                                    onChange={e => setNicknames({...nicknames, [u.id]: e.target.value})} 
+                                                    placeholder="เช่น May, Boom" 
+                                                    className="w-[120px] px-3 py-1.5 bg-white border border-brand/30 focus:ring-1 focus:ring-brand rounded-lg text-[13px] font-bold text-gray-800 outline-none shadow-sm"
+                                                />
+                                                {/* โชว์ปุ่มบันทึกเฉพาะตอนแก้ไขชื่อใหม่ */}
+                                                {u.status === 'approved' && nicknames[u.id] !== u.systemName && (
+                                                    <button onClick={() => handleSaveNickname(u.id)} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-blue-200 hover:bg-blue-100 transition-colors">บันทึกชื่อใหม่</button>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="p-4">
                                             {u.status === 'pending' ? 
                                                 <span className="bg-yellow-100 text-yellow-700 border border-yellow-300 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm flex items-center w-max"><Icon name="Clock" size={12} className="mr-1.5"/> รออนุมัติ</span> :
