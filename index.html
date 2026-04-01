@@ -2783,7 +2783,9 @@ ${promptAction}`;
 
                       // 💡 บันทึกลงฐานข้อมูลเฉพาะถ้า Token เปลี่ยนไป หรือยังไม่เคยเซฟ
                       if (savedToken !== token) {
-                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
+                        // 🚀 จุดที่แก้ไข: เปลี่ยนจากการใช้ user.email เป็น token เพื่อเป็นชื่อ Document
+                        // ทำให้ 1 อีเมล สามารถบันทึกกุญแจได้หลายดอก (หลายเครื่อง) โดยไม่ทับกัน
+                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", token), {
                           token: token,
                           ownerEmail: user.email,
                           ownerName: user.displayName || "Unknown User",
