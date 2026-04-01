@@ -2382,7 +2382,7 @@ ${promptAction}`;
 
     const AdminPanel = ({ isFirebaseLoaded }) => {
         const [usersList, setUsersList] = useState([]);
-        const [nicknames, setNicknames] = useState({}); // 💡 เพิ่มตัวแปรเก็บชื่อเล่นตอนพิมพ์
+        const [nicknames, setNicknames] = useState({});
 
         useEffect(() => {
             if (!isFirebaseLoaded) return;
@@ -2393,7 +2393,6 @@ ${promptAction}`;
                 snapshot.forEach(doc => {
                     const data = doc.data();
                     loaded.push({ id: doc.id, ...data });
-                    // ดึงชื่อเล่นเดิมมาแสดง (ถ้าเคยตั้งไว้)
                     if (data.systemName) initialNicknames[doc.id] = data.systemName;
                 });
                 loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
@@ -2407,7 +2406,6 @@ ${promptAction}`;
             try {
                 const updateData = { status: newStatus, updatedAt: new Date().toISOString() };
                 
-                // 💡 บังคับให้ใส่ชื่อเล่นก่อนกดอนุมัติ
                 if (newStatus === 'approved') {
                     const nameInput = nicknames[emailId];
                     if (!nameInput || !nameInput.trim()) {
@@ -2472,7 +2470,6 @@ ${promptAction}`;
                                                     placeholder="เช่น May, Boom" 
                                                     className="w-[120px] px-3 py-1.5 bg-white border border-brand/30 focus:ring-1 focus:ring-brand rounded-lg text-[13px] font-bold text-gray-800 outline-none shadow-sm"
                                                 />
-                                                {/* โชว์ปุ่มบันทึกเฉพาะตอนแก้ไขชื่อใหม่ */}
                                                 {u.status === 'approved' && nicknames[u.id] !== u.systemName && (
                                                     <button onClick={() => handleSaveNickname(u.id)} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-blue-200 hover:bg-blue-100 transition-colors">บันทึกชื่อใหม่</button>
                                                 )}
