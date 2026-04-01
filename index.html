@@ -2382,28 +2382,54 @@ ${promptAction}`;
 
     const AdminPanel = ({ isFirebaseLoaded }) => {
         const [usersList, setUsersList] = useState([]);
+        const [nicknames, setNicknames] = useState({});
 
         useEffect(() => {
             if (!isFirebaseLoaded) return;
             const { collection, onSnapshot } = window.firebaseAPI;
             const unsubscribe = onSnapshot(collection(window.firebaseDB, "users"), (snapshot) => {
                 const loaded = [];
-                snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
-                // เรียงคนที่รออนุมัติ (pending) ขึ้นมาอยู่บนสุด
+                const initialNicks = {};
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    loaded.push({ id: doc.id, ...data });
+                    if (data.systemName) initialNicks[doc.id] = data.systemName;
+                });
                 loaded.sort((a, b) => (a.status === 'pending' ? -1 : 1));
                 setUsersList(loaded);
+                setNicknames(prev => ({...initialNicks, ...prev}));
             });
             return () => unsubscribe();
         }, [isFirebaseLoaded]);
 
         const handleUpdateStatus = async (emailId, newStatus) => {
             try {
-                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), { status: newStatus, updatedAt: new Date().toISOString() });
+                const updateData = { status: newStatus, updatedAt: new Date().toISOString() };
+                
+                if (newStatus === 'approved') {
+                    const nameInput = nicknames[emailId];
+                    if (!nameInput || !nameInput.trim()) {
+                        alert("⚠️ กรุณากรอก 'ชื่อในปฏิทิน' (เช่น Boom, Boat, May) ก่อนกดอนุมัติค่ะ");
+                        return;
+                    }
+                    updateData.systemName = nameInput.trim();
+                }
+                
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), updateData);
+            } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+        };
+
+        const handleSaveNickname = async (emailId) => {
+            const nameInput = nicknames[emailId];
+            if (!nameInput || !nameInput.trim()) return;
+            try {
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId), { systemName: nameInput.trim(), updatedAt: new Date().toISOString() });
+                alert("✅ บันทึกชื่อในปฏิทินสำเร็จ!");
             } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
         };
 
         const handleDeleteUser = async (emailId) => {
-            if(!window.confirm('ลบผู้ใช้นี้ออกจากระบบ? (ถ้าเขาล็อกอินใหม่ จะกลับไปเป็นสถานะรออนุมัติ)')) return;
+            if(!window.confirm('ลบผู้ใช้นี้ออกจากระบบ?')) return;
             try { await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "users", emailId)); } catch (e) {}
         };
 
@@ -2418,7 +2444,7 @@ ${promptAction}`;
                             <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
                                     <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">ผู้ใช้งาน</th>
-                                    <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">อีเมลบัญชี</th>
+                                    <th className="p-4 text-[13px] font-extrabold text-brand whitespace-nowrap">ชื่อในปฏิทิน (ต้องตั้งให้ตรง!)</th>
                                     <th className="p-4 text-[13px] font-extrabold text-gray-500 whitespace-nowrap">สถานะ</th>
                                     <th className="p-4 text-[13px] font-extrabold text-gray-500 text-center whitespace-nowrap">จัดการสิทธิ์</th>
                                 </tr>
@@ -2431,11 +2457,24 @@ ${promptAction}`;
                                                 <img src={u.photoURL || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full border border-gray-200 object-cover shadow-sm" alt="profile"/>
                                                 <div>
                                                     <div className="font-bold text-[14px] text-gray-800">{u.name}</div>
-                                                    <div className="text-[11px] text-gray-400 mt-0.5">ลงทะเบียน: {new Date(u.registeredAt).toLocaleDateString('th-TH')}</div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5">{u.email}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="p-4 text-[13px] font-medium text-gray-600">{u.email}</td>
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    value={nicknames[u.id] || ''} 
+                                                    onChange={e => setNicknames({...nicknames, [u.id]: e.target.value})} 
+                                                    placeholder="เช่น May, Boom" 
+                                                    className="w-[120px] px-3 py-1.5 bg-white border border-brand/30 focus:ring-1 focus:ring-brand rounded-lg text-[13px] font-bold text-gray-800 outline-none shadow-sm"
+                                                />
+                                                {u.status === 'approved' && nicknames[u.id] !== u.systemName && (
+                                                    <button onClick={() => handleSaveNickname(u.id)} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[11px] font-bold border border-blue-200 hover:bg-blue-100 transition-colors">บันทึกชื่อใหม่</button>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="p-4">
                                             {u.status === 'pending' ? 
                                                 <span className="bg-yellow-100 text-yellow-700 border border-yellow-300 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm flex items-center w-max"><Icon name="Clock" size={12} className="mr-1.5"/> รออนุมัติ</span> :
@@ -2445,9 +2484,9 @@ ${promptAction}`;
                                         <td className="p-4">
                                             <div className="flex items-center justify-center gap-2">
                                                 {u.status === 'pending' ? (
-                                                    <button onClick={() => handleUpdateStatus(u.id, 'approved')} className="bg-brand hover:bg-brandLight text-white px-4 py-2 rounded-xl text-[12px] font-bold shadow-sm transition-all flex items-center"><Icon name="Check" size={14} className="mr-1"/> อนุมัติเข้าแอป</button>
+                                                    <button onClick={() => handleUpdateStatus(u.id, 'approved')} className="bg-brand hover:bg-brandLight text-white px-4 py-2 rounded-xl text-[12px] font-bold shadow-sm transition-all flex items-center"><Icon name="Check" size={14} className="mr-1"/> อนุมัติ</button>
                                                 ) : (
-                                                    <button onClick={() => handleUpdateStatus(u.id, 'pending')} className="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-4 py-2 rounded-xl text-[12px] font-bold transition-all flex items-center shadow-sm"><Icon name="X" size={14} className="mr-1"/> ระงับสิทธิ์</button>
+                                                    <button onClick={() => handleUpdateStatus(u.id, 'pending')} className="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-4 py-2 rounded-xl text-[12px] font-bold transition-all flex items-center shadow-sm"><Icon name="X" size={14} className="mr-1"/> ระงับ</button>
                                                 )}
                                                 <button onClick={() => handleDeleteUser(u.id)} className="bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 p-2 rounded-xl transition-all shadow-sm" title="ลบผู้ใช้"><Icon name="Trash" size={16}/></button>
                                             </div>
