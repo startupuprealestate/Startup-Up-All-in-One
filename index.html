@@ -2849,8 +2849,18 @@ ${promptAction}`;
         if (!isFirebaseLoaded || accessStatus !== 'granted') return; // โหลดข้อมูลเฉพาะตอน Login ผ่านแล้ว
         const { collection, onSnapshot, setDoc, doc } = window.firebaseAPI;
         
-        const unsubscribeEvents = onSnapshot(collection(window.firebaseDB, "events"), (snapshot) => {
-          const loadedEvents = []; snapshot.forEach((doc) => loadedEvents.push({ id: doc.id, ...doc.data() })); setEvents(loadedEvents);
+        const currentYear = new Date().getFullYear();
+        const startOfYear = `${currentYear}-01-01`;
+
+        const eventsQuery = window.firebaseAPI.query(
+            collection(window.firebaseDB, "events"),
+            window.firebaseAPI.where("date", ">=", startOfYear)
+        );
+
+        const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
+            const loadedEvents = []; 
+            snapshot.forEach((doc) => loadedEvents.push({ id: doc.id, ...doc.data() })); 
+            setEvents(loadedEvents);
         });
 
         const unsubscribeDeps = onSnapshot(collection(window.firebaseDB, "departments"), (snapshot) => {
