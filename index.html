@@ -2955,11 +2955,33 @@ ${promptAction}`;
 
       const handleOpenModal = (day = null, eventToEdit = null, prefillAssignee = '', prefillType = '') => {
         if (eventToEdit) {
-          setFormData({ type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: eventToEdit.leaveType || '', leaveDuration: eventToEdit.leaveDuration || 'full' });
+          setFormData({ 
+              type: eventToEdit.type || 'event', 
+              date: eventToEdit.date, 
+              hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', 
+              minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', 
+              activity: eventToEdit.activity || '', 
+              note: eventToEdit.note || '', 
+              assignee: eventToEdit.assignee || '', 
+              leaveType: eventToEdit.leaveType || '', 
+              leaveDuration: eventToEdit.leaveDuration || 'full',
+              reminder: eventToEdit.reminder || '0' // 💡 เพิ่มบรรทัดนี้: ให้ดึงค่าแจ้งเตือนเก่ามาแสดง
+          });
           setEditingEventId(eventToEdit.id); setIsModalOpen(true); return;
         }
+        
         let dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : selectedDayString || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-        setFormData({ ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '', leaveDuration: 'full' });
+        
+        setFormData({ 
+            ...formData, 
+            type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), 
+            date: dateStr, 
+            assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), 
+            activity: '', 
+            leaveType: '', 
+            leaveDuration: 'full',
+            reminder: '0' // 💡 เพิ่มบรรทัดนี้: รีเซ็ตค่ากลับเป็น 0 เวลาเพิ่มกิจกรรมใหม่
+        });
         setEditingEventId(null); setIsModalOpen(true);
       };
 
