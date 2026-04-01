@@ -50,8 +50,8 @@ export default async function handler(req, res) {
             await messaging.send({
               token: tokenData.token,
               notification: {
-                title: '🔔 แจ้งเตือน: ' + event.activity,
-                body: `ถึงเวลาแล้วค่ะ! (${event.time} น.)\nรายละเอียด: ${event.note || '-'}`,
+                title: '🚨 แจ้งเตือน: ' + event.activity,
+                body: `ใกล้ถึงเวลา! (${event.time} น.)\nรายละเอียด: ${event.note || '-'}`,
               },
               // ตั้งค่าสำหรับ Android/iOS ให้เด้งแรงๆ
               android: { priority: 'high' },
