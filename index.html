@@ -2968,22 +2968,25 @@ ${promptAction}`;
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
         const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? (formData.leaveType ? `ลา: ${formData.leaveType} ${formData.leaveDuration === 'half' ? '(ครึ่งวัน)' : ''}`.trim() : 'วันลางาน') : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
+        
+        // 💡 เพิ่มระบบคำนวณเวลาแจ้งเตือน (ที่เผลอลบหายไป) กลับมาแล้วค่ะ!
+        if (formData.type === 'event' && formData.reminder) {
+            const eventDateTime = new Date(`${formData.date}T${formData.hour}:${formData.minute}:00`);
+            // ลบเวลาถอยหลังตามที่เลือก (ถ้าเลือก "0" ก็คือเตือนพอดีเวลา)
+            eventDateTime.setMinutes(eventDateTime.getMinutes() - parseInt(formData.reminder));
+            
+            eventData.notifyAt = eventDateTime.getTime(); // บันทึกเวลาที่ต้องปลุก (Milliseconds)
+            eventData.isNotified = false; // สร้างตัวกั้นว่ายังไม่ได้เตือน
+        }
+
         try {
           if (editingEventId) { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData); } 
           else {
               await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
               
               if (eventData.type === 'leave') {
-                  // 💡 ส่วนที่แก้ไข: จาก join('/') เป็น join('-')
-                  // จะเปลี่ยนจาก ปี-เดือน-วัน (2026-03-30) เป็น วัน-เดือน-ปี (30-03-2026)
                   const displayDate = eventData.date ? eventData.date.split('-').reverse().join('-') : '-';
-
-                  sendNotification({
-                      assignee: eventData.assignee,
-                      leaveType: eventData.leaveType,
-                      date: displayDate, // ส่งวันที่รูปแบบใหม่ (วัน-เดือน-ปี)
-                      reason: eventData.note 
-                  });
+                  sendNotification({ assignee: eventData.assignee, leaveType: eventData.leaveType, date: displayDate, reason: eventData.note });
               }
           }
         } catch (error) { alert("พบข้อผิดพลาด กรุณาลองใหม่"); }
