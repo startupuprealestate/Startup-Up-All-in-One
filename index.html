@@ -1803,31 +1803,6 @@ ${promptAction}`;
         const handleTouchStart = (e) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX); };
         const handleTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
         const handleTouchEnd = () => {
-        const handleNextImage = (e) => {
-            if (e) e.stopPropagation();
-            if (activeHouse?.images) {
-                setActiveImageIndex(prev => (prev + 1) % activeHouse.images.length);
-            }
-        };
-
-        const handlePrevImage = (e) => {
-            if (e) e.stopPropagation();
-            if (activeHouse?.images) {
-                setActiveImageIndex(prev => (prev === 0 ? activeHouse.images.length - 1 : prev - 1));
-            }
-        };
-
-        // 💡 เพิ่มการดักจับปุ่มลูกศรบนคีย์บอร์ด
-        useEffect(() => {
-            const handleKeyDown = (e) => {
-                if (modalMode === 'view' || isFullscreenImage) {
-                    if (e.key === 'ArrowLeft') handlePrevImage();
-                    if (e.key === 'ArrowRight') handleNextImage();
-                }
-            };
-            window.addEventListener('keydown', handleKeyDown);
-            return () => window.removeEventListener('keydown', handleKeyDown);
-        }, [modalMode, isFullscreenImage, activeHouse]);
             if (!touchStart || !touchEnd) return;
             const distance = touchStart - touchEnd;
             const isLeftSwipe = distance > 50; 
@@ -1961,8 +1936,8 @@ ${promptAction}`;
                                                 </button>
                                             </div>
                                             
-                                           <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronLeft" size={24}/></div>
-                                           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronRight" size={24}/></div>
+                                            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronLeft" size={24}/></div>
+                                            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white/30 pointer-events-none md:hidden"><Icon name="ChevronRight" size={24}/></div>
                                         </>
                                     ) : (
                                         <div className="text-gray-500 text-center"><Icon name="Image" size={48} className="mx-auto mb-2 opacity-50"/>ไม่มีรูปภาพ</div>
@@ -2808,9 +2783,7 @@ ${promptAction}`;
 
                       // 💡 บันทึกลงฐานข้อมูลเฉพาะถ้า Token เปลี่ยนไป หรือยังไม่เคยเซฟ
                       if (savedToken !== token) {
-                        // 🚀 จุดที่แก้ไข: เปลี่ยนจากการใช้ user.email เป็น token เพื่อเป็นชื่อ Document
-                        // ทำให้ 1 อีเมล สามารถบันทึกกุญแจได้หลายดอก (หลายเครื่อง) โดยไม่ทับกัน
-                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", token), {
+                        await window.firebaseAPI.setDoc(window.firebaseAPI.doc(db, "fcm_tokens", user.email), {
                           token: token,
                           ownerEmail: user.email,
                           ownerName: user.displayName || "Unknown User",
@@ -2876,18 +2849,8 @@ ${promptAction}`;
         if (!isFirebaseLoaded || accessStatus !== 'granted') return; // โหลดข้อมูลเฉพาะตอน Login ผ่านแล้ว
         const { collection, onSnapshot, setDoc, doc } = window.firebaseAPI;
         
-        const currentYear = new Date().getFullYear();
-        const startOfYear = `${currentYear}-01-01`;
-
-        const eventsQuery = window.firebaseAPI.query(
-            collection(window.firebaseDB, "events"),
-            window.firebaseAPI.where("date", ">=", startOfYear)
-        );
-
-        const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
-            const loadedEvents = []; 
-            snapshot.forEach((doc) => loadedEvents.push({ id: doc.id, ...doc.data() })); 
-            setEvents(loadedEvents);
+        const unsubscribeEvents = onSnapshot(collection(window.firebaseDB, "events"), (snapshot) => {
+          const loadedEvents = []; snapshot.forEach((doc) => loadedEvents.push({ id: doc.id, ...doc.data() })); setEvents(loadedEvents);
         });
 
         const unsubscribeDeps = onSnapshot(collection(window.firebaseDB, "departments"), (snapshot) => {
