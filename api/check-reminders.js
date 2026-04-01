@@ -15,18 +15,18 @@ if (!admin.apps.length) {
 // ด้านขวา คืออีเมล Google ที่เขาใช้ล็อกอินเข้าแอป
 const staffDictionary = {
   "boom": "bloom27742@hotmail.com",
-  "boat": "ใส่อีเมลของโบ๊ทที่นี่@gmail.com",
-  "may": "ใส่อีเมลของเมย์ที่นี่@gmail.com",
-  "noey": "ใส่อีเมลของเนยที่นี่@gmail.com",
-  "ketar": "ใส่อีเมลของกีต้าร์ที่นี่@gmail.com",
-  "peth": "ใส่อีเมลของเพชรที่นี่@gmail.com",
-  "beau": "ใส่อีเมลของบิวที่นี่@gmail.com",
-  "perth": "ใส่อีเมลของเพิร์ธที่นี่@gmail.com",
-  "ter": "ใส่อีเมลของเต๋อที่นี่@gmail.com",
-  "bumb": "ใส่อีเมลของบุ๋มที่นี่@gmail.com",
-  "weerwi": "ใส่อีเมลของวีรวิชญ์ที่นี่@gmail.com",
-  "ไม้": "ใส่อีเมลของไม้ที่นี่@gmail.com",
-  "เพจกลาง": "ใส่อีเมลเพจกลาง@gmail.com"
+  "boat": "kanasest.tk@gmail.com",
+  "may": "may_mayyoophu@hotmail.com",
+  "noey": "noeyananta1823@gmail.com",
+  "ketar": "ketarbusayarangsee@gmail.com",
+  "peth": "pepetchpunk@gmail.com",
+  "beau": "pornchompoo.k@gmail.com",
+  "perth": "perseperseperse44@gmail.com",
+  "ter": "iamcatwoman1992@gmail.com",
+  "bumb": "tanadon.startupup@gmail.com",
+  "weerwi": "weerwiraya.startupup@gmail.com",
+  "ไม้": "charawut112@gmail.com",
+  "เพจกลาง": "startup.up.real.estate@gmail.com"
 };
 
 export default async function handler(req, res) {
