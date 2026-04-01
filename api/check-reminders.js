@@ -11,41 +11,66 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
-  // บังคับให้ Vercel ไม่ทำ Cache หน้าเว็บ (ป้องกันปัญหาต้องรีเฟรชเอง)
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   
   try {
     const db = admin.firestore();
     const messaging = admin.messaging();
-    
-    // 💡 แก้ไขเรื่องเวลา: ใช้เวลาปัจจุบันแบบสากลและเผื่อบัฟเฟอร์ 1 นาที
     const now = Date.now() + 60000; 
 
+    // 1. ดึงงานที่ถึงเวลาแจ้งเตือน
     const eventsRef = db.collection('events');
-    // ดึงรายการที่ถึงเวลาแล้ว และยังไม่ได้แจ้งเตือน
     const snapshot = await eventsRef
         .where('isNotified', '==', false)
         .where('notifyAt', '<=', now)
-        .limit(10) // ดึงมาทีละ 10 รายการเพื่อประหยัด Read
+        .limit(10)
         .get();
 
     if (snapshot.empty) {
       return res.status(200).json({ status: "ok", message: 'ไม่มีงานที่ค้างส่ง' });
     }
 
+    // 💡 2. สมุดหน้าเหลืองอัตโนมัติ (ดึงจากหน้า Admin ที่พี่พิมพ์ไว้)
+    const usersSnapshot = await db.collection('users').get();
+    const dynamicDictionary = {};
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data();
+      // เอาชื่อเล่นในระบบ มาจับคู่กับ อีเมล
+      if (userData.systemName && userData.email) {
+        dynamicDictionary[userData.systemName.toLowerCase().trim()] = userData.email.toLowerCase().trim();
+      }
+    });
+
+    // 3. โหลด Token มือถือทั้งหมดมาเตรียมยิง
+    const allTokensSnapshot = await db.collection('fcm_tokens').get();
+    const allTokens = [];
+    allTokensSnapshot.forEach(doc => allTokens.push(doc.data()));
+
     let notifiedCount = 0;
 
     for (const eventDoc of snapshot.docs) {
       const event = eventDoc.data();
+      const targetAssignee = (event.assignee || '').toLowerCase().trim();
 
-      // ค้นหา Token ของพนักงานคนนั้นๆ
-      const userTokensRef = await db.collection('fcm_tokens')
-                                    .where('ownerName', '==', event.assignee)
-                                    .get();
+      // 💡 4. ถามสมุดหน้าเหลืองว่า ชื่อนี้ใช้อีเมลอะไร?
+      const targetEmail = dynamicDictionary[targetAssignee];
 
-      if (!userTokensRef.empty) {
-        for (const tokenDoc of userTokensRef.docs) {
-          const tokenData = tokenDoc.data();
+      let matchedTokens = [];
+
+      if (targetEmail) {
+        // หา Token ด้วยอีเมลเป๊ะๆ 100%
+        matchedTokens = allTokens.filter(t => (t.ownerEmail || '').toLowerCase() === targetEmail);
+      } else {
+        // แผนสำรอง: ถ้าใน Admin ลืมพิมพ์ชื่อเล่นไว้ ให้ค้นหาจากชื่อ Google แทน
+        matchedTokens = allTokens.filter(t => {
+            const name = (t.ownerName || '').toLowerCase();
+            const email = (t.ownerEmail || '').toLowerCase();
+            return name.includes(targetAssignee) || email.includes(targetAssignee);
+        });
+      }
+
+      if (matchedTokens.length > 0) {
+        for (const tokenData of matchedTokens) {
           try {
             await messaging.send({
               token: tokenData.token,
@@ -53,7 +78,6 @@ export default async function handler(req, res) {
                 title: '🚨 แจ้งเตือน: ' + event.activity,
                 body: `ใกล้ถึงเวลา! (${event.time} น.)\nรายละเอียด: ${event.note || '-'}`,
               },
-              // ตั้งค่าสำหรับ Android/iOS ให้เด้งแรงๆ
               android: { priority: 'high' },
               apns: { payload: { aps: { sound: 'default' } } }
             });
@@ -63,7 +87,6 @@ export default async function handler(req, res) {
         }
       }
 
-      // ✅ บันทึกทันทีว่าแจ้งเตือนแล้ว
       await eventDoc.ref.update({ isNotified: true });
       notifiedCount++;
     }
