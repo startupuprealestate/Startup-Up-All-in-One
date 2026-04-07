@@ -915,7 +915,7 @@
             </div>
         );
     };
-
+    
     const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress }) => {
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -929,6 +929,28 @@
         const [historyToDelete, setHistoryToDelete] = useState(null);
         const [showFilters, setShowFilters] = useState(false);
 
+        const [timeLeft, setTimeLeft] = useState("");
+
+useEffect(() => {
+    const timer = setInterval(() => {
+        const now = new Date();
+        let target = new Date();
+        target.setHours(9, 0, 0, 0);
+
+        // ถ้าตอนนี้เลย 9 โมงไปแล้ว ให้เป้าหมายเป็น 9 โมงของวันพรุ่งนี้
+        if (now >= target) {
+            target.setDate(target.getDate() + 1);
+        }
+
+        const diff = target - now;
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+        setTimeLeft(`${h} ชม. ${m} นาที ${s} วินาที`);
+    }, 1000);
+    return () => clearInterval(timer);
+}, []);
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('s_h_val_post_v6');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] };
@@ -1024,29 +1046,57 @@
         }).concat(skippedHouses);
 
         const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'], specificAssignees = ['May', 'Boom', 'Boat'], allAssigneesList = [...generalAssignees, ...specificAssignees];
-        const scheduleData = [], usedHouseIds = new Set();
+        const scheduleData = [];
         
-        generalAssignees.forEach(name => {
-            const assignedHouses = [];
-            for (let i = 0; i < newestPool.length; i++) {
-                if (!usedHouseIds.has(newestPool[i].id)) { assignedHouses.push(newestPool[i]); usedHouseIds.add(newestPool[i].id); break; }
-            }
-            for (let i = 0; i < priorityPool.length && assignedHouses.length < 4; i++) {
-                if (!usedHouseIds.has(priorityPool[i].id)) { assignedHouses.push(priorityPool[i]); usedHouseIds.add(priorityPool[i].id); }
-            }
-            scheduleData.push({ name, type: 'general', houses: assignedHouses });
-        });
+        // 💡 1. ตัวแปรเก็บรายชื่อบ้านที่โดนจ่ายงานไปแล้ว "ในวันนี้" (เพื่อป้องกันการโพสต์ซ้ำวันเดียวกัน)
+        const assignedToday = new Set();
+        const specificSchedules = [];
         
-        // 💡 อัปเดตการดึงข้อมูลเฉพาะบุคคล: ให้เชื่อมกับ "ผู้ดูแลบ้าน" (caretaker) ใน constructionProgress ที่ทำไว้หน้าโซน
+        // 💡 2. ให้สิทธิ์น้องๆ เซลล์ (May, Boom, Boat) ดึงบ้านของตัวเองลงตารางก่อน
         specificAssignees.forEach(name => {
             const myHouses = priorityPool.filter(row => {
-                // เช็คว่าคนๆ นี้ได้รับมอบหมายเป็น "ผู้ดูแลบ้าน" ในหน้าระบบแยกตามโซนหรือไม่
                 const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
                 return caretaker.toLowerCase() === name.toLowerCase();
             }).slice(0, 4); 
             
-            scheduleData.push({ name, type: 'specific', houses: myHouses });
+            // บันทึก ID บ้านที่เซลล์ได้ไปวันนี้ จะได้ไม่มีใครมาแย่งไปโพสต์ซ้ำในวันเดียวกัน
+            myHouses.forEach(h => assignedToday.add(h.id));
+            specificSchedules.push({ name, type: 'specific', houses: myHouses });
         });
+
+        const generalSchedules = [];
+        
+        // 💡 3. ให้ทีมส่วนกลาง (เพจกลาง, Ketar, Noey) เลือกบ้าน
+        generalAssignees.forEach(name => {
+            const assignedHouses = [];
+            const isPageKlang = name === 'เพจกลาง';
+            const myUsedInLoop = new Set(); // กันไม่ให้คนเดียวได้บ้านซ้ำกันเองใน 4 โพสต์
+
+            // ดึงบ้านใหม่ล่าสุด 1 หลัง
+            for (let i = 0; i < newestPool.length; i++) {
+                const house = newestPool[i];
+                // กฎ: เพจกลางทะลุกฎซ้ำได้คนเดียว ส่วนคนอื่น (Ketar, Noey) ดึงบ้านใครก็ได้ แต่ต้อง "ไม่ซ้ำ" กับบ้านที่จ่ายไปแล้ววันนี้
+                if (!myUsedInLoop.has(house.id) && (isPageKlang || !assignedToday.has(house.id))) { 
+                    assignedHouses.push(house); 
+                    myUsedInLoop.add(house.id); 
+                    if (!isPageKlang) assignedToday.add(house.id);
+                    break; 
+                }
+            }
+            // ดึงบ้านตามความสำคัญให้ครบ 4 หลัง
+            for (let i = 0; i < priorityPool.length && assignedHouses.length < 4; i++) {
+                const house = priorityPool[i];
+                if (!myUsedInLoop.has(house.id) && (isPageKlang || !assignedToday.has(house.id))) { 
+                    assignedHouses.push(house); 
+                    myUsedInLoop.add(house.id); 
+                    if (!isPageKlang) assignedToday.add(house.id);
+                }
+            }
+            generalSchedules.push({ name, type: 'general', houses: assignedHouses });
+        });
+        
+        // 💡 4. เอาตารางของส่วนกลางขึ้นก่อน ตามด้วยตารางของเซลล์ (รวมเข้าด้วยกัน)
+        scheduleData.push(...generalSchedules, ...specificSchedules);
 
         const getPriorityLabel = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']), startStr = safeTrim(row['เริ่มทำ']);
@@ -1173,6 +1223,21 @@
 
                {viewMode === 'daily' ? (
                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-10" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                    <div className="mb-4 bg-brand/5 border border-brand/20 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+    <div className="flex items-center">
+        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-brand shadow-sm mr-3">
+            <Icon name="Clock" size={20} className="animate-pulse" />
+        </div>
+        <div>
+            <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">รีเซ็ตตารางถัดไปใน</p>
+            <p className="text-[18px] font-black text-brand tracking-tight">{timeLeft || "กำลังคำนวณ..."}</p>
+        </div>
+    </div>
+    <div className="text-right hidden sm:block">
+        <p className="text-[11px] font-bold text-brand/60 uppercase">เวลาตัดรอบ</p>
+        <p className="text-[13px] font-bold text-gray-700">09:00 น. ของทุกวัน</p>
+    </div>
+</div>
                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {scheduleData.map((assignee, idx) => {
                             const completedCount = assignee.houses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
