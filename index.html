@@ -916,7 +916,7 @@
         );
     };
     
-    const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress }) => {
+    const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress, user }) => {
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
@@ -978,7 +978,18 @@ useEffect(() => {
 
         const handleTogglePost = async (rowId, isChecked, assigneeName) => {
             if (!isFirebaseLoaded) return;
-            try { await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", rowId), { [assigneeName]: isChecked ? assignmentTodayStr : null }, { merge: true }); } catch(err) {}
+            try { 
+                const updateData = { [assigneeName]: isChecked ? assignmentTodayStr : null };
+                
+                // 💡 ถ้ากดติ๊กถูก ให้ดึงชื่อจาก Gmail มาบันทึกด้วย
+                if (isChecked && user) {
+                    updateData[`${assigneeName}_postedBy`] = user.displayName || user.email || 'ทีมงาน';
+                } else if (!isChecked) {
+                    updateData[`${assigneeName}_postedBy`] = null; // ถ้าติ๊กออก ก็ลบชื่อทิ้ง
+                }
+                
+                await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", rowId), updateData, { merge: true }); 
+            } catch(err) {}
         };
 
         const confirmSkip = (houseId, houseName) => { setHouseToSkip({ id: houseId, name: houseName }); setIsSkipModalOpen(true); };
@@ -1272,7 +1283,11 @@ useEffect(() => {
                                                                     {!isPostedToday && getPriorityLabel(house)}
                                                                     {!isPostedToday && renderPreviousPostInfo(house, assignee.name)}
                                                                 </div>
-                                                                {isPostedToday && <span className="inline-block mt-1 text-[11px] font-bold text-[#059669]">✔ คุณโพสต์แล้ววันนี้</span>}
+                                                                {isPostedToday && (
+                                                                    <span className="inline-block mt-1 text-[11px] font-bold text-[#059669]">
+                                                                        ✔ โพสต์แล้วโดย: {postTracking[house.id]?.[`${assignee.name}_postedBy`] || 'ทีมงาน'}
+                                                                    </span>
+                                                                 )}
                                                             </div>
                                                             <button onClick={() => confirmSkip(house.id, combined)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
                                                         </li>
@@ -1341,14 +1356,16 @@ useEffect(() => {
                                                               <div className="flex flex-wrap gap-1.5 max-w-[300px]">
                                                                   {records.map(([assigneeName, dateStr]) => {
                                                                       const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
-                                                                      return (
-                                                                          <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
-                                                                              <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
-                                                                              <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                                                                                  <Icon name="X" size={10} />
-                                                                              </button>
-                                                                          </span>
-                                                                      );
+        const postedBy = postTracking[row.id]?.[`${assigneeName}_postedBy`];
+        return (
+            <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
+                <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
+                {postedBy && <span className="ml-1 text-[9px] text-brand bg-brand/10 px-1 rounded">กดโดย: {postedBy}</span>}
+                <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                    <Icon name="X" size={10} />
+                </button>
+            </span>
+        );
                                                                   })}
                                                               </div>
                                                           ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
@@ -3505,7 +3522,7 @@ ${promptAction}`;
               {activeApp === 'content' && <ContentChecklist sheetData={sheetData} sheetError={sheetError} contentChecklists={contentChecklists} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'schedule' && <ConstructionSchedule sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
               {activeApp === 'zone' && <HouseZoneTable sheetData={sheetData} constructionProgress={constructionProgress} isFirebaseLoaded={isFirebaseLoaded} setManualRefreshKey={setManualRefreshKey} />}
-              {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} constructionProgress={constructionProgress} />}
+              {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} constructionProgress={constructionProgress} user={user} />}
               {activeApp === 'company' && <CompanyInfo />}
               {activeApp === 'admin' && isAdmin && <AdminPanel isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
