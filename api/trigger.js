@@ -26,7 +26,7 @@ export default async function handler(req, res) {
 
     // จัดเตรียมข้อความตามประเภทการแจ้งเตือน
     if (action === 'leave') {
-      title = `📢 แจ้งลางาน: ${data.assignee}`;
+      title = `🚨 แจ้งลางาน: ${data.assignee}`;
       body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
     } else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
