@@ -1,67 +1,72 @@
 import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
-    });
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  });
 }
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  // รับเฉพาะคำสั่ง POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-    const { action, data } = req.body;
-    const db = admin.firestore();
+  const { action, data } = req.body;
+  const db = admin.firestore();
+  const messaging = admin.messaging();
 
-    try {
-        const tokensSnap = await db.collection('fcm_tokens').get();
-        const allTokens = tokensSnap.docs.map(doc => doc.data().token).filter(Boolean);
+  try {
+    let title = '';
+    let body = '';
 
-        if (allTokens.length === 0) return res.status(200).json({ message: 'ไม่มีเครื่องไหนเปิดรับการแจ้งเตือน' });
-
-        let payload = null;
-
-        // 💡 แก้ไขเงื่อนไขให้ถูกต้อง (ลบปีกกาที่เกินออกแล้วค่ะ)
-        if (action === 'leave') {
-            const requester = data.assignee || 'สมาชิกในทีม';
-            const type = data.leaveType || 'ลางาน';
-            const dateRange = data.date || '-';
-            const reason = data.reason || data.note || data.details || 'ไม่ได้ระบุเหตุผล';
-
-            payload = {
-                notification: {
-                    title: '🚨 แจ้งลางาน',
-                    body: `${requester} ${type}\nวันที่: ${dateRange}\nเหตุผล: ${reason}`,
-                },
-                // เพิ่มข้อมูลสำหรับ iOS ให้เด้งดีขึ้น
-                android: { priority: 'high' },
-                apns: { payload: { aps: { sound: 'default' } } }
-            };
-        } else if (action === 'house') {
-            payload = {
-                notification: {
-                    title: '🏠 อัปเดตบ้านสร้างเสร็จ!',
-                    body: `โครงการ ${data.houseName} สร้างเสร็จเรียบร้อยแล้ว!`
-                },
-                apns: { payload: { aps: { sound: 'default' } } }
-            };
-        }
-
-        // 💡 ยิงข้อความเข้ามือถือทุกคน
-        if (payload) {
-            const response = await admin.messaging().sendEachForMulticast({ 
-                ...payload, 
-                tokens: allTokens 
-            });
-            console.log('ส่งสำเร็จ:', response.successCount);
-        }
-
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error("Error Detail:", error);
-        res.status(500).json({ error: error.message });
+    // จัดเตรียมข้อความตามประเภทการแจ้งเตือน
+    if (action === 'leave') {
+      title = `📢 แจ้งลางาน: ${data.assignee}`;
+      body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
+    } else if (action === 'house') {
+      title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
+      body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
+    } else {
+      return res.status(400).json({ error: 'Unknown action' });
     }
+
+    // 💡 จุดที่เปลี่ยน: ดึง Token ของ "ทุกคน" ในตารางมาใช้งานเลย (เอา .where() ออก)
+    const tokensSnapshot = await db.collection('fcm_tokens').get();
+
+    if (tokensSnapshot.empty) {
+      return res.status(200).json({ message: "ไม่มี Token ของผู้ใช้ในระบบ" });
+    }
+
+    let successCount = 0;
+
+    // ยิงแจ้งเตือนให้ "ทุกคน" ที่เคยกดรับการแจ้งเตือนไว้
+    for (const doc of tokensSnapshot.docs) {
+      const tokenData = doc.data();
+      try {
+        await messaging.send({
+          token: tokenData.token,
+          notification: {
+            title: title,
+            body: body,
+          },
+          android: { priority: 'high' },
+          apns: { payload: { aps: { sound: 'default' } } }
+        });
+        successCount++;
+      } catch (err) {
+        console.error("ส่งไม่สำเร็จ (Token อาจหมดอายุ):", tokenData.ownerEmail);
+      }
+    }
+
+    return res.status(200).json({ success: true, notified: successCount });
+
+  } catch (error) {
+    console.error("Trigger Error:", error);
+    return res.status(500).json({ error: error.message });
+  }
 }
