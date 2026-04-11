@@ -1767,18 +1767,23 @@ ${promptAction}`;
         };
 
         const uploadToCloudinary = async (base64Img) => {
-            const CLOUD_NAME = "dobblw1f3";
-            const UPLOAD_PRESET = "All_in_One";
-            
-            const formData = new FormData();
-            formData.append('file', base64Img);
-            formData.append('upload_preset', UPLOAD_PRESET);
-
+        const CLOUD_NAME = "dobblw1f3"; 
+        const UPLOAD_PRESET = "All_in_One";
+        
+        const formData = new FormData();
+        formData.append('file', base64Img);
+        formData.append('upload_preset', UPLOAD_PRESET);
+        
+        try {
             const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
             const data = await res.json();
-            if (data.error) throw new Error(data.error.message);
+            if (data.error) throw new Error(data.error.message); // ดึงข้อความ Error จริงๆ มา
             return data.secure_url; 
-        };
+        } catch (error) {
+            console.error("Cloudinary Upload Error:", error);
+            throw error; // โยน Error ไปให้ป๊อปอัปด้านล่าง
+        }
+    };
 
         const handleDownloadSingle = async (url, filename) => {
             try {
@@ -3126,21 +3131,21 @@ ${promptAction}`;
 
       const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
 
-      // 💡 ฟังก์ชันอัปโหลดรูปลง Cloudinary
       const handleLeaveImageUpload = async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          setIsUploadingLeaveImg(true);
-          try {
-              const compressed = await compressImage(file);
-              const url = await uploadToCloudinary(compressed);
-              setFormData(prev => ({ ...prev, image: url }));
-          } catch (err) {
-              alert('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่ค่ะ');
-          } finally {
-              setIsUploadingLeaveImg(false);
-          }
-      };
+        const file = e.target.files[0];
+        if (!file) return;
+        setIsUploadingLeaveImg(true);
+        try {
+            const compressed = await compressImage(file);
+            const url = await uploadToCloudinary(compressed);
+            setFormData(prev => ({ ...prev, image: url }));
+        } catch (err) {
+            // 💡 เปลี่ยนจากแจ้งเตือนธรรมดา เป็นฟ้องเลยว่า Error อะไร
+            alert('อัปโหลดรูปไม่สำเร็จ!\nสาเหตุ: ' + err.message);
+        } finally {
+            setIsUploadingLeaveImg(false);
+        }
+    };
 
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
