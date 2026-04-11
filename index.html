@@ -193,7 +193,27 @@
     });
 
     const safeTrim = (v) => v ? String(v).trim() : '';
-    const getValidSheetData = (d) => d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && Object.keys(r).some(k => k !== 'id' && safeTrim(r[k]) !== '') && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่']))).sort((a, b) => (parseInt((a._originalRowId || a.id).replace('row_', '')) || 0) - (parseInt((b._originalRowId || b.id).replace('row_', '')) || 0));
+    const getValidSheetData = (d) => {
+            const validRows = d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && Object.keys(r).some(k => k !== 'id' && k !== '_originalRowId' && safeTrim(r[k]) !== '') && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
+            
+            // 💡 ระบบกำจัด "ร่างโคลน" (กรองข้อมูลที่ซ้ำกันให้เหลือแค่ 1 หลัง)
+            const uniqueMap = new Map();
+            validRows.forEach(row => {
+                // ถ้ายังไม่มีรหัสบ้านนี้ในตระกร้า ให้เก็บไว้ (ถ้ามีแล้ว แปลว่าซ้ำ ให้โยนทิ้ง)
+                if (!uniqueMap.has(row.id)) {
+                    uniqueMap.set(row.id, row);
+                } else {
+                    // (Optional) เลือกร่างโคลนที่อยู่บนสุดของ Sheet เป็นหลัก
+                    const existingRow = uniqueMap.get(row.id);
+                    const existingIdNum = parseInt(String(existingRow._originalRowId || existingRow.id).replace('row_', '')) || Infinity;
+                    const currentIdNum = parseInt(String(row._originalRowId || row.id).replace('row_', '')) || Infinity;
+                    if (currentIdNum < existingIdNum) uniqueMap.set(row.id, row);
+                }
+            });
+            
+            // เรียงลำดับแถวให้ตรงกับ Google Sheet แป๊ะๆ
+            return Array.from(uniqueMap.values()).sort((a, b) => (parseInt((a._originalRowId || a.id).replace('row_', '')) || 0) - (parseInt((b._originalRowId || b.id).replace('row_', '')) || 0));
+        };
     const getFormattedDateThai = (dStr) => { if (!dStr) return ''; const [y, m, d] = dStr.split('-'); return `${parseInt(d, 10)} ${MONTHS_TH[parseInt(m, 10) - 1]} ${parseInt(y, 10) + 543}`; };
     const parseThaiDate = (dStr) => {
         if (!dStr) return null; const s = String(dStr).trim();
