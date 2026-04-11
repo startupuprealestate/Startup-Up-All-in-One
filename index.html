@@ -2728,7 +2728,7 @@ ${promptAction}`;
   );
 };
     
-    // 💡 ระบบหน้าตาราง Affiliate & Friend Get Friend (เวอร์ชันแก้บั๊กข้อมูลไม่ขึ้น)
+    // 💡 ระบบหน้าตาราง Affiliate & Friend Get Friend (เวอร์ชันแก้ไขหัวข้อไม่ขึ้น)
     const AffiliateTable = () => {
         const [activeTab, setActiveTab] = useState('Affiliate');
         const [data, setData] = useState([]);
@@ -2758,28 +2758,34 @@ ${promptAction}`;
                 };
 
                 const lines = csvText.split('\n').filter(line => line.trim() !== '');
-                if (lines.length > 1) {
-                    const parsedHeaders = parseCSVRow(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+                if (lines.length > 0) {
+                    // 💡 ตั้งค่าตำแหน่ง "หัวข้อ" และ "จุดเริ่มต้นข้อมูล" ให้ต่างกันตามหน้า
+                    // Affiliate: หัวข้ออยู่แถว 0, ข้อมูลเริ่มแถว 1
+                    // FriendGetFriend: หัวข้อจริงอยู่แถว 1, ข้อมูลเริ่มแถว 2
+                    const headerIdx = sheetName === 'FriendGetFriend' ? 1 : 0;
+                    const dataStartIdx = sheetName === 'FriendGetFriend' ? 2 : 1;
+
+                    // ดึงหัวข้อคอลัมน์
+                    const parsedHeaders = parseCSVRow(lines[headerIdx]).map(h => h.replace(/^"|"$/g, '').trim()).filter(h => h !== '');
                     setHeaders(parsedHeaders);
                     
-                    // 💡 จุดที่แก้ไข: ถ้าเป็น FriendGetFriend ให้ข้ามข้อมูล 2 บรรทัดแรก (หัวข้อหลัก+หัวข้อย่อย)
-                    const dataStartIndex = sheetName === 'FriendGetFriend' ? 2 : 1;
-                    
-                    const parsedData = lines.slice(dataStartIndex).map(line => {
+                    // ดึงข้อมูลแถวที่เหลือ
+                    const parsedData = lines.slice(dataStartIdx).map(line => {
                         const row = parseCSVRow(line);
                         const obj = {};
+                        // เก็บข้อมูลดิบแบบ Index เพื่อความแม่นยำ
                         obj._rawRow = row.map(v => v ? v.replace(/^"|"$/g, '').trim() : '');
-                        parsedHeaders.forEach((h, i) => { obj[h] = obj._rawRow[i]; });
+                        // เก็บแบบ Key-Value ไว้ใช้กับระบบค้นหา
+                        parsedHeaders.forEach((h, i) => { obj[h] = obj._rawRow[i] || ''; });
                         return obj;
-                    }).filter(r => r._rawRow.some(v => v !== ''));
+                    }).filter(r => r._rawRow.some(v => v !== '')); // ตัดแถวว่าง
                     
-                    // 💡 ลบ .reverse() ออกตามที่พี่ขอ เพื่อให้ข้อมูลเรียงจากบนลงล่างเหมือน Sheet เป๊ะๆ
                     setData(parsedData); 
                 } else {
                     setHeaders([]); setData([]);
                 }
             } catch (error) {
-                console.error("Fetch Affiliate Error:", error);
+                console.error("Fetch Error:", error);
             } finally {
                 setIsLoading(false);
             }
@@ -2834,43 +2840,30 @@ ${promptAction}`;
                                         <th colSpan={4} className="py-2 px-4 text-[14px] font-extrabold text-blue-800 text-center border-b border-gray-200 bg-blue-100 shadow-inner">👤 ผู้ถูกแนะนำ</th>
                                     </tr>
                                     <tr>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">วันเวลา</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">อีเมล</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">ชื่อ</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">เบอร์ติดต่อ</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">สถานะ</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">เซลล์ที่ดูแล</th>
-                                        
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">ชื่อ</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">เบอร์ติดต่อ</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">ID LINE</th>
-                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase bg-gray-50">โครงการที่สนใจ</th>
+                                        {headers.map((h, i) => (
+                                            <th key={i} className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">{h}</th>
+                                        ))}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {isLoading ? (
-                                        <tr><td colSpan={11} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
+                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
                                     ) : filteredData.length > 0 ? (
                                         filteredData.map((row, idx) => (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                                <td className="py-4 px-4 text-center text-[13px] font-bold text-gray-400 border-r border-gray-200 sticky left-0 z-10 bg-white">{idx + 1}</td>
-                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100 whitespace-nowrap">{row._rawRow[0] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100">{row._rawRow[1] || '-'}</td>
-                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[2] || '-'}</td>
-                                                <td className="py-4 px-4 text-[14px] font-black text-brand border-r border-gray-100">{row._rawRow[3] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] font-bold border-r border-gray-100">
-                                                    {row._rawRow[4] ? <span className="bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md border border-orange-200">{row._rawRow[4]}</span> : '-'}
-                                                </td>
-                                                <td className="py-4 px-4 text-[13px] font-bold text-blue-700 border-r border-gray-200 bg-gray-50">{row._rawRow[5] || '-'}</td>
-                                                
-                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[6] || '-'}</td>
-                                                <td className="py-4 px-4 text-[14px] font-black text-blue-600 border-r border-gray-100">{row._rawRow[7] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] font-bold text-emerald-600 border-r border-gray-100">{row._rawRow[8] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] font-bold text-gray-700">{row._rawRow[9] || '-'}</td>
+                                                <td className="py-4 px-4 text-center text-[13px] font-bold text-gray-400 border-r border-gray-100 sticky left-0 z-10 bg-white">{idx + 1}</td>
+                                                {row._rawRow.map((val, i) => {
+                                                    if (i >= headers.length) return null;
+                                                    let className = "py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100";
+                                                    if (i === 2 || i === 6) className = "py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100";
+                                                    if (i === 3 || i === 7) className = "py-4 px-4 text-[14px] font-black text-brand border-r border-gray-100";
+                                                    if (i === 4) return <td key={i} className="py-4 px-4 border-r border-gray-100"><span className="bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md border border-orange-200 font-bold text-[12px]">{val || '-'}</span></td>;
+                                                    return <td key={i} className={className}>{val || '-'}</td>;
+                                                })}
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan={11} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
+                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -2886,7 +2879,7 @@ ${promptAction}`;
                                 </thead>
                                 <tbody>
                                     {isLoading ? (
-                                        <tr><td colSpan={headers.length + 1 || 5} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
+                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
                                     ) : filteredData.length > 0 ? (
                                         filteredData.map((row, idx) => (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
@@ -2896,7 +2889,6 @@ ${promptAction}`;
                                                     const h = headers[i];
                                                     let className = "py-4 px-5 text-[13px] font-medium text-gray-600 border-r border-gray-100";
                                                     let content = val || '-';
-                                                    
                                                     if (h.includes('ชื่อ')) className = "py-4 px-5 text-[14px] font-extrabold text-gray-800 border-r border-gray-100";
                                                     else if (h.includes('เบอร์') || h.includes('โทร')) className = "py-4 px-5 text-[14px] font-black text-brand border-r border-gray-100";
                                                     else if (h.includes('ร้าน') || h.includes('สแกน')) {
@@ -2908,7 +2900,7 @@ ${promptAction}`;
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan={headers.length + 1 || 5} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
+                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
                                     )}
                                 </tbody>
                             </table>
