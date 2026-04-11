@@ -2772,7 +2772,7 @@ ${promptAction}`;
                         return obj;
                     }).filter(r => r._rawRow.some(v => v !== ''));
                     
-                    setData(parsedData.reverse());
+                    setData(parsedData);
                 } else {
                     setHeaders([]); setData([]);
                 }
