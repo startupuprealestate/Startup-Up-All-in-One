@@ -2762,17 +2762,19 @@ ${promptAction}`;
                     const parsedHeaders = parseCSVRow(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
                     setHeaders(parsedHeaders);
                     
-                    const parsedData = lines.slice(1).map(line => {
+                    // 💡 จุดที่แก้ไข: ถ้าเป็น FriendGetFriend ให้ข้ามข้อมูล 2 บรรทัดแรก (หัวข้อหลัก+หัวข้อย่อย)
+                    const dataStartIndex = sheetName === 'FriendGetFriend' ? 2 : 1;
+                    
+                    const parsedData = lines.slice(dataStartIndex).map(line => {
                         const row = parseCSVRow(line);
                         const obj = {};
-                        // 💡 เก็บข้อมูลดิบแบบเรียงตามช่องไว้ด้วย (Array) เพื่อความแม่นยำ 100%
                         obj._rawRow = row.map(v => v ? v.replace(/^"|"$/g, '').trim() : '');
-                        // เก็บแบบชื่อคอลัมน์ไว้ใช้กับระบบค้นหา
                         parsedHeaders.forEach((h, i) => { obj[h] = obj._rawRow[i]; });
                         return obj;
                     }).filter(r => r._rawRow.some(v => v !== ''));
                     
-                    setData(parsedData);
+                    // 💡 ลบ .reverse() ออกตามที่พี่ขอ เพื่อให้ข้อมูลเรียงจากบนลงล่างเหมือน Sheet เป๊ะๆ
+                    setData(parsedData); 
                 } else {
                     setHeaders([]); setData([]);
                 }
