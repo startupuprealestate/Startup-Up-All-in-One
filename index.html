@@ -888,32 +888,28 @@
                  </div>
                </div>
 
-               {/* History Modal (เวอร์ชันตาทิพย์ ดึงทั้งข้อมูลเก่าและใหม่มาโชว์) */}
+               {/* History Modal (เวอร์ชันตาทิพย์ + ปุ่มปรับจำนวนตรวจงาน) */}
                {isHistoryModalOpen && (() => {
                     const completedList = [];
                     
-                    // ขุดหาข้อมูลประวัติทั้งหมดจากในฐานข้อมูล
                     Object.keys(constructionProgress).forEach(key => {
                         const prog = constructionProgress[key];
                         if (prog && prog.finishedDate) {
-                            // พยายามจับคู่กับชื่อหมู่บ้านใน Sheet (หาทั้งจาก ID ใหม่ และ ID เก่า)
                             const matchedRow = validSheetData.find(r => r.id === key || r._originalRowId === key);
                             completedList.push({
                                 progressId: key,
                                 projectName: matchedRow ? safeTrim(matchedRow['หมู่บ้าน']) : `⚠️ ข้อมูลตกค้าง (${key})`,
                                 houseNo: matchedRow ? safeTrim(matchedRow['บ้านเลขที่']) : '-',
                                 finishedDate: prog.finishedDate,
-                                inspectionCount: prog.inspectionCount || 0 // 💡 ดึงข้อมูลการตรวจงานมาด้วย
+                                inspectionCount: prog.inspectionCount || 0
                             });
                         }
                     });
 
-                    // เรียงจากวันที่ทำเสร็จล่าสุดไปเก่าสุด
                     completedList.sort((a, b) => new Date(b.finishedDate).getTime() - new Date(a.finishedDate).getTime());
 
                     return (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
-                            {/* 💡 ขยายความกว้าง Modal เป็น max-w-4xl เผื่อพื้นที่ให้คอลัมน์ใหม่ */}
                             <div className="bg-surface rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl relative border border-gray-100">
                                 <div className="flex justify-between items-center p-4 md:p-5 border-b border-gray-100 shrink-0">
                                     <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name="Clock" className="mr-2 text-brand" size={20} /> ประวัติบ้านที่ทำเสร็จแล้ว</h3>
@@ -927,7 +923,7 @@
                                                     <tr>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">โครงการ</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">บ้านเลขที่</th>
-                                                        <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">การตรวจงาน</th> {/* 💡 เพิ่มหัวข้อคอลัมน์ */}
+                                                        <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">การตรวจงาน</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">วันที่ทำเสร็จ</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase text-center w-[80px]">ลบ</th>
                                                     </tr>
@@ -939,13 +935,29 @@
                                                                 <td className={`p-3 text-[14px] font-bold ${item.projectName.includes('⚠️') ? 'text-orange-500' : 'text-gray-800'}`}>{item.projectName}</td>
                                                                 <td className="p-3 text-[14px] text-gray-600">{item.houseNo}</td>
                                                                 
-                                                                {/* 💡 เพิ่มจุดแสดงผลการตรวจงานให้หน้าตาสวยงามเหมือนข้างนอก */}
+                                                                {/* 💡 เพิ่มปุ่ม เพิ่ม-ลด จำนวนตรวจงาน */}
                                                                 <td className="p-3 text-[13px]">
-                                                                    {item.inspectionCount > 0 ? (
-                                                                        <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">ตรวจครั้งที่ {item.inspectionCount}</span>
-                                                                    ) : (
-                                                                        <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full whitespace-nowrap border border-gray-200">ยังไม่ได้ตรวจ</span>
-                                                                    )}
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <div className="flex items-center bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
+                                                                            <button 
+                                                                                onClick={() => handleUpdateProgress(item.progressId, { inspectionCount: Math.max(0, item.inspectionCount - 1) })} 
+                                                                                disabled={item.inspectionCount === 0} 
+                                                                                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 disabled:opacity-30 transition-colors"
+                                                                            >
+                                                                                <Icon name="Minus" size={12} />
+                                                                            </button>
+                                                                            <span className="w-6 text-center text-[13px] font-black text-brand">{item.inspectionCount}</span>
+                                                                            <button 
+                                                                                onClick={() => handleUpdateProgress(item.progressId, { inspectionCount: item.inspectionCount + 1 })} 
+                                                                                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-brand transition-colors"
+                                                                            >
+                                                                                <Icon name="Plus" size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                        {item.inspectionCount > 0 && (
+                                                                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">ตรวจครั้งที่ {item.inspectionCount}</span>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
 
                                                                 <td className="p-3 text-[13px] font-bold text-emerald-600 whitespace-nowrap">{getFormattedDateThai(item.finishedDate)}</td>
