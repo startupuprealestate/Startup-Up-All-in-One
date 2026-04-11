@@ -164,9 +164,10 @@
         { id: 'zone', label: 'แยกบ้านตามโซน', icon: 'MapPin' },
         { id: 'post', label: 'ตารางโพสต์บ้าน', icon: 'FileSignature' },
         { id: 'gallery', label: 'รูปบ้านมาใหม่', icon: 'Image' },
+        { id: 'affiliate', label: 'Affiliate', icon: 'User' },
         { id: 'company', label: 'ข้อมูลบริษัท', icon: 'Building' },
         { id: 'ai', label: 'AI ผู้ช่วยบริษัท', icon: 'MessageCircle' },
-        { id: 'admin', label: 'จัดการระบบ (Admin)', icon: 'User' } // 💡 เมนูใหม่มาแล้ว!
+        { id: 'admin', label: 'จัดการระบบ (Admin)', icon: 'User' }
     ];
 
     const ACTIVITIES = ['เปิดบ้าน', 'เซ็นสัญญายื่นสินกู้', 'เซ็นสัญญารับบ้าน', 'โอนบ้าน', 'ตรวจบ้าน', 'ถ่ายคลิปหรือคอนเทนต์', 'อื่นๆ'];
@@ -2727,6 +2728,131 @@ ${promptAction}`;
   );
 };
     
+    // 💡 ระบบหน้าตาราง Affiliate (ดึงตรงจาก Sheet ทันที)
+    const AffiliateTable = () => {
+        const [data, setData] = useState([]);
+        const [isLoading, setIsLoading] = useState(true);
+        const [searchQuery, setSearchQuery] = useState('');
+
+        const fetchData = async () => {
+            try {
+                // รหัส ID ของ Google Sheet
+                const sheetId = '1pFdpUmQpiDMM4or0xBjra1Ezcft5369fF5qPe7r9O_I';
+                const sheetName = encodeURIComponent('Affiliate');
+                const response = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}`);
+                if (!response.ok) return;
+                const csvText = await response.text();
+                
+                // เครื่องมือแกะกล่อง CSV ของ Google Sheet
+                const parseCSVRow = (str) => {
+                    const result = [];
+                    let inQuote = false, val = '';
+                    for (let i = 0; i < str.length; i++) {
+                        const char = str[i];
+                        if (char === '"') {
+                            if (inQuote && str[i + 1] === '"') { val += '"'; i++; } else { inQuote = !inQuote; }
+                        } else if (char === ',' && !inQuote) { result.push(val); val = ''; } else { val += char; }
+                    }
+                    result.push(val);
+                    return result;
+                };
+
+                const lines = csvText.split('\n').filter(line => line.trim() !== '');
+                if (lines.length > 1) {
+                    const headers = parseCSVRow(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+                    const parsedData = lines.slice(1).map(line => {
+                        const row = parseCSVRow(line);
+                        const obj = {};
+                        headers.forEach((h, i) => { obj[h] = row[i] ? row[i].replace(/^"|"$/g, '').trim() : ''; });
+                        return obj;
+                    }).filter(r => r['ชื่อลูกค้า'] || r['เบอร์โทร']); // ตัดบรรทัดว่างทิ้ง
+                    
+                    setData(parsedData.reverse()); // พลิกให้ข้อมูลใหม่ล่าสุดมาอยู่ด้านบนสุด
+                } else {
+                    setData([]);
+                }
+            } catch (error) {
+                console.error("Fetch Affiliate Error:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        useEffect(() => { 
+            fetchData(); 
+            // 💡 แอบรีเฟรชข้อมูลเงียบๆ ทุก 30 วินาที
+            const interval = setInterval(fetchData, 30000); 
+            return () => clearInterval(interval);
+        }, []);
+
+        const filteredData = data.filter(row => {
+            if (!searchQuery) return true;
+            const q = searchQuery.toLowerCase();
+            return (
+                (row['ชื่อลูกค้า'] || '').toLowerCase().includes(q) || 
+                (row['เบอร์โทร'] || '').toLowerCase().includes(q) || 
+                (row['สแกนจากร้าน'] || '').toLowerCase().includes(q)
+            );
+        });
+
+        return (
+            <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
+                <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="User" className="mr-2 md:mr-3 text-brand" size={24}/> ข้อมูลลูกค้า Affiliate</h2>
+                        {!isLoading && data.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{data.length} รายการ</span></div>}
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 shrink-0 relative z-20">
+                    <div className="relative w-full sm:w-[300px]">
+                        <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        <input type="text" placeholder="ค้นหาชื่อลูกค้า, เบอร์โทร, ร้าน..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"/>
+                    </div>
+                </div>
+
+                <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
+                    <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                        <table className="w-full text-left border-collapse min-w-max">
+                            <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
+                                <tr>
+                                    <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100 text-center w-[60px] sticky left-0 z-30 bg-gray-50">ลำดับ</th>
+                                    <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">วันเวลา</th>
+                                    <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">ชื่อลูกค้า</th>
+                                    <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">เบอร์โทร</th>
+                                    <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider">สแกนจากร้าน</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {isLoading && data.length === 0 ? (
+                                    <tr><td colSpan="5" className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
+                                ) : filteredData.length > 0 ? (
+                                    filteredData.map((row, idx) => (
+                                        <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                            <td className="py-4 px-5 text-center text-[13px] font-bold text-gray-400 border-r border-gray-100 sticky left-0 z-10 bg-white">{idx + 1}</td>
+                                            <td className="py-4 px-5 text-[13px] font-bold text-gray-600 border-r border-gray-100">{row['วันเวลา'] || row['Timestamp'] || '-'}</td>
+                                            <td className="py-4 px-5 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row['ชื่อลูกค้า'] || row['ชื่อ'] || '-'}</td>
+                                            <td className="py-4 px-5 text-[14px] font-black text-brand border-r border-gray-100">{row['เบอร์โทร'] || row['เบอร์'] || '-'}</td>
+                                            <td className="py-4 px-5 text-[13px] font-bold text-emerald-700 bg-emerald-50/30">
+                                                {row['สแกนจากร้าน'] || row['ร้าน'] ? (
+                                                    <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-100 border border-emerald-200 shadow-sm">
+                                                        <Icon name="MapPin" size={12} className="mr-1.5"/> {row['สแกนจากร้าน'] || row['ร้าน']}
+                                                    </div>
+                                                ) : '-'}
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr><td colSpan="5" className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูลลูกค้า หรือ ไม่พบผลการค้นหา</div></td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+    
     function App() {
       // 💡 ตัวแปรระบบ Login
       const [user, setUser] = useState(null); 
@@ -3621,6 +3747,7 @@ ${promptAction}`;
               {activeApp === 'company' && <CompanyInfo />}
               {activeApp === 'admin' && isAdmin && <AdminPanel isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
+              {activeApp === 'affiliate' && <AffiliateTable />}
               {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
             </div>
 
