@@ -31,11 +31,18 @@ export default async function handler(req, res) {
     } else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
       body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
-    } else {
+    } 
+    // 👇 💡 จุดที่เพิ่มเข้ามาใหม่: สอนให้ Vercel รู้จักแจ้งเตือนลูกค้า Affiliate 👇
+    else if (action === 'lead') {
+      title = data.title;
+      body = data.body;
+    } 
+    // 👆 จบส่วนที่เพิ่มใหม่ 👆
+    else {
       return res.status(400).json({ error: 'Unknown action' });
     }
 
-    // 💡 จุดที่เปลี่ยน: ดึง Token ของ "ทุกคน" ในตารางมาใช้งานเลย (เอา .where() ออก)
+    // ดึง Token ของ "ทุกคน" ในตารางมาใช้งาน
     const tokensSnapshot = await db.collection('fcm_tokens').get();
 
     if (tokensSnapshot.empty) {
