@@ -888,9 +888,28 @@
                  </div>
                </div>
 
-               {/* History Modal */}
+               {/* History Modal (เวอร์ชันตาทิพย์ ดึงทั้งข้อมูลเก่าและใหม่มาโชว์) */}
                {isHistoryModalOpen && (() => {
-                    const completedHouses = validSheetData.filter(row => constructionProgress[row.id]?.finishedDate).sort((a, b) => new Date(constructionProgress[b.id].finishedDate).getTime() - new Date(constructionProgress[a.id].finishedDate).getTime());
+                    const completedList = [];
+                    
+                    // ขุดหาข้อมูลประวัติทั้งหมดจากในฐานข้อมูล
+                    Object.keys(constructionProgress).forEach(key => {
+                        const prog = constructionProgress[key];
+                        if (prog && prog.finishedDate) {
+                            // พยายามจับคู่กับชื่อหมู่บ้านใน Sheet (หาทั้งจาก ID ใหม่ และ ID เก่า)
+                            const matchedRow = validSheetData.find(r => r.id === key || r._originalRowId === key);
+                            completedList.push({
+                                progressId: key,
+                                projectName: matchedRow ? safeTrim(matchedRow['หมู่บ้าน']) : `⚠️ ข้อมูลตกค้าง (${key})`,
+                                houseNo: matchedRow ? safeTrim(matchedRow['บ้านเลขที่']) : '-',
+                                finishedDate: prog.finishedDate
+                            });
+                        }
+                    });
+
+                    // เรียงจากวันที่ทำเสร็จล่าสุดไปเก่าสุด
+                    completedList.sort((a, b) => new Date(b.finishedDate).getTime() - new Date(a.finishedDate).getTime());
+
                     return (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
                             <div className="bg-surface rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl relative border border-gray-100">
@@ -899,7 +918,7 @@
                                     <button onClick={() => setIsHistoryModalOpen(false)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors"><Icon name="X" size={16}/></button>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
-                                    {completedHouses.length > 0 ? (
+                                    {completedList.length > 0 ? (
                                         <div className="border border-gray-200 rounded-xl overflow-hidden">
                                             <table className="w-full text-left border-collapse">
                                                 <thead className="bg-gray-50 border-b border-gray-200">
@@ -911,15 +930,14 @@
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {completedHouses.map((row, idx) => {
-                                                        const pName = safeTrim(row['หมู่บ้าน']), hNo = safeTrim(row['บ้านเลขที่']);
+                                                    {completedList.map((item, idx) => {
                                                         return (
-                                                            <tr key={row.id} className={`hover:bg-gray-50 transition-colors ${idx !== completedHouses.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                                                                <td className="p-3 text-[14px] font-bold text-gray-800">{pName || '-'}</td>
-                                                                <td className="p-3 text-[14px] text-gray-600">{hNo || '-'}</td>
-                                                                <td className="p-3 text-[13px] font-bold text-emerald-600">{getFormattedDateThai(constructionProgress[row.id].finishedDate)}</td>
+                                                            <tr key={item.progressId} className={`hover:bg-gray-50 transition-colors ${idx !== completedList.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                                                                <td className={`p-3 text-[14px] font-bold ${item.projectName.includes('⚠️') ? 'text-orange-500' : 'text-gray-800'}`}>{item.projectName}</td>
+                                                                <td className="p-3 text-[14px] text-gray-600">{item.houseNo}</td>
+                                                                <td className="p-3 text-[13px] font-bold text-emerald-600">{getFormattedDateThai(item.finishedDate)}</td>
                                                                 <td className="p-3 text-center">
-                                                                    <button onClick={() => setHistoryToDelete({ id: row.id, label: `${pName} ${hNo}`.trim() })} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash" size={16} /></button>
+                                                                    <button onClick={() => setHistoryToDelete({ id: item.progressId, label: `${item.projectName} ${item.houseNo}`.trim() })} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash" size={16} /></button>
                                                                 </td>
                                                             </tr>
                                                         );
