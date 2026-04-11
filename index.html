@@ -3238,9 +3238,9 @@ ${promptAction}`;
               const loadedData = []; 
               snapshot.forEach((doc) => {
                   const data = doc.data();
-                  // 💡 ใช้รหัสถาวร (h_xxxx) ป้องกันข้อมูลรวนเวลา Excel เลื่อนแถว
+                  // 💡 ย้อนเวลากลับมาใช้ doc.id (row_xxx) ชั่วคราว เพื่อให้แอปดึงข้อมูลเก่ามาโชว์ทุกหมวด
                   loadedData.push({ 
-                      id: generateStableHouseId(data, doc.id), 
+                      id: doc.id, 
                       _originalRowId: doc.id, 
                       ...data 
                   });
