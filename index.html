@@ -2752,7 +2752,9 @@ ${promptAction}`;
       const [constructionProgress, setConstructionProgress] = useState({});
       const [postTracking, setPostTracking] = useState({});
       // 💡 เพิ่มตัวแปร reminder (ตั้งเวลาเตือนล่วงหน้า)
-      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0' });
+      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' });
+      const [isUploadingLeaveImg, setIsUploadingLeaveImg] = useState(false);
+      const [fullScreenImg, setFullScreenImg] = useState(null);
       const [houses, setHouses] = useState([]);
       const [aiMessages, setAiMessages] = useState([{ role: 'ai', text: 'สวัสดีค่า! น้อง Up ยินดีให้บริการค่ะ 💕' }]);
       const [sheetData, setSheetData] = useState([]);
@@ -3108,16 +3110,8 @@ ${promptAction}`;
       const handleOpenModal = (day = null, eventToEdit = null, prefillAssignee = '', prefillType = '') => {
         if (eventToEdit) {
           setFormData({ 
-              type: eventToEdit.type || 'event', 
-              date: eventToEdit.date, 
-              hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', 
-              minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', 
-              activity: eventToEdit.activity || '', 
-              note: eventToEdit.note || '', 
-              assignee: eventToEdit.assignee || '', 
-              leaveType: eventToEdit.leaveType || '', 
-              leaveDuration: eventToEdit.leaveDuration || 'full',
-              reminder: eventToEdit.reminder || '0' // 💡 เพิ่มบรรทัดนี้: ให้ดึงค่าแจ้งเตือนเก่ามาแสดง
+              type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: eventToEdit.leaveType || '', leaveDuration: eventToEdit.leaveDuration || 'full', reminder: eventToEdit.reminder || '0', 
+              image: eventToEdit.image || '' 
           });
           setEditingEventId(eventToEdit.id); setIsModalOpen(true); return;
         }
@@ -3125,19 +3119,28 @@ ${promptAction}`;
         let dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : selectedDayString || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
         
         setFormData({ 
-            ...formData, 
-            type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), 
-            date: dateStr, 
-            assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), 
-            activity: '', 
-            leaveType: '', 
-            leaveDuration: 'full',
-            reminder: '0' // 💡 เพิ่มบรรทัดนี้: รีเซ็ตค่ากลับเป็น 0 เวลาเพิ่มกิจกรรมใหม่
+            ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' 
         });
         setEditingEventId(null); setIsModalOpen(true);
       };
 
-      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0' }); };
+      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
+
+      // 💡 ฟังก์ชันอัปโหลดรูปลง Cloudinary
+      const handleLeaveImageUpload = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          setIsUploadingLeaveImg(true);
+          try {
+              const compressed = await compressImage(file);
+              const url = await uploadToCloudinary(compressed);
+              setFormData(prev => ({ ...prev, image: url }));
+          } catch (err) {
+              alert('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่ค่ะ');
+          } finally {
+              setIsUploadingLeaveImg(false);
+          }
+      };
 
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
@@ -3748,6 +3751,26 @@ ${promptAction}`;
                         <textarea rows="3" value={formData.note} onChange={e=>setFormData({...formData, note:e.target.value})} placeholder="กรุณาระบุรายละเอียด" className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-brand transition-all text-[14px] text-gray-700 resize-none"></textarea>
                       </div>
                       
+                      {formData.type === 'leave' && (
+                        <div className="pt-2 mt-2 border-t border-gray-100">
+                            <label className="block text-[13px] font-bold text-gray-600 mb-1.5">แนบรูปใบลา (ถ้ามี)</label>
+                            <div className="flex items-center gap-3">
+                                {formData.image ? (
+                                    <div className="relative w-16 h-16 rounded-xl border border-gray-200 overflow-hidden group shadow-sm">
+                                        <img src={formData.image} className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300" onClick={() => setFullScreenImg(formData.image)} alt="ใบลา" />
+                                        <button type="button" onClick={() => setFormData({...formData, image: ''})} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><Icon name="X" size={10} /></button>
+                                    </div>
+                                ) : (
+                                    <label className="flex flex-col items-center justify-center w-16 h-16 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-brand/5 hover:border-brand transition-colors relative">
+                                        {isUploadingLeaveImg ? <Icon name="RefreshCw" size={16} className="animate-spin text-brand" /> : <Icon name="Plus" size={20} className="text-gray-400" />}
+                                        <input type="file" accept="image/*" className="hidden" onChange={handleLeaveImageUpload} disabled={isUploadingLeaveImg} />
+                                    </label>
+                                )}
+                                <span className="text-[11px] text-gray-400 leading-tight">อัปโหลดใบรับรองแพทย์<br/>หรือหลักฐานการลา</span>
+                            </div>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between pt-6 border-t border-gray-100">
                         {editingEventId ? <button type="button" onClick={handleDeleteEvent} className="text-red-500 text-[14px] font-bold hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">ลบข้อมูล</button> : <div></div>}
                         <div className="space-x-3 flex items-center">
@@ -3964,6 +3987,12 @@ ${promptAction}`;
                                 </div>
                                 <div className="text-[13px] text-gray-600 mt-1 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                                   <span className="font-bold text-gray-700">หมายเหตุ: </span>
+                                  {lv.image && (
+                                   <div className="mt-2.5 flex flex-col items-start border-t border-gray-100 pt-2.5">
+                                      <span className="text-[11px] font-bold text-gray-500 mb-1">เอกสารแนบ:</span>
+                                      <img src={lv.image} onClick={() => setFullScreenImg(lv.image)} className="h-16 w-16 object-cover rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition-all hover:opacity-80" alt="ใบลา" />
+                                   </div>
+                                )}
                                   {lv.note ? <span className="whitespace-pre-wrap leading-relaxed">{lv.note}</span> : <span className="text-gray-400 italic">ไม่มีการระบุหมายเหตุเพิ่มเติม</span>}
                                 </div>
                                 <button onClick={() => { setLeaveDetailsData(null); handleOpenModal(null, lv); }} className="absolute bottom-4 right-4 text-gray-400 hover:text-brand bg-white p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 shadow-sm" title="แก้ไข">
@@ -3986,6 +4015,12 @@ ${promptAction}`;
             })()}
 
           </div>
+          {fullScreenImg && (
+                <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setFullScreenImg(null)}>
+                    <button className="absolute top-4 right-4 sm:top-6 sm:right-6 text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20 z-10"><Icon name="X" size={20} /></button>
+                    <img src={fullScreenImg} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} alt="Full Screen" />
+                </div>
+            )}
         </>
       );
     }
