@@ -2783,7 +2783,12 @@ ${promptAction}`;
                         const obj = {};
                         parsedHeaders.forEach((h, i) => { obj[h] = row[i] ? row[i].replace(/^"|"$/g, '').trim() : ''; });
                         return obj;
-                    }).filter(r => Object.values(r).some(v => v !== '')); // ตัดบรรทัดว่างทิ้ง
+                    }).filter(r => {
+                        // 💡 กรองบรรทัดผี: ต้องมี 'ชื่อ' หรือ 'เบอร์โทร' อย่างน้อย 1 ช่องถึงจะแสดงผล
+                        const hasName = r['ชื่อลูกค้า'] || r['ชื่อ'] || r['ชื่อผู้แนะนำ'] || r['ชื่อ_1'] || r['ชื่อผู้ถูกแนะนำ'];
+                        const hasPhone = r['เบอร์โทร'] || r['เบอร์ติดต่อ'] || r['เบอร์ติดต่อ_1'] || r['เบอร์ติดต่อผู้ถูกแนะนำ'];
+                        return hasName || hasPhone;
+                    });
                     
                     setData(parsedData.reverse()); // พลิกให้ข้อมูลใหม่ล่าสุดมาอยู่บนสุด
                 } else {
