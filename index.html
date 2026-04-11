@@ -902,7 +902,8 @@
                                 progressId: key,
                                 projectName: matchedRow ? safeTrim(matchedRow['หมู่บ้าน']) : `⚠️ ข้อมูลตกค้าง (${key})`,
                                 houseNo: matchedRow ? safeTrim(matchedRow['บ้านเลขที่']) : '-',
-                                finishedDate: prog.finishedDate
+                                finishedDate: prog.finishedDate,
+                                inspectionCount: prog.inspectionCount || 0 // 💡 ดึงข้อมูลการตรวจงานมาด้วย
                             });
                         }
                     });
@@ -912,7 +913,8 @@
 
                     return (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
-                            <div className="bg-surface rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl relative border border-gray-100">
+                            {/* 💡 ขยายความกว้าง Modal เป็น max-w-4xl เผื่อพื้นที่ให้คอลัมน์ใหม่ */}
+                            <div className="bg-surface rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl relative border border-gray-100">
                                 <div className="flex justify-between items-center p-4 md:p-5 border-b border-gray-100 shrink-0">
                                     <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name="Clock" className="mr-2 text-brand" size={20} /> ประวัติบ้านที่ทำเสร็จแล้ว</h3>
                                     <button onClick={() => setIsHistoryModalOpen(false)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 transition-colors"><Icon name="X" size={16}/></button>
@@ -925,6 +927,7 @@
                                                     <tr>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">โครงการ</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">บ้านเลขที่</th>
+                                                        <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">การตรวจงาน</th> {/* 💡 เพิ่มหัวข้อคอลัมน์ */}
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">วันที่ทำเสร็จ</th>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase text-center w-[80px]">ลบ</th>
                                                     </tr>
@@ -935,7 +938,17 @@
                                                             <tr key={item.progressId} className={`hover:bg-gray-50 transition-colors ${idx !== completedList.length - 1 ? 'border-b border-gray-100' : ''}`}>
                                                                 <td className={`p-3 text-[14px] font-bold ${item.projectName.includes('⚠️') ? 'text-orange-500' : 'text-gray-800'}`}>{item.projectName}</td>
                                                                 <td className="p-3 text-[14px] text-gray-600">{item.houseNo}</td>
-                                                                <td className="p-3 text-[13px] font-bold text-emerald-600">{getFormattedDateThai(item.finishedDate)}</td>
+                                                                
+                                                                {/* 💡 เพิ่มจุดแสดงผลการตรวจงานให้หน้าตาสวยงามเหมือนข้างนอก */}
+                                                                <td className="p-3 text-[13px]">
+                                                                    {item.inspectionCount > 0 ? (
+                                                                        <span className="text-[12px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">ตรวจครั้งที่ {item.inspectionCount}</span>
+                                                                    ) : (
+                                                                        <span className="text-[12px] text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full whitespace-nowrap border border-gray-200">ยังไม่ได้ตรวจ</span>
+                                                                    )}
+                                                                </td>
+
+                                                                <td className="p-3 text-[13px] font-bold text-emerald-600 whitespace-nowrap">{getFormattedDateThai(item.finishedDate)}</td>
                                                                 <td className="p-3 text-center">
                                                                     <button onClick={() => setHistoryToDelete({ id: item.progressId, label: `${item.projectName} ${item.houseNo}`.trim() })} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash" size={16} /></button>
                                                                 </td>
