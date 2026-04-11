@@ -191,6 +191,25 @@
             };
         };
     });
+    // 💡 ฟังก์ชันส่วนกลางสำหรับอัปโหลดรูปลง Cloudinary (ที่น้อง Up ทำตกหล่นไป 🥺)
+    const uploadToCloudinary = async (base64Img) => {
+        const CLOUD_NAME = "dobblw1f3"; // 👈 ถ้าพี่มี Cloud Name ของตัวเอง เปลี่ยนตรงนี้ได้เลยนะคะ
+        const UPLOAD_PRESET = "All_in_One";
+        
+        const formData = new FormData();
+        formData.append('file', base64Img);
+        formData.append('upload_preset', UPLOAD_PRESET);
+        
+        try {
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error.message);
+            return data.secure_url; 
+        } catch (error) {
+            console.error("Cloudinary Upload Error:", error);
+            throw error;
+        }
+    };
 
     const safeTrim = (v) => v ? String(v).trim() : '';
     const getValidSheetData = (d) => {
