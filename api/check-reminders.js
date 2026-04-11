@@ -18,20 +18,24 @@ export default async function handler(req, res) {
     const messaging = admin.messaging();
     const now = Date.now() + 60000; 
 
-    // 1. ดึงงานที่ถึงเวลาแจ้งเตือน
+    // 💡 1. แก้ไข: ดึงแค่งานที่ยังไม่ได้เตือน (หลบ Error Index ของ Firebase)
     const eventsRef = db.collection('events');
     const snapshot = await eventsRef
         .where('isNotified', '==', false)
-        .where('notifyAt', '<=', now)
-        .limit(10)
         .get();
 
-    // ถ้าไม่มีงาน ให้รีบปิดจบทันที (ใช้เวลาไม่ถึง 1 วินาที)
-    if (snapshot.empty) {
+    // 💡 1.1 นำมากรอง "เวลา" ด้วย JavaScript แทน
+    const docsToNotify = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.notifyAt && data.notifyAt <= now;
+    }).slice(0, 10);
+
+    // ถ้าไม่มีงาน ให้รีบปิดจบทันที 
+    if (docsToNotify.length === 0) {
       return res.status(200).json({ status: "ok", message: 'ไม่มีงานที่ค้างส่ง' });
     }
 
-    // 💡 2. จุดแก้ปัญหา Timeout 10 วิ! สั่งโหลดพนักงานและกุญแจ "พร้อมกัน" (วิ่งทางด่วน)
+    // 💡 2. สั่งโหลดพนักงานและกุญแจ "พร้อมกัน" (วิ่งทางด่วน)
     const [usersSnapshot, allTokensSnapshot] = await Promise.all([
       db.collection('users').get(),
       db.collection('fcm_tokens').get()
@@ -50,7 +54,8 @@ export default async function handler(req, res) {
 
     let notifiedCount = 0;
 
-    for (const eventDoc of snapshot.docs) {
+    // 💡 3. ลูปเฉพาะตัวที่กรองเวลาผ่านแล้ว
+    for (const eventDoc of docsToNotify) { 
       const event = eventDoc.data() || {};
       const targetAssignee = String(event.assignee || '').toLowerCase().trim();
 
