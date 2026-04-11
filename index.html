@@ -157,9 +157,9 @@
     };
 
     const MAIN_MENUS = [
-        { id: 'calendar', label: 'ปฏิทินวางแผน', icon: 'CalendarIcon' },
+        { id: 'calendar', label: 'ปฏิทินการทำงาน', icon: 'CalendarIcon' },
         { id: 'holidays', label: 'ปฏิทินวันหยุด', icon: 'CalendarIcon' },
-        { id: 'content', label: 'เช็คลิสต์คอนเทนต์', icon: 'CheckSquare' },
+        { id: 'content', label: 'เช็กลิสต์คอนเทนต์', icon: 'CheckSquare' },
         { id: 'schedule', label: 'บ้านยังไม่เสร็จ', icon: 'Home' },
         { id: 'zone', label: 'แยกบ้านตามโซน', icon: 'MapPin' },
         { id: 'post', label: 'ตารางโพสต์บ้าน', icon: 'FileSignature' },
@@ -390,7 +390,7 @@
             <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
               <div>
                 <div className="flex items-center gap-3">
-                    <h2 className="text-[20px] md:text-[22px] font-bold flex items-center text-gray-800"><Icon name="CheckSquare" className="mr-2 md:mr-3 text-brand" size={24}/> เช็คลิสต์คอนเทนต์บ้าน</h2>
+                    <h2 className="text-[20px] md:text-[22px] font-bold flex items-center text-gray-800"><Icon name="CheckSquare" className="mr-2 md:mr-3 text-brand" size={24}/> เช็กลิสต์คอนเทนต์บ้าน</h2>
                     {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{filteredData.length} รายการ</span></div>}
                 </div>
               </div>
@@ -544,7 +544,7 @@
                                   <td colSpan={visibleColumns.length + 1} className="p-0 border border-gray-200">
                                       <div className="p-6 md:p-8 bg-white border-l-4 border-brand shadow-inner w-full my-2 mx-4 rounded-xl max-w-[96%]">
                                           <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                                              <h4 className="text-[17px] font-bold text-gray-800 flex items-center"><Icon name="CheckSquare" size={20} className="mr-2 text-brand" />เช็คลิสต์คอนเทนต์</h4>
+                                              <h4 className="text-[17px] font-bold text-gray-800 flex items-center"><Icon name="CheckSquare" size={20} className="mr-2 text-brand" />เช็กลิสต์คอนเทนต์</h4>
                                               <button onClick={() => setExpandedRowId(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><Icon name="X" size={14} /></button>
                                           </div>
                                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
@@ -3526,7 +3526,7 @@ ${promptAction}`;
                     </div>
                  </div>
                  <div className="hidden lg:flex w-full items-center justify-between">
-                    <h2 className="text-[20px] font-bold text-gray-800 tracking-tight">ปฏิทินวางแผนการทำงาน</h2>
+                    <h2 className="text-[20px] font-bold text-gray-800 tracking-tight">ปฏิทินการทำงาน</h2>
                     <div className="flex items-center justify-center gap-2">
                        <div className="flex items-center text-lg font-bold text-gray-800 mr-4">
                           <Icon name="CalendarIcon" size={18} className="mr-2 text-gray-400" />
