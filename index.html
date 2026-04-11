@@ -1889,7 +1889,7 @@ ${promptAction}`;
             setIsUploadingImgs(true); 
             try {
                 const newImages = await Promise.all(files.map(file => compressImage(file)));
-                setHouseForm(prev => { const combined = [...prev.images, ...newImages]; return { ...prev, images: combined.slice(0, 10) }; });
+                setHouseForm(prev => { const combined = [...prev.images, ...newImages]; return { ...prev, images: combined.slice(0, 15) }; });
             } catch (error) { alert('เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ'); }
             setIsUploadingImgs(false); 
         };
@@ -1972,7 +1972,7 @@ ${promptAction}`;
 
                         <div className="border-t border-gray-200 mt-4 pt-4">
                             <div className="flex justify-between items-center mb-2">
-                                <label className="block text-[13px] font-bold text-gray-800">รูปภาพโครงการ <span className="text-gray-500 font-normal text-[11px]">(สูงสุด 10 รูป / อัปโหลดแล้ว {houseForm.images.length})</span></label>
+                                <label className="block text-[13px] font-bold text-gray-800">รูปภาพโครงการ <span className="text-gray-500 font-normal text-[11px]">(สูงสุด 15 รูป / อัปโหลดแล้ว {houseForm.images.length})</span></label>
                                 {houseForm.images.length > 0 && <button type="button" onClick={handleRemoveAllFormImages} className="text-[11px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-1 rounded transition-colors">ลบรูปทั้งหมด</button>}
                             </div>
                             
@@ -1984,7 +1984,7 @@ ${promptAction}`;
                                         <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 rounded backdrop-blur-sm">{idx + 1}</div>
                                     </div>
                                 ))}
-                                {houseForm.images.length < 10 && (
+                                {houseForm.images.length < 15 && (
                                     <label className={`aspect-square flex flex-col items-center justify-center border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isUploadingImgs ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-300 hover:border-brand hover:bg-brand/5'}`}>
                                         {isUploadingImgs ? <Icon name="RefreshCw" className="animate-spin text-brand mb-1" size={16}/> : <><Icon name="Plus" size={20} className="text-gray-400 mb-0.5" /><span className="text-[10px] font-bold text-gray-500">เพิ่มรูป</span></>}
                                         <input type="file" multiple accept="image/*" className="hidden" onChange={handleAddImagesToForm} disabled={isUploadingImgs} />
