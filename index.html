@@ -2728,11 +2728,10 @@ ${promptAction}`;
   );
 };
     
-    // 💡 ระบบหน้าตาราง Affiliate & Friend Get Friend (เวอร์ชันแก้ไขหัวข้อไม่ขึ้น)
+    // 💡 ระบบหน้าตาราง Affiliate & Friend Get Friend (ล็อกหัวข้อ ป้องกัน Sheet สลับบรรทัด)
     const AffiliateTable = () => {
         const [activeTab, setActiveTab] = useState('Affiliate');
         const [data, setData] = useState([]);
-        const [headers, setHeaders] = useState([]);
         const [isLoading, setIsLoading] = useState(true);
         const [searchQuery, setSearchQuery] = useState('');
 
@@ -2759,30 +2758,24 @@ ${promptAction}`;
 
                 const lines = csvText.split('\n').filter(line => line.trim() !== '');
                 if (lines.length > 0) {
-                    // 💡 ตั้งค่าตำแหน่ง "หัวข้อ" และ "จุดเริ่มต้นข้อมูล" ให้ต่างกันตามหน้า
-                    // Affiliate: หัวข้ออยู่แถว 0, ข้อมูลเริ่มแถว 1
-                    // FriendGetFriend: หัวข้อจริงอยู่แถว 1, ข้อมูลเริ่มแถว 2
-                    const headerIdx = sheetName === 'FriendGetFriend' ? 1 : 0;
-                    const dataStartIdx = sheetName === 'FriendGetFriend' ? 2 : 1;
-
-                    // ดึงหัวข้อคอลัมน์
-                    const parsedHeaders = parseCSVRow(lines[headerIdx]).map(h => h.replace(/^"|"$/g, '').trim()).filter(h => h !== '');
-                    setHeaders(parsedHeaders);
-                    
-                    // ดึงข้อมูลแถวที่เหลือ
-                    const parsedData = lines.slice(dataStartIdx).map(line => {
+                    const parsedData = lines.map(line => {
                         const row = parseCSVRow(line);
-                        const obj = {};
-                        // เก็บข้อมูลดิบแบบ Index เพื่อความแม่นยำ
-                        obj._rawRow = row.map(v => v ? v.replace(/^"|"$/g, '').trim() : '');
-                        // เก็บแบบ Key-Value ไว้ใช้กับระบบค้นหา
-                        parsedHeaders.forEach((h, i) => { obj[h] = obj._rawRow[i] || ''; });
-                        return obj;
-                    }).filter(r => r._rawRow.some(v => v !== '')); // ตัดแถวว่าง
+                        return { _rawRow: row.map(v => v ? v.replace(/^"|"$/g, '').trim() : '') };
+                    }).filter(r => {
+                        // 1. ตัดบรรทัดว่างทิ้ง
+                        if (!r._rawRow.some(v => v !== '')) return false;
+                        
+                        // 2. 💡 เตะบรรทัด "หัวข้อ" ทิ้งให้หมด! (เอาแต่ข้อมูลลูกค้า)
+                        const rowText = r._rawRow.join(' ').toLowerCase();
+                        if (rowText.includes('วันเวลา') || rowText.includes('timestamp') || rowText.includes('ผู้แนะนำ')) return false;
+                        if (rowText.includes('ชื่อลูกค้า') || rowText.includes('เซลล์ที่ดูแล')) return false;
+                        
+                        return true; // ถ้าผ่านด่านมาได้ แปลว่าเป็นข้อมูลลูกค้าตัวจริง
+                    });
                     
                     setData(parsedData); 
                 } else {
-                    setHeaders([]); setData([]);
+                    setData([]);
                 }
             } catch (error) {
                 console.error("Fetch Error:", error);
@@ -2840,30 +2833,42 @@ ${promptAction}`;
                                         <th colSpan={4} className="py-2 px-4 text-[14px] font-extrabold text-blue-800 text-center border-b border-gray-200 bg-blue-100 shadow-inner">👤 ผู้ถูกแนะนำ</th>
                                     </tr>
                                     <tr>
-                                        {headers.map((h, i) => (
-                                            <th key={i} className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">{h}</th>
-                                        ))}
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">วันเวลา</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">อีเมล</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">ชื่อ</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">เบอร์ติดต่อ</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">สถานะ</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">เซลล์ที่ดูแล</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">ชื่อ</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">เบอร์ติดต่อ</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase border-r border-gray-200 bg-gray-50">ID LINE</th>
+                                        <th className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase bg-gray-50">โครงการที่สนใจ</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {isLoading ? (
-                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
+                                        <tr><td colSpan={11} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
                                     ) : filteredData.length > 0 ? (
                                         filteredData.map((row, idx) => (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                                                 <td className="py-4 px-4 text-center text-[13px] font-bold text-gray-400 border-r border-gray-100 sticky left-0 z-10 bg-white">{idx + 1}</td>
-                                                {row._rawRow.map((val, i) => {
-                                                    if (i >= headers.length) return null;
-                                                    let className = "py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100";
-                                                    if (i === 2 || i === 6) className = "py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100";
-                                                    if (i === 3 || i === 7) className = "py-4 px-4 text-[14px] font-black text-brand border-r border-gray-100";
-                                                    if (i === 4) return <td key={i} className="py-4 px-4 border-r border-gray-100"><span className="bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md border border-orange-200 font-bold text-[12px]">{val || '-'}</span></td>;
-                                                    return <td key={i} className={className}>{val || '-'}</td>;
-                                                })}
+                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100 whitespace-nowrap">{row._rawRow[0] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100">{row._rawRow[1] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[2] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-black text-brand border-r border-gray-100">{row._rawRow[3] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] font-bold border-r border-gray-100">
+                                                    {row._rawRow[4] ? <span className="bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md border border-orange-200">{row._rawRow[4]}</span> : '-'}
+                                                </td>
+                                                <td className="py-4 px-4 text-[13px] font-bold text-blue-700 border-r border-gray-200 bg-gray-50">{row._rawRow[5] || '-'}</td>
+                                                
+                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[6] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-black text-blue-600 border-r border-gray-100">{row._rawRow[7] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] font-bold text-emerald-600 border-r border-gray-100">{row._rawRow[8] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] font-bold text-gray-700">{row._rawRow[9] || '-'}</td>
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
+                                        <tr><td colSpan={11} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -2872,35 +2877,29 @@ ${promptAction}`;
                                 <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                                     <tr>
                                         <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100 text-center w-[60px] sticky left-0 z-30 bg-gray-50">ลำดับ</th>
-                                        {headers.map((h, i) => (
-                                            <th key={i} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">{h}</th>
-                                        ))}
+                                        <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">วันเวลา</th>
+                                        <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">ชื่อลูกค้า</th>
+                                        <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border-r border-gray-100">เบอร์โทร</th>
+                                        <th className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider">สแกนจากร้าน</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {isLoading ? (
-                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
+                                        <tr><td colSpan={5} className="py-16 text-center text-gray-400"><Icon name="RefreshCw" size={32} className="animate-spin mx-auto mb-3 text-brand/50"/><div className="font-bold text-[14px]">กำลังดึงข้อมูลเรียลไทม์...</div></td></tr>
                                     ) : filteredData.length > 0 ? (
                                         filteredData.map((row, idx) => (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                                                 <td className="py-4 px-5 text-center text-[13px] font-bold text-gray-400 border-r border-gray-100 sticky left-0 z-10 bg-white">{idx + 1}</td>
-                                                {row._rawRow.map((val, i) => {
-                                                    if (i >= headers.length) return null;
-                                                    const h = headers[i];
-                                                    let className = "py-4 px-5 text-[13px] font-medium text-gray-600 border-r border-gray-100";
-                                                    let content = val || '-';
-                                                    if (h.includes('ชื่อ')) className = "py-4 px-5 text-[14px] font-extrabold text-gray-800 border-r border-gray-100";
-                                                    else if (h.includes('เบอร์') || h.includes('โทร')) className = "py-4 px-5 text-[14px] font-black text-brand border-r border-gray-100";
-                                                    else if (h.includes('ร้าน') || h.includes('สแกน')) {
-                                                        className = "py-4 px-5 text-[13px] font-bold text-emerald-700 bg-emerald-50/30 border-r border-gray-100";
-                                                        if (val) content = <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-100 border border-emerald-200 shadow-sm"><Icon name="MapPin" size={12} className="mr-1.5"/> {val}</div>;
-                                                    }
-                                                    return <td key={i} className={className}>{content}</td>;
-                                                })}
+                                                <td className="py-4 px-5 text-[13px] text-gray-600 border-r border-gray-100">{row._rawRow[0] || '-'}</td>
+                                                <td className="py-4 px-5 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[1] || '-'}</td>
+                                                <td className="py-4 px-5 text-[14px] font-black text-brand border-r border-gray-100">{row._rawRow[2] || '-'}</td>
+                                                <td className="py-4 px-5 text-[13px] font-bold text-emerald-700 bg-emerald-50/30 border-r border-gray-100">
+                                                    {row._rawRow[3] ? <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-100 border border-emerald-200 shadow-sm"><Icon name="MapPin" size={12} className="mr-1.5"/> {row._rawRow[3]}</div> : '-'}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr><td colSpan={headers.length + 1} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
+                                        <tr><td colSpan={5} className="py-16 text-center text-gray-400"><Icon name="User" size={40} className="mx-auto mb-3 opacity-20"/><div className="font-bold text-[14px]">ไม่มีข้อมูล หรือ ไม่พบผลการค้นหา</div></td></tr>
                                     )}
                                 </tbody>
                             </table>
