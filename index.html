@@ -2728,9 +2728,9 @@ ${promptAction}`;
   );
 };
     
-    // 💡 ระบบหน้าตาราง Affiliate & Friend Get Friend (ดึงตรงจาก Sheet ทันที)
+    // 💡 ระบบหน้าตาราง Affiliate & Friend Get Friend (เวอร์ชันแก้บั๊กข้อมูลไม่ขึ้น)
     const AffiliateTable = () => {
-        const [activeTab, setActiveTab] = useState('Affiliate'); // 👈 สลับระหว่าง Affiliate และ FriendGetFriend
+        const [activeTab, setActiveTab] = useState('Affiliate');
         const [data, setData] = useState([]);
         const [headers, setHeaders] = useState([]);
         const [isLoading, setIsLoading] = useState(true);
@@ -2739,13 +2739,11 @@ ${promptAction}`;
         const fetchData = async (sheetName) => {
             setIsLoading(true);
             try {
-                // รหัส ID ของ Google Sheet
                 const sheetId = '1pFdpUmQpiDMM4or0xBjra1Ezcft5369fF5qPe7r9O_I';
                 const response = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`);
                 if (!response.ok) return;
                 const csvText = await response.text();
                 
-                // เครื่องมือแกะกล่อง CSV
                 const parseCSVRow = (str) => {
                     const result = [];
                     let inQuote = false, val = '';
@@ -2761,39 +2759,22 @@ ${promptAction}`;
 
                 const lines = csvText.split('\n').filter(line => line.trim() !== '');
                 if (lines.length > 1) {
-                    // 💡 ระบบจัดการคอลัมน์ชื่อซ้ำ (เช่น มีคำว่า 'ชื่อ' 2 ช่อง)
-                    const parsedHeaders = [];
-                    const headerCounts = {};
-                    parseCSVRow(lines[0]).forEach(h => {
-                        let name = h.replace(/^"|"$/g, '').trim();
-                        if (!name) name = 'Column';
-                        if (headerCounts[name]) {
-                            parsedHeaders.push(`${name}_${headerCounts[name]}`);
-                            headerCounts[name]++;
-                        } else {
-                            parsedHeaders.push(name);
-                            headerCounts[name] = 1;
-                        }
-                    });
-                    
+                    const parsedHeaders = parseCSVRow(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
                     setHeaders(parsedHeaders);
                     
                     const parsedData = lines.slice(1).map(line => {
                         const row = parseCSVRow(line);
                         const obj = {};
-                        parsedHeaders.forEach((h, i) => { obj[h] = row[i] ? row[i].replace(/^"|"$/g, '').trim() : ''; });
+                        // 💡 เก็บข้อมูลดิบแบบเรียงตามช่องไว้ด้วย (Array) เพื่อความแม่นยำ 100%
+                        obj._rawRow = row.map(v => v ? v.replace(/^"|"$/g, '').trim() : '');
+                        // เก็บแบบชื่อคอลัมน์ไว้ใช้กับระบบค้นหา
+                        parsedHeaders.forEach((h, i) => { obj[h] = obj._rawRow[i]; });
                         return obj;
-                    }).filter(r => {
-                        // 💡 กรองบรรทัดผี: ต้องมี 'ชื่อ' หรือ 'เบอร์โทร' อย่างน้อย 1 ช่องถึงจะแสดงผล
-                        const hasName = r['ชื่อลูกค้า'] || r['ชื่อ'] || r['ชื่อผู้แนะนำ'] || r['ชื่อ_1'] || r['ชื่อผู้ถูกแนะนำ'];
-                        const hasPhone = r['เบอร์โทร'] || r['เบอร์ติดต่อ'] || r['เบอร์ติดต่อ_1'] || r['เบอร์ติดต่อผู้ถูกแนะนำ'];
-                        return hasName || hasPhone;
-                    });
+                    }).filter(r => r._rawRow.some(v => v !== ''));
                     
-                    setData(parsedData.reverse()); // พลิกให้ข้อมูลใหม่ล่าสุดมาอยู่บนสุด
+                    setData(parsedData.reverse());
                 } else {
-                    setHeaders([]);
-                    setData([]);
+                    setHeaders([]); setData([]);
                 }
             } catch (error) {
                 console.error("Fetch Affiliate Error:", error);
@@ -2802,17 +2783,16 @@ ${promptAction}`;
             }
         };
 
-        // เมื่อกดสลับแท็บ ให้ดึงข้อมูลใหม่ทันที
         useEffect(() => { 
             fetchData(activeTab); 
-            const interval = setInterval(() => fetchData(activeTab), 30000); // รีเฟรชอัตโนมัติทุก 30 วินาที
+            const interval = setInterval(() => fetchData(activeTab), 30000);
             return () => clearInterval(interval);
         }, [activeTab]);
 
         const filteredData = data.filter(row => {
             if (!searchQuery) return true;
             const q = searchQuery.toLowerCase();
-            return Object.values(row).some(val => String(val).toLowerCase().includes(q));
+            return row._rawRow.some(val => String(val).toLowerCase().includes(q));
         });
 
         return (
@@ -2824,7 +2804,6 @@ ${promptAction}`;
                     </div>
                 </div>
 
-                {/* 💡 เมนูสลับแท็บ (Affiliate / FriendGetFriend) */}
                 <div className="flex bg-gray-100 p-1.5 rounded-xl w-full md:w-fit mb-4 shrink-0 shadow-sm border border-gray-200 overflow-x-auto horizontal-scrollbar">
                     <button onClick={() => setActiveTab('Affiliate')} className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all whitespace-nowrap ${activeTab === 'Affiliate' ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}>
                         <Icon name="MapPin" size={16} className="mr-2" /> สแกนจากป้าย (Affiliate)
@@ -2837,17 +2816,16 @@ ${promptAction}`;
                 <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 shrink-0 relative z-20">
                     <div className="relative w-full sm:w-[300px]">
                         <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <input type="text" placeholder="ค้นหาข้อมูลเบอร์โทร, ชื่อลูกค้า..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"/>
+                        <input type="text" placeholder="ค้นหาข้อมูล..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm"/>
                     </div>
                 </div>
 
                 <div className="bg-surface rounded-[20px] shadow-sm border border-gray-100 flex-1 overflow-hidden flex flex-col z-10">
                     <div className="overflow-auto custom-scrollbar flex-1 relative bg-white" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                         
-                        {/* 👇 แสดงผลตาราง Friend Get Friend 👇 */}
-                        {activeTab === 'FriendGetFriend' && (
+                        {activeTab === 'FriendGetFriend' ? (
                             <table className="w-full text-left border-collapse min-w-max">
-                                <thead className="sticky top-0 z-20 bg-white shadow-sm border-b border-gray-200">
+                                <thead className="sticky top-0 z-20 bg-white shadow-sm border-b border-gray-100">
                                     <tr>
                                         <th rowSpan={2} className="py-3 px-4 text-[12px] font-extrabold text-gray-500 uppercase text-center border-r border-gray-200 bg-gray-50 sticky left-0 z-30">ลำดับ</th>
                                         <th colSpan={6} className="py-2 px-4 text-[14px] font-extrabold text-brand text-center border-r border-b border-gray-200 bg-brand/10 shadow-inner">🤝 ผู้แนะนำ</th>
@@ -2873,20 +2851,20 @@ ${promptAction}`;
                                     ) : filteredData.length > 0 ? (
                                         filteredData.map((row, idx) => (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                                <td className="py-4 px-4 text-center text-[13px] font-bold text-gray-400 border-r border-gray-100 sticky left-0 z-10 bg-white">{idx + 1}</td>
-                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100 whitespace-nowrap">{row['วันเวลา'] || row['Timestamp'] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100">{row['อีเมล'] || '-'}</td>
-                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row['ชื่อผู้แนะนำ'] || row['ชื่อ'] || '-'}</td>
-                                                <td className="py-4 px-4 text-[14px] font-black text-brand border-r border-gray-100">{row['เบอร์ติดต่อ'] || row['เบอร์โทร'] || '-'}</td>
+                                                <td className="py-4 px-4 text-center text-[13px] font-bold text-gray-400 border-r border-gray-200 sticky left-0 z-10 bg-white">{idx + 1}</td>
+                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100 whitespace-nowrap">{row._rawRow[0] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] text-gray-600 border-r border-gray-100">{row._rawRow[1] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[2] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-black text-brand border-r border-gray-100">{row._rawRow[3] || '-'}</td>
                                                 <td className="py-4 px-4 text-[13px] font-bold border-r border-gray-100">
-                                                    {row['สถานะ'] ? <span className="bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md border border-orange-200">{row['สถานะ']}</span> : '-'}
+                                                    {row._rawRow[4] ? <span className="bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md border border-orange-200">{row._rawRow[4]}</span> : '-'}
                                                 </td>
-                                                <td className="py-4 px-4 text-[13px] font-bold text-blue-700 border-r border-gray-200 bg-gray-50">{row['เซลล์ที่ดูแล'] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] font-bold text-blue-700 border-r border-gray-200 bg-gray-50">{row._rawRow[5] || '-'}</td>
                                                 
-                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row['ชื่อ_1'] || row['ชื่อผู้ถูกแนะนำ'] || '-'}</td>
-                                                <td className="py-4 px-4 text-[14px] font-black text-blue-600 border-r border-gray-100">{row['เบอร์ติดต่อ_1'] || row['เบอร์ติดต่อผู้ถูกแนะนำ'] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] font-bold text-emerald-600 border-r border-gray-100">{row['ID LINE'] || '-'}</td>
-                                                <td className="py-4 px-4 text-[13px] font-bold text-gray-700">{row['โครงการที่สนใจ'] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-extrabold text-gray-800 border-r border-gray-100">{row._rawRow[6] || '-'}</td>
+                                                <td className="py-4 px-4 text-[14px] font-black text-blue-600 border-r border-gray-100">{row._rawRow[7] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] font-bold text-emerald-600 border-r border-gray-100">{row._rawRow[8] || '-'}</td>
+                                                <td className="py-4 px-4 text-[13px] font-bold text-gray-700">{row._rawRow[9] || '-'}</td>
                                             </tr>
                                         ))
                                     ) : (
@@ -2894,10 +2872,7 @@ ${promptAction}`;
                                     )}
                                 </tbody>
                             </table>
-                        )}
-
-                        {/* 👇 แสดงผลตาราง Affiliate แบบเดิม 👇 */}
-                        {activeTab === 'Affiliate' && (
+                        ) : (
                             <table className="w-full text-left border-collapse min-w-max">
                                 <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                                     <tr>
@@ -2914,20 +2889,17 @@ ${promptAction}`;
                                         filteredData.map((row, idx) => (
                                             <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                                                 <td className="py-4 px-5 text-center text-[13px] font-bold text-gray-400 border-r border-gray-100 sticky left-0 z-10 bg-white">{idx + 1}</td>
-                                                {headers.map((h, i) => {
-                                                    const val = row[h] || '-';
-                                                    let content = val;
+                                                {row._rawRow.map((val, i) => {
+                                                    if (i >= headers.length) return null;
+                                                    const h = headers[i];
                                                     let className = "py-4 px-5 text-[13px] font-medium text-gray-600 border-r border-gray-100";
+                                                    let content = val || '-';
                                                     
-                                                    if (h.includes('ชื่อ')) {
-                                                        className = "py-4 px-5 text-[14px] font-extrabold text-gray-800 border-r border-gray-100";
-                                                    } else if (h.includes('เบอร์') || h.includes('โทร')) {
-                                                        className = "py-4 px-5 text-[14px] font-black text-brand border-r border-gray-100";
-                                                    } else if (h.includes('ร้าน') || h.includes('สแกน')) {
+                                                    if (h.includes('ชื่อ')) className = "py-4 px-5 text-[14px] font-extrabold text-gray-800 border-r border-gray-100";
+                                                    else if (h.includes('เบอร์') || h.includes('โทร')) className = "py-4 px-5 text-[14px] font-black text-brand border-r border-gray-100";
+                                                    else if (h.includes('ร้าน') || h.includes('สแกน')) {
                                                         className = "py-4 px-5 text-[13px] font-bold text-emerald-700 bg-emerald-50/30 border-r border-gray-100";
-                                                        if (val !== '-') {
-                                                            content = <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-100 border border-emerald-200 shadow-sm"><Icon name="MapPin" size={12} className="mr-1.5"/> {val}</div>;
-                                                        }
+                                                        if (val) content = <div className="inline-flex items-center px-2.5 py-1 rounded-md bg-emerald-100 border border-emerald-200 shadow-sm"><Icon name="MapPin" size={12} className="mr-1.5"/> {val}</div>;
                                                     }
                                                     return <td key={i} className={className}>{content}</td>;
                                                 })}
