@@ -10,25 +10,6 @@ if (!admin.apps.length) {
   });
 }
 
-// 💡 1. สร้าง "สมุดหน้าเหลือง" จับคู่ชื่อเล่นกับอีเมล Google ของพนักงาน
-// ตัวพิมพ์เล็กทั้งหมดด้านซ้าย คือชื่อที่เลือกใน Dropdown หน้าเว็บ
-// ด้านขวา คืออีเมล Google ที่เขาใช้ล็อกอินเข้าแอป
-const staffDictionary = {
-  "boom": "bloom27742@hotmail.com",
-  "boat": "kanasest.tk@gmail.com",
-  "may": "may_mayyoophu@hotmail.com",
-  "noey": "noeyananta1823@gmail.com",
-  "ketar": "ketarbusayarangsee@gmail.com",
-  "peth": "pepetchpunk@gmail.com",
-  "beau": "pornchompoo.k@gmail.com",
-  "perth": "perseperseperse44@gmail.com",
-  "ter": "iamcatwoman1992@gmail.com",
-  "bumb": "tanadon.startupup@gmail.com",
-  "weerwi": "weerwiraya.startupup@gmail.com",
-  "ไม้": "charawut112@gmail.com",
-  "เพจกลาง": "startup.up.real.estate@gmail.com"
-};
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   
@@ -37,6 +18,7 @@ export default async function handler(req, res) {
     const messaging = admin.messaging();
     const now = Date.now() + 60000; 
 
+    // 1. ดึงงานที่ถึงเวลาแจ้งเตือน
     const eventsRef = db.collection('events');
     const snapshot = await eventsRef
         .where('isNotified', '==', false)
@@ -44,53 +26,68 @@ export default async function handler(req, res) {
         .limit(10)
         .get();
 
+    // ถ้าไม่มีงาน ให้รีบปิดจบทันที (ใช้เวลาไม่ถึง 1 วินาที)
     if (snapshot.empty) {
       return res.status(200).json({ status: "ok", message: 'ไม่มีงานที่ค้างส่ง' });
     }
 
-    const allTokensSnapshot = await db.collection('fcm_tokens').get();
+    // 💡 2. จุดแก้ปัญหา Timeout 10 วิ! สั่งโหลดพนักงานและกุญแจ "พร้อมกัน" (วิ่งทางด่วน)
+    const [usersSnapshot, allTokensSnapshot] = await Promise.all([
+      db.collection('users').get(),
+      db.collection('fcm_tokens').get()
+    ]);
+
+    const dynamicDictionary = {};
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data() || {};
+      if (userData.systemName && userData.email) {
+        dynamicDictionary[String(userData.systemName).toLowerCase().trim()] = String(userData.email).toLowerCase().trim();
+      }
+    });
+
     const allTokens = [];
-    allTokensSnapshot.forEach(doc => allTokens.push(doc.data()));
+    allTokensSnapshot.forEach(doc => allTokens.push(doc.data() || {}));
 
     let notifiedCount = 0;
 
     for (const eventDoc of snapshot.docs) {
-      const event = eventDoc.data();
-      const targetAssignee = (event.assignee || '').toLowerCase().trim();
+      const event = eventDoc.data() || {};
+      const targetAssignee = String(event.assignee || '').toLowerCase().trim();
 
-      // 💡 2. เปิดสมุดหน้าเหลืองค้นหาอีเมลเป้าหมาย
-      const targetEmail = staffDictionary[targetAssignee];
+      if (!targetAssignee) {
+         await eventDoc.ref.update({ isNotified: true }); 
+         continue;
+      }
 
+      const targetEmail = dynamicDictionary[targetAssignee];
       let matchedTokens = [];
 
       if (targetEmail) {
-        // ถ้าเจออีเมลในสมุดหน้าเหลือง ให้ค้นหา Token จากอีเมลเป๊ะๆ เลย
-        matchedTokens = allTokens.filter(t => (t.ownerEmail || '').toLowerCase() === targetEmail);
+        matchedTokens = allTokens.filter(t => String(t.ownerEmail || '').toLowerCase() === targetEmail);
       } else {
-        // แผนสำรอง: ถ้าลืมใส่อีเมลในสมุดหน้าเหลือง ให้ใช้วิธีค้นหาจากชื่อเหมือนเดิม
         matchedTokens = allTokens.filter(t => {
-            const name = (t.ownerName || '').toLowerCase();
-            const email = (t.ownerEmail || '').toLowerCase();
+            const name = String(t.ownerName || '').toLowerCase();
+            const email = String(t.ownerEmail || '').toLowerCase();
             return name.includes(targetAssignee) || email.includes(targetAssignee);
         });
       }
 
       if (matchedTokens.length > 0) {
-        for (const tokenData of matchedTokens) {
-          try {
-            await messaging.send({
-              token: tokenData.token,
-              notification: {
-                title: '🚨 แจ้งเตือน: ' + event.activity,
-                body: `ใกล้ถึงเวลา! (${event.time} น.)\nรายละเอียด: ${event.note || '-'}`,
-              },
-              android: { priority: 'high' },
-              apns: { payload: { aps: { sound: 'default' } } }
-            });
-          } catch (sendErr) {
-            console.log("Token นี้อาจจะหมดอายุ:", tokenData.ownerEmail);
-          }
-        }
+        // ยิงแจ้งเตือนแบบขนานเพื่อความไว
+        const sendPromises = matchedTokens.map(tokenData => {
+          if (!tokenData.token) return Promise.resolve();
+          return messaging.send({
+            token: tokenData.token,
+            notification: {
+              title: '🚨 แจ้งเตือน: ' + (event.activity || 'กิจกรรมใหม่'),
+              body: `ใกล้ถึงเวลา! (${event.time || '-'} น.)\nรายละเอียด: ${event.note || '-'}`,
+            },
+            android: { priority: 'high' },
+            apns: { payload: { aps: { sound: 'default' } } }
+          }).catch(err => console.log("Token error:", err.message));
+        });
+        
+        await Promise.all(sendPromises);
       }
 
       await eventDoc.ref.update({ isNotified: true });
@@ -100,7 +97,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, count: notifiedCount });
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Critical Error in check-reminders:", error);
     return res.status(500).json({ error: error.message });
   }
 }
