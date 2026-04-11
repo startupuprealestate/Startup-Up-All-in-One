@@ -3182,7 +3182,13 @@ ${promptAction}`;
         };
 
         initMessaging();
-        const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { console.log('มีแจ้งเตือน:', payload); });
+        const unsubscribe = window.firebaseAPI.onMessage(window.firebaseMessaging, (payload) => { 
+    console.log('มีแจ้งเตือนตอนเปิดแอป:', payload); 
+    // สั่งให้เด้ง Popup แจ้งเตือนกลางหน้าจอ กรณีพนักงานกำลังเปิดแอปใช้งานอยู่
+    if(payload && payload.notification) {
+        alert(`🔔 ${payload.notification.title}\n\n${payload.notification.body}`);
+    }
+});
         return () => { if (unsubscribe) unsubscribe(); };
       }, [isFirebaseLoaded, user, accessStatus]);
 
