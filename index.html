@@ -3011,7 +3011,7 @@ ${promptAction}`;
                   const data = doc.data();
                   // 💡 ใช้รหัสถาวรแทน doc.id ที่เป็นเลขแถว
                   loadedData.push({ 
-                      id: generateStableHouseId(data, doc.id), 
+                      id: doc.id,  // 💡 ย้อนเวลากลับชั่วคราว!
                       _originalRowId: doc.id, 
                       ...data 
                   });
