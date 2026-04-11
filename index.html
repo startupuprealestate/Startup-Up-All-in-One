@@ -193,7 +193,7 @@
     });
 
     const safeTrim = (v) => v ? String(v).trim() : '';
-    const getValidSheetData = (d) => d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && Object.keys(r).some(k => k !== 'id' && safeTrim(r[k]) !== '') && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่']))).sort((a, b) => (parseInt(a.id.replace('row_', '')) || 0) - (parseInt(b.id.replace('row_', '')) || 0));
+    const getValidSheetData = (d) => d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && Object.keys(r).some(k => k !== 'id' && safeTrim(r[k]) !== '') && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่']))).sort((a, b) => (parseInt((a._originalRowId || a.id).replace('row_', '')) || 0) - (parseInt((b._originalRowId || b.id).replace('row_', '')) || 0));
     const getFormattedDateThai = (dStr) => { if (!dStr) return ''; const [y, m, d] = dStr.split('-'); return `${parseInt(d, 10)} ${MONTHS_TH[parseInt(m, 10) - 1]} ${parseInt(y, 10) + 543}`; };
     const parseThaiDate = (dStr) => {
         if (!dStr) return null; const s = String(dStr).trim();
@@ -352,7 +352,6 @@
                 <div className="flex items-center gap-3">
                     <h2 className="text-[20px] md:text-[22px] font-bold flex items-center text-gray-800"><Icon name="CheckSquare" className="mr-2 md:mr-3 text-brand" size={24}/> เช็คลิสต์คอนเทนต์บ้าน</h2>
                     {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{filteredData.length} รายการ</span></div>}
-                    <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                 </div>
               </div>
             </div>
@@ -692,7 +691,6 @@
                     <div className="flex items-center gap-3">
                         <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="Home" className="mr-2 md:mr-3 text-brand" size={24}/> {viewMode === 'unfinished' ? 'สถานะบ้าน (กำลังทำ)' : 'สถานะบ้านทั้งหมด'}</h2>
                         {validSheetData.length > 0 && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{sortedData.length} รายการ</span></div>}
-                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                         <button onClick={() => setIsHistoryModalOpen(true)} className="ml-1 px-3 py-1.5 text-brand bg-brand/10 border border-brand/20 rounded-lg shadow-sm hover:bg-brand/20 transition-all font-bold text-[13px] flex items-center">
                             <Icon name="Clock" size={14} className="mr-1.5" /> ประวัติ
                         </button>
@@ -1038,8 +1036,9 @@ useEffect(() => {
              const lastA = getLatestPostTime(a.id);
              const lastB = getLatestPostTime(b.id);
              if (lastA !== lastB) return lastA - lastB; 
-             const idA = parseInt(a.id.replace('row_', '')) || 0;
-             const idB = parseInt(b.id.replace('row_', '')) || 0;
+             // 💡 แก้บั๊ก NaN: ดึง _originalRowId มาใช้เรียงลำดับ
+             const idA = parseInt(String(a._originalRowId || a.id).replace('row_', '')) || 0;
+             const idB = parseInt(String(b._originalRowId || b.id).replace('row_', '')) || 0;
              return idB - idA;
         }).concat(skippedHouses);
         
@@ -1049,44 +1048,48 @@ useEffect(() => {
              if (lastA !== lastB) return lastA - lastB; 
              const expA = parseThaiDate(safeTrim(a['หมดสัญญา']) || safeTrim(a['วันหมดสัญญา'])), expB = parseThaiDate(safeTrim(b['หมดสัญญา']) || safeTrim(b['วันหมดสัญญา']));
              const startA = parseThaiDate(safeTrim(a['เริ่มทำ'])), startB = parseThaiDate(safeTrim(b['เริ่มทำ']));
+             
              const getScore = (exp, start) => {
                  if (exp && !isNaN(exp.getTime())) return exp.getTime();
                  if (start && !isNaN(start.getTime())) return start.getTime() + 10000000000000; return Infinity;
              };
-             return getScore(expA, startA) - getScore(expB, startB);
+
+             const scoreA = getScore(expA, startA);
+             const scoreB = getScore(expB, startB);
+
+             // 💡 ดักจับคะแนนชนกันเพื่อล็อกตำแหน่ง
+             if (scoreA !== scoreB) return scoreA - scoreB;
+             
+             const idA = parseInt(String(a._originalRowId || a.id).replace('row_', '')) || 0;
+             const idB = parseInt(String(b._originalRowId || b.id).replace('row_', '')) || 0;
+             return idA - idB;
         }).concat(skippedHouses);
 
         const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'], specificAssignees = ['May', 'Boom', 'Boat'], allAssigneesList = [...generalAssignees, ...specificAssignees];
         const scheduleData = [];
         
-        // 💡 1. ตัวแปรเก็บรายชื่อบ้านที่โดนจ่ายงานไปแล้ว "ในวันนี้" (เพื่อป้องกันการโพสต์ซ้ำวันเดียวกัน)
         const assignedToday = new Set();
         const specificSchedules = [];
         
-        // 💡 2. ให้สิทธิ์น้องๆ เซลล์ (May, Boom, Boat) ดึงบ้านของตัวเองลงตารางก่อน
         specificAssignees.forEach(name => {
             const myHouses = priorityPool.filter(row => {
                 const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
                 return caretaker.toLowerCase() === name.toLowerCase();
             }).slice(0, 4); 
             
-            // บันทึก ID บ้านที่เซลล์ได้ไปวันนี้ จะได้ไม่มีใครมาแย่งไปโพสต์ซ้ำในวันเดียวกัน
             myHouses.forEach(h => assignedToday.add(h.id));
             specificSchedules.push({ name, type: 'specific', houses: myHouses });
         });
 
         const generalSchedules = [];
         
-        // 💡 3. ให้ทีมส่วนกลาง (เพจกลาง, Ketar, Noey) เลือกบ้าน
         generalAssignees.forEach(name => {
             const assignedHouses = [];
             const isPageKlang = name === 'เพจกลาง';
-            const myUsedInLoop = new Set(); // กันไม่ให้คนเดียวได้บ้านซ้ำกันเองใน 4 โพสต์
+            const myUsedInLoop = new Set(); 
 
-            // ดึงบ้านใหม่ล่าสุด 1 หลัง
             for (let i = 0; i < newestPool.length; i++) {
                 const house = newestPool[i];
-                // กฎ: เพจกลางทะลุกฎซ้ำได้คนเดียว ส่วนคนอื่น (Ketar, Noey) ดึงบ้านใครก็ได้ แต่ต้อง "ไม่ซ้ำ" กับบ้านที่จ่ายไปแล้ววันนี้
                 if (!myUsedInLoop.has(house.id) && (isPageKlang || !assignedToday.has(house.id))) { 
                     assignedHouses.push(house); 
                     myUsedInLoop.add(house.id); 
@@ -1094,7 +1097,6 @@ useEffect(() => {
                     break; 
                 }
             }
-            // ดึงบ้านตามความสำคัญให้ครบ 4 หลัง
             for (let i = 0; i < priorityPool.length && assignedHouses.length < 4; i++) {
                 const house = priorityPool[i];
                 if (!myUsedInLoop.has(house.id) && (isPageKlang || !assignedToday.has(house.id))) { 
@@ -1106,8 +1108,27 @@ useEffect(() => {
             generalSchedules.push({ name, type: 'general', houses: assignedHouses });
         });
         
-        // 💡 4. เอาตารางของส่วนกลางขึ้นก่อน ตามด้วยตารางของเซลล์ (รวมเข้าด้วยกัน)
         scheduleData.push(...generalSchedules, ...specificSchedules);
+
+        // 💡 ระบบล็อกตารางแช่แข็ง! (ป้องกันบ้านขยับเปลี่ยนหลังเวลามีข้อมูลใหม่แทรก)
+        const [finalSchedule, setFinalSchedule] = useState([]);
+        
+        useEffect(() => {
+            const cacheKey = `daily_locked_schedule_${assignmentTodayStr}`;
+            const cachedStr = localStorage.getItem(cacheKey);
+            
+            const currentSkips = skippedHouses.length;
+            const cachedSkips = parseInt(localStorage.getItem(`${cacheKey}_skips`) || '0');
+
+            if (cachedStr && currentSkips === cachedSkips && scheduleData.length > 0) {
+                setFinalSchedule(JSON.parse(cachedStr));
+            } else if (scheduleData.length > 0) {
+                setFinalSchedule(scheduleData);
+                localStorage.setItem(cacheKey, JSON.stringify(scheduleData));
+                localStorage.setItem(`${cacheKey}_skips`, currentSkips.toString());
+            }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [JSON.stringify(scheduleData), assignmentTodayStr, skippedHouses.length]);
 
         const getPriorityLabel = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']), startStr = safeTrim(row['เริ่มทำ']);
@@ -1137,7 +1158,6 @@ useEffect(() => {
                     <div className="flex items-center gap-3">
                         <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="FileSignature" className="mr-2 md:mr-3 text-brand" size={24}/> {viewMode === 'daily' ? `ตารางโพสต์ประจำวัน ที่ ${assignmentDisplayStr}` : 'ประวัติโพสต์บ้านทั้งหมด'}</h2>
                         {viewMode === 'all' && <div className="px-3 py-1 bg-brand/10 border border-brand/20 rounded-full shadow-sm"><span className="text-[12px] font-bold text-brand">{filteredAllData.length} รายการ</span></div>}
-                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                     </div>
                </div>
 
@@ -1250,7 +1270,7 @@ useEffect(() => {
     </div>
 </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {scheduleData.map((assignee, idx) => {
+                        {finalSchedule.map((assignee, idx) => {
                             const completedCount = assignee.houses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
                             const avatarClass = getAvatarColor(assignee.name);
                             const avatarLetter = getAvatarLetter(assignee.name);
@@ -2277,7 +2297,6 @@ ${promptAction}`;
                <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
                         <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="MapPin" className="mr-2 md:mr-3 text-brand" size={24}/> แยกบ้านตามโซน (รายบุคคล)</h2>
-                        <button onClick={() => { setIsRefreshing(true); setManualRefreshKey(k => k + 1); setTimeout(() => setIsRefreshing(false), 800); }} className="ml-2 p-1.5 text-gray-400 hover:text-brand bg-white border border-gray-200 rounded-lg shadow-sm transition-all"><Icon name="RefreshCw" size={16} className={isRefreshing ? 'animate-spin text-brand' : ''} /></button>
                     </div>
                </div>
 
@@ -2969,8 +2988,37 @@ ${promptAction}`;
           const loaded = {}; snapshot.forEach((doc) => { loaded[doc.id] = doc.data(); }); setPostTracking(loaded);
         });
 
+        // 💡 ฟังก์ชันสร้างรหัสถาวรให้บ้านแต่ละหลัง (ไม่ให้ติ๊กถูกเลื่อนตามเวลาแทรกแถว)
+        const generateStableHouseId = (row, defaultId) => {
+            const project = String(row['หมู่บ้าน'] || row['โครงการ'] || '').trim();
+            const houseNo = String(row['บ้านเลขที่'] || '').trim();
+            const price = String(row['ราคา'] || '').trim();
+
+            if (!project && !houseNo) return defaultId; // ถ้าไม่มีข้อมูลให้ใช้ row_ เดิมไปก่อน
+
+            let str = project + houseNo + price;
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+            }
+            return `h_${Math.abs(hash)}`; 
+        };
+
         const unsubscribeSheet = onSnapshot(collection(window.firebaseDB, "google_sheet_data"), 
-          (snapshot) => { const loadedData = []; snapshot.forEach((doc) => loadedData.push({ id: doc.id, ...doc.data() })); setSheetData(loadedData); setSheetError(null); },
+          (snapshot) => { 
+              const loadedData = []; 
+              snapshot.forEach((doc) => {
+                  const data = doc.data();
+                  // 💡 ใช้รหัสถาวรแทน doc.id ที่เป็นเลขแถว
+                  loadedData.push({ 
+                      id: generateStableHouseId(data, doc.id), 
+                      _originalRowId: doc.id, 
+                      ...data 
+                  });
+              });
+              setSheetData(loadedData); 
+              setSheetError(null); 
+          },
           (error) => { console.error("Firebase Read Error:", error); setSheetError(error.message); }
         );
 
