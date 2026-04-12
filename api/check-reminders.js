@@ -18,12 +18,13 @@ export default async function handler(req, res) {
     const messaging = admin.messaging();
     const now = Date.now() + 60000; 
 
-    // 💡 1. แก้ไข: ดึงแค่งานที่ยังไม่ได้เตือน (หลบ Error Index ของ Firebase)
+    // ดึงงานที่ยังไม่ได้เตือน และ ถึงเวลาเตือนแล้ว เท่านั้น!
     const eventsRef = db.collection('events');
     const snapshot = await eventsRef
-    .where('isNotified', '==', false)
-    .where('notifyAt', '<=', now)
-    .get();
+        .where('isNotified', '==', false)
+        .where('notifyAt', '<=', now)
+        .limit(10)
+        .get();
 
     // 💡 1.1 นำมากรอง "เวลา" ด้วย JavaScript แทน
     const docsToNotify = snapshot.docs.filter(doc => {
