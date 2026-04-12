@@ -21,8 +21,9 @@ export default async function handler(req, res) {
     // 💡 1. แก้ไข: ดึงแค่งานที่ยังไม่ได้เตือน (หลบ Error Index ของ Firebase)
     const eventsRef = db.collection('events');
     const snapshot = await eventsRef
-        .where('isNotified', '==', false)
-        .get();
+    .where('isNotified', '==', false)
+    .where('notifyAt', '<=', now)
+    .get();
 
     // 💡 1.1 นำมากรอง "เวลา" ด้วย JavaScript แทน
     const docsToNotify = snapshot.docs.filter(doc => {
