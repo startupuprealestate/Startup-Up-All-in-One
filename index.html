@@ -275,13 +275,17 @@
     };
 
     const getAvatarColor = (n) => {
-        switch(n.toLowerCase()) {
-            case 'เพจกลาง': return 'bg-red-500 text-white border-red-600'; case 'ketar': return 'bg-purple-500 text-white border-purple-600'; 
-            case 'noey': return 'bg-green-500 text-white border-green-600'; case 'may': return 'bg-pink-200 text-pink-800 border-pink-300'; 
-            case 'boom': return 'bg-red-800 text-white border-red-900'; case 'boat': return 'bg-blue-300 text-blue-900 border-blue-400'; 
-            default: return 'bg-gray-200 text-gray-700 border-gray-300';
-        }
-    };
+    switch(n.toLowerCase()) {
+        case 'เพจกลาง': return 'bg-red-500 text-white border-red-600'; 
+        case 'ketar': return 'bg-purple-500 text-white border-purple-600'; 
+        case 'noey': return 'bg-green-500 text-white border-green-600'; 
+        case 'may': return 'bg-pink-200 text-pink-800 border-pink-300'; 
+        case 'boom': return 'bg-red-800 text-white border-red-900'; 
+        case 'boat': return 'bg-blue-300 text-blue-900 border-blue-400'; 
+        case 'nan': return 'bg-orange-400 text-white border-orange-500';
+        default: return 'bg-gray-200 text-gray-700 border-gray-300';
+    }
+};
 
     const getAvatarLetter = (n) => n === 'เพจกลาง' ? 'ก' : n.charAt(0).toUpperCase();
 
@@ -1148,7 +1152,7 @@ useEffect(() => {
              return idA - idB;
         }).concat(skippedHouses);
 
-        const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'], specificAssignees = ['May', 'Boom', 'Boat'], allAssigneesList = [...generalAssignees, ...specificAssignees];
+        const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'], specificAssignees = ['May', 'Boom', 'Boat', 'Nan'], allAssigneesList = [...generalAssignees, ...specificAssignees];
         const scheduleData = [];
         
         const assignedToday = new Set();
@@ -2329,7 +2333,7 @@ ${promptAction}`;
         const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
         
         const uniqueSalesLevels = ['รายการขายง่าย', 'รายการขายยาก', 'ไม่ระบุ'];
-        const uniqueCaretakers = ['May', 'Boom', 'Boat', 'ยังไม่ระบุ'];
+        const uniqueCaretakers = ['May', 'Boom', 'Boat', 'Nan', 'ยังไม่ระบุ'];
         const uniqueVideoStatuses = ['ถ่ายแล้ว', 'ยังไม่ถ่าย'];
 
         const toggleColumn = (col) => setVisibleColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
@@ -2377,6 +2381,7 @@ ${promptAction}`;
             { id: 'May', label: 'May', icon: 'User' },
             { id: 'Boom', label: 'Boom', icon: 'User' },
             { id: 'Boat', label: 'Boat', icon: 'User' },
+            { id: 'Nan', label: 'Nan', icon: 'User' },
             { id: 'ยังไม่ระบุ', label: 'ยังไม่ระบุ', icon: 'HelpCircle' }
         ];
 
@@ -2526,6 +2531,7 @@ ${promptAction}`;
                                                             <option value="May">May</option>
                                                             <option value="Boom">Boom</option>
                                                             <option value="Boat">Boat</option>
+                                                            <option value="Nan">Nan</option>
                                                         </select>
                                                     );
                                                 }
