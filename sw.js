@@ -13,33 +13,29 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ อาวุธหนัก: พอกดแจ้งเตือนปุ๊บ ดึงจอก่อน แล้วถีบเปลี่ยนหน้า!
+// ✨ อาวุธหนัก: ดึงแอปขึ้นมา แล้วส่งข้อความไปเปลี่ยนหน้าต่างภายใน (ไม่รีเฟรชเว็บ)
 self.addEventListener('notificationclick', function(event) {
   event.notification.close(); 
 
-  const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
-  const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
+  // ดึงลิงก์ลับที่เราซ่อนไว้
+  const clickUrl = event.notification?.data?.clickUrl || event.notification?.data?.FCM_MSG?.data?.clickUrl || '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       
-      // 💡 ถ้าแอปยังเปิดอยู่เบื้องหลัง
+      // 💡 ถ้าแอปเปิดค้างอยู่เบื้องหลัง
       if (clientList.length > 0) {
         let client = clientList[0];
         for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) { client = clientList[i]; }
+          if (clientList[i].focused) { client = clientList[i]; break; }
         }
-        
-        // 1. ดึงแอปขึ้นมาโชว์บนหน้าจอก่อน
-        return client.focus().then(c => {
-           // 2. ส่งข้อความตะโกนปลุกไปที่หูทิพย์ (ที่เราฝังไว้หน้าเว็บ)
-           c.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
-           // 3. ย้ำอีกรอบด้วยคำสั่ง navigate เผื่อมือถือบางเครื่องขี้เกียจ
-           return c.navigate(clickUrl);
-        });
+        // 1. ส่งข้อความปลุกแอป (React จะรับหน้าที่เปลี่ยนหน้าให้เอง)
+        client.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
+        // 2. ดึงแอปขึ้นมาโชว์บนหน้าจอ
+        return client.focus();
       }
       
-      // 💡 ถ้าแอปปิดสนิท (Force Close)
+      // 💡 ถ้าแอปปิดสนิทไปแล้ว (Force Close)
       if (clients.openWindow) {
         return clients.openWindow(clickUrl);
       }
