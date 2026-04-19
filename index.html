@@ -3389,20 +3389,30 @@ ${promptAction}`;
 
       const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
 
+      // 🪄 ระบบวาร์ป: อ่าน URL แล้วเปิดหน้าต่างข้อมูลทันที (อัปเกรดแก้บั๊กมือถือ)
       useEffect(() => {
-          if (!isFirebaseLoaded || events.length === 0) return;
-          
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
           const eventId = params.get('eventId');
 
-          // ถ้าเป็นการแจ้งเตือน ลา/กิจกรรม -> ให้เปิดหน้าต่างกิจกรรมนั้นทันที
           if (action === 'view_event' && eventId) {
+              // 1. ถ้าระบบยังโหลดตารางไม่เสร็จ ให้รอไปก่อน
+              if (!isFirebaseLoaded || events.length === 0) return;
+              
+              // 2. พอโหลดตารางเสร็จ ให้ค้นหารหัสกิจกรรมนั้น
               const targetEvent = events.find(ev => ev.id === eventId);
+              
               if (targetEvent) {
-                  handleOpenModal(null, targetEvent); // สั่งเปิดหน้าต่างรายละเอียด
+                  // หน่วงเวลา 0.5 วินาทีให้หน้าจอพร้อม แล้วค่อยเด้งป๊อปอัป
+                  setTimeout(() => {
+                      handleOpenModal(null, targetEvent); 
+                  }, 500);
+              } else {
+                  // ถ้าหาไม่เจอจริงๆ ให้ฟ้องขึ้นมาเลย จะได้รู้ว่าผิดที่ไหน
+                  alert('⚠️ ไม่พบข้อมูลการลานี้ในระบบค่ะ (หรือข้อมูลอาจถูกลบไปแล้ว)');
               }
-              // ล้าง URL ทิ้งป้องกันการเด้งซ้ำ
+              
+              // 3. ล้าง URL ทิ้งเพื่อป้องกันการเด้งซ้ำซ้อน
               window.history.replaceState({}, '', window.location.pathname);
           }
       }, [isFirebaseLoaded, events]);
