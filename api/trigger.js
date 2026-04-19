@@ -23,26 +23,32 @@ export default async function handler(req, res) {
     let title = '';
     let body = '';
     
-    // 💡 1. สร้างตัวแปรเก็บลิงก์วาร์ป
-    // (เปลี่ยนเป็นลิงก์เว็บ Vercel ของพี่บิวนะคะ)
     const baseUrl = 'https://startup-up-all-in-one.vercel.app'; 
     let clickUrl = baseUrl;
 
     if (action === 'leave') {
       title = `🚨 แจ้งลางาน: ${data.assignee}`;
       body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
-      clickUrl = `${baseUrl}/?tab=calendar`; // วาร์ปไปหน้าปฏิทิน
+      // ✅ วาร์ปไปหน้าปฏิทิน + ส่งคำสั่งเปิดป๊อปอัป (action=view_event) + รหัส eventId
+      clickUrl = `${baseUrl}/?tab=calendar&action=view_event&eventId=${data.eventId}`;
     } 
     else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
       body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
-      clickUrl = `${baseUrl}/?tab=stock`; // วาร์ปไปหน้าสต็อกบ้าน
+      // 💡 จุดที่ปรับเพิ่ม: เปลี่ยนจาก search เป็นคำสั่งเปิดป๊อปอัปยินดี (view_house) + รหัส houseId
+      clickUrl = `${baseUrl}/?tab=schedule&action=view_house&houseId=${data.houseId}`;
     } 
     else if (action === 'lead') {
       title = data.title;
       body = data.body;
-      clickUrl = `${baseUrl}/?tab=affiliate`; // วาร์ปไปหน้า Affiliate
+      clickUrl = `${baseUrl}/?tab=affiliate`;
     } 
+    // 💡 เพิ่มเผื่อไว้สำหรับกิจกรรมนัดหมายทั่วไปในปฏิทิน
+    else if (action === 'event') {
+      title = data.title || '📅 แจ้งเตือนนัดหมาย!';
+      body = data.body || 'มีกิจกรรมนัดหมาย รีบเข้ามาดูในปฏิทินนะคะ';
+      clickUrl = `${baseUrl}/?tab=calendar&action=view_event&eventId=${data.eventId}`;
+    }
     else {
       return res.status(400).json({ error: 'Unknown action' });
     }
@@ -63,7 +69,6 @@ export default async function handler(req, res) {
             title: title,
             body: body,
           },
-          // 💡 2. แนบลิงก์วาร์ปไปกับแจ้งเตือนตรงนี้!
           webpush: {
             fcmOptions: {
               link: clickUrl
