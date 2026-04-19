@@ -69,6 +69,9 @@ export default async function handler(req, res) {
             title: title,
             body: body,
           },
+          // 💡 1. แอบยัดลิงก์ลงในกระเป๋า data เพื่อเตรียมส่งจดหมายลับ
+          data: { clickUrl: clickUrl }, 
+          
           webpush: {
             fcmOptions: {
               link: clickUrl
