@@ -13,38 +13,23 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ ไม้ตายทะลวงแอปแช่แข็ง: ตะโกนปลุกย้ำๆ จนกว่าแอปจะตื่น!
+// ✨ โค้ดดึงแอปขึ้นมาแบบคลีนๆ
 self.addEventListener('notificationclick', function(event) {
   event.notification.close(); 
-
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      
-      // 💡 ถ้าแอปถูกพับอยู่เบื้องหลัง (มันกำลังโดนแช่แข็ง)
       if (clientList.length > 0) {
         let client = clientList[0];
         for (let i = 0; i < clientList.length; i++) {
           if (clientList[i].focused) { client = clientList[i]; break; }
         }
-        
-        return client.focus().then(c => {
-           const targetClient = c || client;
-           // 🚀 ทริคระดับโลก: ส่งคำสั่งย้ำๆ 4 รอบ! 
-           // เพราะ iOS ต้องใช้เวลา 1-2 วินาทีในการละลายน้ำแข็งแอป
-           targetClient.postMessage({ type: 'APP_WAKE_UP', url: clickUrl }); // ยิงทันที
-           setTimeout(() => targetClient.postMessage({ type: 'APP_WAKE_UP', url: clickUrl }), 500);  // ยิงซ้ำครึ่งวิ
-           setTimeout(() => targetClient.postMessage({ type: 'APP_WAKE_UP', url: clickUrl }), 1500); // ยิงซ้ำวิครึ่ง
-           setTimeout(() => targetClient.postMessage({ type: 'APP_WAKE_UP', url: clickUrl }), 3000); // ยิงซ้ำสามวิ (ชัวร์สุด)
-        });
+        client.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
+        return client.focus();
       }
-      
-      // 💡 ถ้าแอปปิดสนิท (Force Close)
-      if (clients.openWindow) {
-        return clients.openWindow(clickUrl);
-      }
+      if (clients.openWindow) return clients.openWindow(clickUrl);
     })
   );
 });
