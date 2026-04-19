@@ -13,33 +13,32 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ พอกดที่การแจ้งเตือนปุ๊บ ให้ดึงแอปขึ้นมาและส่งคำสั่งวาร์ป (อัปเกรดแล้ว!)
+// ✨ พอกดที่การแจ้งเตือนปุ๊บ ให้บังคับเปลี่ยนหน้าทันที! (อัปเกรดทะลุแอปแช่แข็ง)
 self.addEventListener('notificationclick', function(event) {
-  event.notification.close(); // ปิดป้ายแจ้งเตือนหลังจากกด
+  event.notification.close(); // ปิดป้ายแจ้งเตือน
 
-  // 💡 1. ดึงลิงก์จากกระเป๋า data ที่เราแอบส่งมาจาก Vercel
+  // 1. ดึงลิงก์จากกระเป๋า data
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
-  // ถ้ามีลิงก์ลับให้ใช้ลิงก์ลับ ถ้าไม่มีให้เปิดหน้าแรก (/)
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       
-      // 💡 กรณีที่ 1: ถ้าแอปเปิดค้างอยู่ (ไม่ว่าจะซ่อนอยู่เบื้องหลังหรือเปิดค้างไว้)
+      // 💡 กรณีที่ 1: ถ้าแอปเปิดอยู่ (ไม่ว่าจะพับอยู่เบื้องหลัง หรืออยู่หน้าจอ)
       if (clientList.length > 0) {
         let client = clientList[0];
         for (let i = 0; i < clientList.length; i++) {
           if (clientList[i].focused) { client = clientList[i]; }
         }
-        // 🚀 ตะโกนปลุกแอปที่ซ่อนอยู่ว่า "เปลี่ยนหน้าเป็นลิงก์นี้เดี๋ยวนี้!"
-        client.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
         
-        // ดึงหน้าแอปขึ้นมาโชว์บนหน้าจอ
-        return client.focus();
+        // 🚀 ไม้เรียว: บังคับให้แอปหน้านั้น "เปลี่ยน URL และรีเฟรชตัวเอง" ไปหน้าข้อมูลทันที!
+        return client.navigate(clickUrl).then(c => {
+            if (c) return c.focus();
+            return client.focus();
+        });
       }
       
-      // 💡 กรณีที่ 2: ถ้าแอปถูกปัดทิ้ง (Force Close) ปิดสนิทไปแล้ว
-      // ให้เปิดหน้าต่างเว็บขึ้นมาใหม่ พร้อมกับลิงก์วาร์ปเลย
+      // 💡 กรณีที่ 2: ถ้าแอปถูกปัดทิ้ง (Force Close) ไปแล้ว
       if (clients.openWindow) {
         return clients.openWindow(clickUrl);
       }
