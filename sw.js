@@ -13,9 +13,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ ระบบฝากจดหมายลับ: หลบหลีกการแช่แข็งของ iOS 100%
-let pendingUrlToOpen = null; // ยามเตรียมสมุดจดไว้
-
+// ✨ กลับคืนสู่สามัญ: ใช้คำสั่งบังคับเปิดหน้าต่างใหม่ (Apple ปฏิเสธไม่ได้!)
 self.addEventListener('notificationclick', function(event) {
   event.stopImmediatePropagation(); 
   event.notification.close(); 
@@ -23,28 +21,12 @@ self.addEventListener('notificationclick', function(event) {
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
 
-  // 💡 1. ยามจด URL เอาไว้ในมือ แล้วรอก่อน!
-  pendingUrlToOpen = clickUrl;
+  // 💡 ทริคสำคัญ: เติมรหัสเวลาต่อท้าย URL เพื่อหลอกให้ Apple คิดว่าเป็น "ลิงก์ใหม่เอี่ยม" และต้องโหลดใหม่เท่านั้น!
+  const finalUrl = clickUrl + (clickUrl.includes('?') ? '&' : '?') + 'refresh=' + Date.now();
 
+  // ไม่ต้องเช็กแล้วว่าแอปหลับหรือตื่น สั่ง "เปิดหน้าต่างใหม่" ทื่อๆ เลย!
+  // (ใน iOS PWA คำสั่งนี้จะดึงแอปขึ้นมาและบังคับรีเฟรชหน้าให้เองค่ะ)
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      if (clientList.length > 0) {
-        let client = clientList.find(c => c.focused) || clientList[0];
-        return client.focus(); // 2. แค่ดึงแอปขึ้นมาหน้าจอเฉยๆ (ไม่ต้องตะโกนเรียกแล้ว เพราะแอปมันหูหนวกอยู่)
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(clickUrl);
-      }
-    })
+    clients.openWindow(finalUrl)
   );
-});
-
-// 💡 3. เมื่อแอปตื่นแล้วเดินมาถาม ยามก็จะยื่นจดหมายให้!
-self.addEventListener('message', function(event) {
-  if (event.data && event.data.type === 'CHECK_PENDING_NOTIFICATION') {
-    if (pendingUrlToOpen) {
-      event.source.postMessage({ type: 'APP_WAKE_UP', url: pendingUrlToOpen });
-      pendingUrlToOpen = null; // ให้จดหมายเสร็จก็ฉีกทิ้ง
-    }
-  }
 });
