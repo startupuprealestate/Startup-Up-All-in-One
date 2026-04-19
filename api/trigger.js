@@ -11,7 +11,6 @@ if (!admin.apps.length) {
 }
 
 export default async function handler(req, res) {
-  // รับเฉพาะคำสั่ง POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -23,35 +22,38 @@ export default async function handler(req, res) {
   try {
     let title = '';
     let body = '';
+    
+    // 💡 1. สร้างตัวแปรเก็บลิงก์วาร์ป
+    // (เปลี่ยนเป็นลิงก์เว็บ Vercel ของพี่บิวนะคะ)
+    const baseUrl = 'https://startup-up-all-in-one.vercel.app'; 
+    let clickUrl = baseUrl;
 
-    // จัดเตรียมข้อความตามประเภทการแจ้งเตือน
     if (action === 'leave') {
       title = `🚨 แจ้งลางาน: ${data.assignee}`;
       body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
-    } else if (action === 'house') {
+      clickUrl = `${baseUrl}/?tab=calendar`; // วาร์ปไปหน้าปฏิทิน
+    } 
+    else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
       body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
+      clickUrl = `${baseUrl}/?tab=stock`; // วาร์ปไปหน้าสต็อกบ้าน
     } 
-    // 👇 💡 จุดที่เพิ่มเข้ามาใหม่: สอนให้ Vercel รู้จักแจ้งเตือนลูกค้า Affiliate 👇
     else if (action === 'lead') {
       title = data.title;
       body = data.body;
+      clickUrl = `${baseUrl}/?tab=affiliate`; // วาร์ปไปหน้า Affiliate
     } 
-    // 👆 จบส่วนที่เพิ่มใหม่ 👆
     else {
       return res.status(400).json({ error: 'Unknown action' });
     }
 
-    // ดึง Token ของ "ทุกคน" ในตารางมาใช้งาน
     const tokensSnapshot = await db.collection('fcm_tokens').get();
-
     if (tokensSnapshot.empty) {
       return res.status(200).json({ message: "ไม่มี Token ของผู้ใช้ในระบบ" });
     }
 
     let successCount = 0;
 
-    // ยิงแจ้งเตือนให้ "ทุกคน" ที่เคยกดรับการแจ้งเตือนไว้
     for (const doc of tokensSnapshot.docs) {
       const tokenData = doc.data();
       try {
@@ -61,12 +63,18 @@ export default async function handler(req, res) {
             title: title,
             body: body,
           },
+          // 💡 2. แนบลิงก์วาร์ปไปกับแจ้งเตือนตรงนี้!
+          webpush: {
+            fcmOptions: {
+              link: clickUrl
+            }
+          },
           android: { priority: 'high' },
           apns: { payload: { aps: { sound: 'default' } } }
         });
         successCount++;
       } catch (err) {
-        console.error("ส่งไม่สำเร็จ (Token อาจหมดอายุ):", tokenData.ownerEmail);
+        console.error("ส่งไม่สำเร็จ:", tokenData.ownerEmail);
       }
     }
 
