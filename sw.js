@@ -13,37 +13,38 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ ท่าไม้ตายสุดท้าย: บล็อก Firebase แย่งซีน + สาดข้อความปลุกทุกหน้าต่าง!
-self.addEventListener('notificationclick', function(event) {
-  // 🚨 1. เตะสกัด: สั่งหยุดการทำงานของ Firebase ตัวอื่นๆ ที่จะมาแย่งจัดการการกดปุ่มนี้!
-  event.stopImmediatePropagation(); 
-  
-  event.notification.close(); // ปิดป้ายแจ้งเตือน
+// ✨ ระบบฝากจดหมายลับ: หลบหลีกการแช่แข็งของ iOS 100%
+let pendingUrlToOpen = null; // ยามเตรียมสมุดจดไว้
 
-  // ดึงลิงก์จาก Vercel
+self.addEventListener('notificationclick', function(event) {
+  event.stopImmediatePropagation(); 
+  event.notification.close(); 
+
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
 
+  // 💡 1. ยามจด URL เอาไว้ในมือ แล้วรอก่อน!
+  pendingUrlToOpen = clickUrl;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      
-      // 💡 กรณีแอปเปิดค้างอยู่เบื้องหลัง
       if (clientList.length > 0) {
-        // หาหน้าต่างที่กำลังใช้งานอยู่ หรือเอาหน้าต่างแรกที่เจอ
         let client = clientList.find(c => c.focused) || clientList[0];
-        
-        return client.focus().then(() => {
-            // 🚀 2. ปูพรม: สาดข้อความปลุกไปหา "ทุกหน้าต่าง" ของแอป (กันพลาดว่ามันไปผิดหน้า)
-            clientList.forEach(c => {
-                c.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
-            });
-        });
+        return client.focus(); // 2. แค่ดึงแอปขึ้นมาหน้าจอเฉยๆ (ไม่ต้องตะโกนเรียกแล้ว เพราะแอปมันหูหนวกอยู่)
       }
-      
-      // 💡 กรณีแอปปิดสนิท
       if (clients.openWindow) {
         return clients.openWindow(clickUrl);
       }
     })
   );
+});
+
+// 💡 3. เมื่อแอปตื่นแล้วเดินมาถาม ยามก็จะยื่นจดหมายให้!
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'CHECK_PENDING_NOTIFICATION') {
+    if (pendingUrlToOpen) {
+      event.source.postMessage({ type: 'APP_WAKE_UP', url: pendingUrlToOpen });
+      pendingUrlToOpen = null; // ให้จดหมายเสร็จก็ฉีกทิ้ง
+    }
+  }
 });
