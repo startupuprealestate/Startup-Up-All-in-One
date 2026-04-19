@@ -3020,6 +3020,7 @@ ${promptAction}`;
 
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
+      const [viewingEvent, setViewingEvent] = useState(null);
 
       // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (อัปเกรด: แก้บั๊ก Apple Safari)
       useEffect(() => {
@@ -3389,30 +3390,25 @@ ${promptAction}`;
 
       const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
 
-      // 🪄 ระบบวาร์ป: อ่าน URL แล้วเปิดหน้าต่างข้อมูลทันที (อัปเกรดแก้บั๊กมือถือโหลดไม่ทัน)
+      // 🪄 ระบบวาร์ป: แก้ให้เปิดหน้าสรุป ไม่ใช่หน้าแก้ไข
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
           const eventId = params.get('eventId');
 
           if (action === 'view_event' && eventId) {
-              // 1. ถ้าระบบยังเชื่อมต่อฐานข้อมูลไม่เสร็จ ให้รอไปก่อน
               if (!isFirebaseLoaded || events.length === 0) return;
               
-              // 2. ควานหารหัสกิจกรรมนั้นในตาราง
               const targetEvent = events.find(ev => ev.id === eventId);
               
               if (targetEvent) {
-                  // 3. เจอข้อมูลแล้ว! หน่วงเวลาเล็กน้อยให้หน้าจอโหลดเสร็จ แล้วเด้งป๊อปอัป
                   setTimeout(() => {
-                      handleOpenModal(null, targetEvent); 
+                      // 💡 เปลี่ยนจาก handleOpenModal เป็น setViewingEvent
+                      setViewingEvent(targetEvent); 
                   }, 500);
                   
-                  // 4. ล้าง URL ทิ้ง (ทำหลังจากที่หาเจอแล้วเท่านั้น! เน็ตช้าก็ไม่เป็นไร)
                   window.history.replaceState({}, '', window.location.pathname);
               } 
-              // 🚨 ไม่ต้องมี else alert แล้วค่ะ ถ้ายกแรกหาไม่เจอ 
-              // เดี๋ยวพอ Firebase โหลดข้อมูลใหม่เสร็จ useEffect นี้จะถูกเรียกซ้ำแล้วเปิดให้เองอัตโนมัติค่ะ
           }
       }, [isFirebaseLoaded, events]);
 
@@ -4315,6 +4311,70 @@ ${promptAction}`;
             })()}
 
           </div>
+          {/* 💡 หน้าต่างสรุปรายละเอียดกิจกรรม/การลา (แบบอ่านอย่างเดียว) */}
+            {viewingEvent && (
+              <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 animate-[slideUp_0.3s_ease-out]">
+                  
+                  {/* หัวสีตามประเภท */}
+                  <div className={`p-6 text-center relative ${viewingEvent.type === 'leave' ? 'bg-orange-500' : 'bg-brand'}`}>
+                    <button onClick={() => setViewingEvent(null)} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"><Icon name="X" size={24} /></button>
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+                      <Icon name={viewingEvent.type === 'leave' ? 'CalendarIcon' : 'Clock'} size={32} className={viewingEvent.type === 'leave' ? 'text-orange-500' : 'text-brand'} />
+                    </div>
+                    <h3 className="text-xl font-black text-white">{viewingEvent.type === 'leave' ? 'แจ้งข้อมูลการลา' : 'รายละเอียดนัดหมาย'}</h3>
+                  </div>
+
+                  <div className="p-6 space-y-5">
+                    {/* ชื่อผู้ลา/ผู้รับผิดชอบ */}
+                    <div className="text-center">
+                      <p className="text-[14px] font-bold text-gray-400 uppercase tracking-widest">ผู้แจ้งเรื่อง</p>
+                      <p className="text-[20px] font-black text-gray-800">{viewingEvent.assignee}</p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-4 shadow-inner">
+                      <div className="flex justify-between items-center border-b border-gray-200 pb-3">
+                        <span className="text-[13px] font-bold text-gray-500">ประเภท</span>
+                        <span className={`text-[14px] font-black ${viewingEvent.type === 'leave' ? 'text-orange-600' : 'text-brand'}`}>
+                          {viewingEvent.activity}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-gray-200 pb-3">
+                        <span className="text-[13px] font-bold text-gray-500">วันที่</span>
+                        <span className="text-[14px] font-bold text-gray-800">{getFormattedDateThai(viewingEvent.date)}</span>
+                      </div>
+                      {viewingEvent.time && (
+                        <div className="flex justify-between items-center border-b border-gray-200 pb-3">
+                          <span className="text-[13px] font-bold text-gray-500">เวลา</span>
+                          <span className="text-[14px] font-bold text-gray-800">{viewingEvent.time} น.</span>
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[13px] font-bold text-gray-500">หมายเหตุ / เหตุผล</span>
+                        <p className="text-[14px] text-gray-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-100 min-h-[60px]">
+                          {viewingEvent.note || '- ไม่ระบุ -'}
+                        </p>
+                      </div>
+                      
+                      {/* รูปแนบถ้ามี */}
+                      {viewingEvent.image && (
+                        <div className="flex flex-col gap-2 pt-2">
+                          <span className="text-[13px] font-bold text-gray-500">หลักฐานแนบ</span>
+                          <img src={viewingEvent.image} onClick={() => setFullScreenImg(viewingEvent.image)} className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity shadow-sm" alt="หลักฐาน" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button onClick={() => setViewingEvent(null)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-[14px] transition-colors">ปิด</button>
+                      <button onClick={() => { setViewingEvent(null); handleOpenModal(null, viewingEvent); }} className="flex-1 py-3 bg-gray-800 hover:bg-black text-white rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center gap-2">
+                        <Icon name="Edit" size={16} /> แก้ไขข้อมูล
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           {fullScreenImg && (
                 <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setFullScreenImg(null)}>
                     <button className="absolute top-4 right-4 sm:top-6 sm:right-6 text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20 z-10"><Icon name="X" size={20} /></button>
