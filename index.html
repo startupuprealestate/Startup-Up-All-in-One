@@ -3021,39 +3021,38 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
       const [viewingEvent, setViewingEvent] = useState(null);
-      // 💡 ตัวแปรฮีโร่ตัวใหม่! เอาไว้ "จดรหัส" รอจนกว่า Firebase จะโหลดเสร็จ
       const [pendingEventId, setPendingEventId] = useState(null); 
-
-      // 👇👇👇 วางทับโค้ดวาร์ป/หูทิพย์ อันเดิมทั้งหมดด้วย 3 ก้อนนี้ค่ะ 👇👇👇
-
-      // 🪄 1. รับคำสั่งจากเบื้องหลัง (ไม่ควานหาข้อมูลทันที แต่จดรหัสรอไว้)
+// 🪄 1. ระบบเดินไปถามยาม + บังคับรีเฟรชหน้า (เหมือนการ Force Close)
       useEffect(() => {
+          // ฟังคำตอบจากยาม
           const handleWakeUp = (event) => {
               if (event.data && event.data.type === 'APP_WAKE_UP') {
-                  const urlStr = event.data.url;
-                  if (!urlStr) return;
-                  
-                  const urlObj = new URL(urlStr, window.location.origin);
-                  const tab = urlObj.searchParams.get('tab');
-                  const action = urlObj.searchParams.get('action');
-                  const eventId = urlObj.searchParams.get('eventId');
-
-                  if (tab) setActiveApp(tab);
-                  
-                  // 💡 จุดสำคัญ: สั่งให้จดรหัส eventId ไว้ในมือ แล้วรอก่อน!
-                  if (action === 'view_event' && eventId) {
-                      setPendingEventId(eventId);
-                  }
+                  // ได้ URL มาปุ๊บ บังคับรีเฟรชเว็บเลย! ชัวร์ 100% ว่าเหมือน Force Close
+                  window.location.href = event.data.url;
               }
           };
-
           if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', handleWakeUp);
+
+          // 💡 ทันทีที่แอปพลิเคชันตื่นขึ้นมา (ละลายน้ำแข็งเสร็จ) ให้เดินไปถามยาม!
+          const handleVisibilityChange = () => {
+              if (document.visibilityState === 'visible' && navigator.serviceWorker.controller) {
+                  navigator.serviceWorker.controller.postMessage({ type: 'CHECK_PENDING_NOTIFICATION' });
+              }
+          };
+          document.addEventListener('visibilitychange', handleVisibilityChange);
+
+          // ถามเผื่อไว้ตอนเปิดแอปครั้งแรกด้วย
+          if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({ type: 'CHECK_PENDING_NOTIFICATION' });
+          }
+
           return () => {
               if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', handleWakeUp);
+              document.removeEventListener('visibilitychange', handleVisibilityChange);
           };
       }, []);
 
-      // 🪄 2. ดักอ่าน URL ปกติ กรณีแอปเปิดใหม่จาก Force Close
+      // 🪄 2. ดักอ่าน URL กรณีแอปเปิดใหม่ (หรือเพิ่งโดนบังคับรีเฟรชมาเมื่อกี้)
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
@@ -3062,20 +3061,18 @@ ${promptAction}`;
 
           if (action === 'view_event' && eventId && isFirebaseLoaded) {
               if (tab) setActiveApp(tab);
-              setPendingEventId(eventId); // สั่งให้จดรหัสรอเหมือนกัน
+              setPendingEventId(eventId); // สั่งจดรหัส รอ Firebase
               window.history.replaceState({}, '', window.location.pathname + '?tab=' + tab);
           }
       }, [isFirebaseLoaded]);
 
-      // 🪄 3. สไนเปอร์ซุ่มยิง: ดักรอจนกว่าข้อมูล Firebase จะไหลเข้ามา
+      // 🪄 3. สไนเปอร์ซุ่มยิง (ตัวเดิม): ดักรอจนกว่าข้อมูล Firebase จะมา
       useEffect(() => {
-          // ถ้าระบบกำลังจดรหัสรออยู่ และมีข้อมูลใน events
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
-              // ถ้าควานหาเจอแล้ว!
               if (targetEvent) {
-                  setViewingEvent(targetEvent); // เด้งป๊อปอัปทันที
-                  setPendingEventId(null); // ขยำกระดาษจดรหัสทิ้ง
+                  setViewingEvent(targetEvent); // เด้งป๊อปอัป!
+                  setPendingEventId(null); 
               }
           }
       }, [pendingEventId, events]);
