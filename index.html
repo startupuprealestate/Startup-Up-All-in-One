@@ -106,6 +106,12 @@
   <script>
     if ('serviceWorker' in navigator && window.location.protocol !== 'blob:' && window.location.protocol !== 'data:') {
       window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error', err)); });
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'APP_WAKE_UP') {
+            // บังคับเปลี่ยน URL และรีเฟรชหน้าเว็บทันทีที่แอปตื่น!
+            window.location.href = event.data.url;
+        }
+      });
     }
   </script>
   <script type="text/babel">
@@ -3021,27 +3027,6 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
       const [viewingEvent, setViewingEvent] = useState(null);
-      // 👇👇👇 💡 เอาโค้ดหูทิพย์ มาวางแทรกตรงนี้เลยค่ะ 👇👇👇
-      // 💡 3. หูทิพย์: คอยฟังเสียงตะโกนจาก Service Worker ตอนแอปตื่น
-      useEffect(() => {
-          const handleWakeUp = (event) => {
-              // ถ้าได้ยินคำสั่ง APP_WAKE_UP ปุ๊บ
-              if (event.data && event.data.type === 'APP_WAKE_UP') {
-                  // บังคับแอปให้เปลี่ยน URL และรีเฟรชหน้าต่างใหม่ทันที!
-                  window.location.href = event.data.url;
-              }
-          };
-
-          if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.addEventListener('message', handleWakeUp);
-          }
-
-          return () => {
-              if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.removeEventListener('message', handleWakeUp);
-              }
-          };
-      }, []);
       
       // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (อัปเกรด: แก้บั๊ก Apple Safari)
       useEffect(() => {
