@@ -13,32 +13,33 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ พอกดที่การแจ้งเตือนปุ๊บ ให้บังคับเปลี่ยนหน้าทันที! (อัปเกรดทะลุแอปแช่แข็ง)
+// ✨ อาวุธหนัก: พอกดแจ้งเตือนปุ๊บ ดึงจอก่อน แล้วถีบเปลี่ยนหน้า!
 self.addEventListener('notificationclick', function(event) {
-  event.notification.close(); // ปิดป้ายแจ้งเตือน
+  event.notification.close(); 
 
-  // 1. ดึงลิงก์จากกระเป๋า data
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       
-      // 💡 กรณีที่ 1: ถ้าแอปเปิดอยู่ (ไม่ว่าจะพับอยู่เบื้องหลัง หรืออยู่หน้าจอ)
+      // 💡 ถ้าแอปยังเปิดอยู่เบื้องหลัง
       if (clientList.length > 0) {
         let client = clientList[0];
         for (let i = 0; i < clientList.length; i++) {
           if (clientList[i].focused) { client = clientList[i]; }
         }
         
-        // 🚀 ไม้เรียว: บังคับให้แอปหน้านั้น "เปลี่ยน URL และรีเฟรชตัวเอง" ไปหน้าข้อมูลทันที!
-        return client.navigate(clickUrl).then(c => {
-            if (c) return c.focus();
-            return client.focus();
+        // 1. ดึงแอปขึ้นมาโชว์บนหน้าจอก่อน
+        return client.focus().then(c => {
+           // 2. ส่งข้อความตะโกนปลุกไปที่หูทิพย์ (ที่เราฝังไว้หน้าเว็บ)
+           c.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
+           // 3. ย้ำอีกรอบด้วยคำสั่ง navigate เผื่อมือถือบางเครื่องขี้เกียจ
+           return c.navigate(clickUrl);
         });
       }
       
-      // 💡 กรณีที่ 2: ถ้าแอปถูกปัดทิ้ง (Force Close) ไปแล้ว
+      // 💡 ถ้าแอปปิดสนิท (Force Close)
       if (clients.openWindow) {
         return clients.openWindow(clickUrl);
       }
