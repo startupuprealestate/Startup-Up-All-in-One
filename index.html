@@ -3023,45 +3023,54 @@ ${promptAction}`;
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
 
-      // 🪄 1. ดักจับ URL ทันทีที่แอปโหลด (จัดการทั้งเปลี่ยนหน้าแท็บ, เปิดป๊อปอัป และเลื่อนวันที่)
+      // 🪄 1. ชุดคอมโบ: ดักจับ URL + ฟังเสียงยามตอนแอปหลับ (แก้ปัญหาแอปเบื้องหลัง 100%)
       useEffect(() => {
-          const params = new URLSearchParams(window.location.search);
-          const tab = params.get('tab');
-          const action = params.get('action');
-          const eventId = params.get('eventId');
-          const targetDate = params.get('date');
+          // ฟังก์ชันสลับหน้าและเปิดป๊อปอัป
+          const processUrlParams = (urlStr) => {
+              try {
+                  const urlObj = new URL(urlStr, window.location.origin);
+                  const tab = urlObj.searchParams.get('tab');
+                  const action = urlObj.searchParams.get('action');
+                  const eventId = urlObj.searchParams.get('eventId');
+                  const targetDate = urlObj.searchParams.get('date');
+
+                  if (tab) setActiveApp(tab);
+                  if (action === 'view_event' && eventId) setPendingEventId(eventId);
+                  else if (action === 'view_date' && targetDate) {
+                      if (typeof setSelectedDate === 'function') setSelectedDate(new Date(targetDate));
+                  }
+                  
+                  // ล้าง URL ให้สะอาด ป้องกันแอปจำค่าเดิมตอนรีเฟรช
+                  window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
+              } catch(e) {}
+          };
 
           if (isFirebaseLoaded) {
-              // 1️⃣ ถ้ามีคำสั่งให้เปลี่ยนแท็บ (เช่น affiliate, house_history) ให้เปลี่ยนทันที
-              if (tab) {
-                  setActiveApp(tab);
-              }
+              // A. ทำงานทันทีตอนแอปเปิดใหม่ (หรือ Force Close)
+              processUrlParams(window.location.href);
 
-              // 2️⃣ ถ้าเป็นคำสั่ง "ดูรายละเอียดการลา/นัดหมาย" (เปิดป๊อปอัป)
-              if (action === 'view_event' && eventId) {
-                  setPendingEventId(eventId);
-              }
-              // 3️⃣ ถ้าเป็นคำสั่ง "ดูกิจกรรมของวันที่..." (จากระบบทำงานส่วนตัว)
-              else if (action === 'view_date' && targetDate) {
-                  // สมมติว่าตัวแปรปฏิทินของพี่บิวชื่อ setSelectedDate
-                  if (typeof setSelectedDate === 'function') {
-                      setSelectedDate(new Date(targetDate));
+              // B. ติดตั้งหูทิพย์ฟังเสียงยาม (Service Worker) กรณีแอปหลับอยู่เบื้องหลัง!
+              const handleWakeUp = (event) => {
+                  if (event.data && event.data.type === 'APP_WAKE_UP' && event.data.url) {
+                      processUrlParams(event.data.url); // พอได้ยินปุ๊บ สลับหน้าให้ทันที
                   }
-              }
-
-              // ล้าง URL ให้สวยงาม (เก็บไว้แค่ ?tab=... เพื่อให้รีเฟรชหน้าแล้วไม่กระโดด)
-              window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
+              };
+              
+              if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', handleWakeUp);
+              
+              return () => {
+                  if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', handleWakeUp);
+              };
           }
-      }, [isFirebaseLoaded]);
+      }, [isFirebaseLoaded]); // ทำงานอัตโนมัติเมื่อ Firebase พร้อม
 
-      // 🪄 2. ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง" (ขาดตัวนี้ไม่ได้!)
+      // 🪄 2. ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง"
       useEffect(() => {
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
               if (targetEvent) {
-                  // 🚀 เด้งป๊อปอัปรายละเอียดใบลาขึ้นมาตรงนี้!
                   setViewingEvent(targetEvent); 
-                  setPendingEventId(null); // ขยำรหัสทิ้ง
+                  setPendingEventId(null); 
               }
           }
       }, [pendingEventId, events]);
