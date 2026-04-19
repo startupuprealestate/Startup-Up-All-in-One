@@ -106,12 +106,6 @@
   <script>
     if ('serviceWorker' in navigator && window.location.protocol !== 'blob:' && window.location.protocol !== 'data:') {
       window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error', err)); });
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event.data && event.data.type === 'APP_WAKE_UP') {
-            // บังคับเปลี่ยน URL และรีเฟรชหน้าเว็บทันทีที่แอปตื่น!
-            window.location.href = event.data.url;
-        }
-      });
     }
   </script>
   <script type="text/babel">
@@ -3027,6 +3021,61 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
       const [viewingEvent, setViewingEvent] = useState(null);
+      // 🪄 ระบบวาร์ปฉบับ Pro (ดักฟังข้อความจากมือถือ + อ่าน URL ตอนเปิดแอป)
+      useEffect(() => {
+          // 1. ระบบดักฟังคำสั่งจากเบื้องหลัง (ตอนแอปพับอยู่)
+          const handleWakeUp = (event) => {
+              if (event.data && event.data.type === 'APP_WAKE_UP') {
+                  const urlStr = event.data.url;
+                  if (!urlStr) return;
+                  
+                  const urlObj = new URL(urlStr, window.location.origin);
+                  const tab = urlObj.searchParams.get('tab');
+                  const action = urlObj.searchParams.get('action');
+                  const eventId = urlObj.searchParams.get('eventId');
+
+                  // แอบเปลี่ยน URL เบื้องหลัง 
+                  window.history.replaceState({}, '', urlObj.pathname + urlObj.search);
+                  // สลับหน้าแท็บ
+                  if (tab) setActiveApp(tab);
+
+                  // เปิดป๊อปอัป
+                  if (action === 'view_event' && eventId) {
+                      const targetEvent = events.find(ev => ev.id === eventId);
+                      if (targetEvent) {
+                          setTimeout(() => setViewingEvent(targetEvent), 200); 
+                      }
+                  }
+              }
+          };
+
+          // เปิดหูรับฟังเสียงตะโกนจากมือถือ
+          if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.addEventListener('message', handleWakeUp);
+          }
+
+          // 2. ระบบอ่าน URL ปกติ (กรณีมือถือเปิดแอปใหม่จาก Force Close)
+          const params = new URLSearchParams(window.location.search);
+          const action = params.get('action');
+          const eventId = params.get('eventId');
+          const tab = params.get('tab');
+
+          if (action === 'view_event' && eventId && isFirebaseLoaded && events.length > 0) {
+              const targetEvent = events.find(ev => ev.id === eventId);
+              if (targetEvent) {
+                  if (tab) setActiveApp(tab);
+                  setTimeout(() => setViewingEvent(targetEvent), 300);
+                  window.history.replaceState({}, '', window.location.pathname);
+              }
+          }
+
+          // ปิดหูฟังตอนเปลี่ยนหน้า
+          return () => {
+              if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.removeEventListener('message', handleWakeUp);
+              }
+          };
+      }, [events, isFirebaseLoaded]);
       
       // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (อัปเกรด: แก้บั๊ก Apple Safari)
       useEffect(() => {
