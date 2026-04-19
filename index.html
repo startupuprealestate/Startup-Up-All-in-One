@@ -3021,17 +3021,38 @@ ${promptAction}`;
       const [leaveDetailsData, setLeaveDetailsData] = useState(null);
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
       const [viewingEvent, setViewingEvent] = useState(null);
-      // 🪄 ระบบรับสัญญาณฉุกเฉิน + อ่าน URL สดๆ
+      // 🪄 ระบบหูทิพย์ + วาร์ปสดๆ (ไม่รีเฟรชหน้าเว็บ)
       useEffect(() => {
-          // 1. เปิดวิทยุรับสัญญาณจาก Service Worker
-          const broadcast = new BroadcastChannel('startup_channel');
-          broadcast.onmessage = (event) => {
-              if (event.data && event.data.type === 'FORCE_WAKE') {
-                  window.location.href = event.data.url; // บังคับโหลดหน้าใหม่ทันที
+          // 1. รับเสียงตะโกนจากเบื้องหลัง
+          const handleWakeUp = (event) => {
+              if (event.data && event.data.type === 'APP_WAKE_UP') {
+                  const urlStr = event.data.url;
+                  if (!urlStr) return;
+                  
+                  const urlObj = new URL(urlStr, window.location.origin);
+                  const tab = urlObj.searchParams.get('tab');
+                  const action = urlObj.searchParams.get('action');
+                  const eventId = urlObj.searchParams.get('eventId');
+
+                  // เปลี่ยนเมนูแถบด้านล่างแบบสดๆ
+                  if (tab) setActiveApp(tab);
+
+                  // เปิดป๊อปอัปเด้งขึ้นมาทันที!
+                  if (action === 'view_event' && eventId) {
+                      const targetEvent = events.find(ev => ev.id === eventId);
+                      if (targetEvent) {
+                          setViewingEvent(targetEvent); // เด้งป๊อปอัป
+                      }
+                  }
               }
           };
 
-          // 2. ระบบอ่าน URL เพื่อแสดงป๊อปอัป (ทำงานทุกครั้งที่โหลดหน้าใหม่)
+          // เปิดหูรอฟัง
+          if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.addEventListener('message', handleWakeUp);
+          }
+
+          // 2. สำหรับกรณีแอปตายสนิท (Force Close)
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
           const eventId = params.get('eventId');
@@ -3042,13 +3063,15 @@ ${promptAction}`;
               if (targetEvent) {
                   if (tab) setActiveApp(tab);
                   setTimeout(() => setViewingEvent(targetEvent), 300);
-                  
-                  // ล้าง URL โดยไม่ลบ ?tab ทิ้ง เพื่อให้ยังอยู่หน้าเดิม
                   window.history.replaceState({}, '', window.location.pathname + '?tab=' + tab);
               }
           }
 
-          return () => broadcast.close(); // ปิดวิทยุเมื่อไม่ได้ใช้
+          return () => {
+              if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.removeEventListener('message', handleWakeUp);
+              }
+          };
       }, [events, isFirebaseLoaded]);
       
       // 💡 1. ระบบตรวจสอบสิทธิ์แบบเรียลไทม์ (อัปเกรด: แก้บั๊ก Apple Safari)
