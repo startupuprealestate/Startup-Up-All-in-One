@@ -26,28 +26,38 @@ export default async function handler(req, res) {
     const baseUrl = 'https://startup-up-all-in-one.vercel.app'; 
     let clickUrl = baseUrl;
 
+    // 1. 🚨 แจ้งลางาน
     if (action === 'leave') {
       title = `🚨 แจ้งลางาน: ${data.assignee}`;
       body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
-      // ✅ วาร์ปไปหน้าปฏิทิน + ส่งคำสั่งเปิดป๊อปอัป (action=view_event) + รหัส eventId
       clickUrl = `${baseUrl}/?tab=calendar&action=view_event&eventId=${data.eventId}`;
     } 
+    // 2. 🏠 บ้านทำเสร็จ (วาร์ปไปหน้าประวัติบ้าน)
     else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
       body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
-      // 💡 จุดที่ปรับเพิ่ม: เปลี่ยนจาก search เป็นคำสั่งเปิดป๊อปอัปยินดี (view_house) + รหัส houseId
-      clickUrl = `${baseUrl}/?tab=schedule&action=view_house&houseId=${data.houseId}`;
+      // วาร์ปไปหน้าประวัติบ้านเลย (สมมติว่าชื่อแท็บคือ house_history นะคะ)
+      clickUrl = `${baseUrl}/?tab=house_history`; 
     } 
+    // 3. 📢 พันธมิตร (Affiliate)
     else if (action === 'lead') {
-      title = data.title;
-      body = data.body;
+      title = data.title || `📢 มี Lead ใหม่จาก Affiliate!`;
+      body = data.body || `มีลูกค้าสนใจเข้ามาระบบค่ะ`;
       clickUrl = `${baseUrl}/?tab=affiliate`;
     } 
-    // 💡 เพิ่มเผื่อไว้สำหรับกิจกรรมนัดหมายทั่วไปในปฏิทิน
-    else if (action === 'event') {
-      title = data.title || '📅 แจ้งเตือนนัดหมาย!';
-      body = data.body || 'มีกิจกรรมนัดหมาย รีบเข้ามาดูในปฏิทินนะคะ';
-      clickUrl = `${baseUrl}/?tab=calendar&action=view_event&eventId=${data.eventId}`;
+    // 4. 👥 เพื่อนแนะนำเพื่อน (Friend get friend)
+    else if (action === 'friend_referral') {
+      title = data.title || `👥 สมาชิกใหม่! Friend get friend`;
+      body = data.body || `มีการแนะนำเพื่อนใหม่เข้ามาในระบบค่ะ`;
+      // วาร์ปไปหน้าแนะนำเพื่อน (เปลี่ยนชื่อ tab ตามที่พี่บิวตั้งไว้นะคะ)
+      clickUrl = `${baseUrl}/?tab=friend_get_friend`; 
+    }
+    // 5. 📅 กิจกรรมทำงานของแต่ละคน (วาร์ปไปหน้าปฏิทิน + ระบุวันที่)
+    else if (action === 'task' || action === 'event') {
+      title = data.title || `📅 งานใหม่/กิจกรรมของคุณ!`;
+      body = data.body || `วันที่: ${data.date}\nรายละเอียด: คลิกเพื่อดูข้อมูล`;
+      // วาร์ปไปหน้าปฏิทิน + ส่งวันที่ไปด้วย (action=view_date & date=...)
+      clickUrl = `${baseUrl}/?tab=calendar&action=view_date&date=${data.date}`;
     }
     else {
       return res.status(400).json({ error: 'Unknown action' });
@@ -69,13 +79,10 @@ export default async function handler(req, res) {
             title: title,
             body: body,
           },
-          // 💡 1. แอบยัดลิงก์ลงในกระเป๋า data เพื่อเตรียมส่งจดหมายลับ
+          // แอบยัดลิงก์ลงในกระเป๋า data 
           data: { clickUrl: clickUrl }, 
-          
           webpush: {
-            fcmOptions: {
-              link: clickUrl
-            }
+            fcmOptions: { link: clickUrl }
           },
           android: { priority: 'high' },
           apns: { payload: { aps: { sound: 'default' } } }
