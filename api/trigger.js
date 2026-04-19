@@ -26,18 +26,17 @@ export default async function handler(req, res) {
     const baseUrl = 'https://startup-up-all-in-one.vercel.app'; 
     let clickUrl = baseUrl;
 
-    // 1. 🚨 แจ้งลางาน
+    // 1. 🚨 แจ้งลางาน (เหมือนเดิม)
     if (action === 'leave') {
       title = `🚨 แจ้งลางาน: ${data.assignee}`;
       body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
       clickUrl = `${baseUrl}/?tab=calendar&action=view_event&eventId=${data.eventId}`;
     } 
-    // 2. 🏠 บ้านทำเสร็จ (วาร์ปไปหน้าประวัติบ้าน)
+    // 2. 🏠 บ้านทำเสร็จ (แก้จาก house_history เป็น schedule ธรรมดา ป้องกันจอขาว)
     else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
       body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
-      // วาร์ปไปหน้าประวัติบ้านเลย (สมมติว่าชื่อแท็บคือ house_history นะคะ)
-      clickUrl = `${baseUrl}/?tab=house_history`; 
+      clickUrl = `${baseUrl}/?tab=schedule`; 
     } 
     // 3. 📢 พันธมิตร (Affiliate)
     else if (action === 'lead') {
@@ -45,18 +44,16 @@ export default async function handler(req, res) {
       body = data.body || `มีลูกค้าสนใจเข้ามาระบบค่ะ`;
       clickUrl = `${baseUrl}/?tab=affiliate`;
     } 
-    // 4. 👥 เพื่อนแนะนำเพื่อน (Friend get friend)
+    // 4. 👥 เพื่อนแนะนำเพื่อน (แก้เป็น tab=affiliate ป้องกันจอขาว เพราะมันอยู่หน้าเดียวกัน)
     else if (action === 'friend_referral') {
       title = data.title || `👥 สมาชิกใหม่! Friend get friend`;
       body = data.body || `มีการแนะนำเพื่อนใหม่เข้ามาในระบบค่ะ`;
-      // วาร์ปไปหน้าแนะนำเพื่อน (เปลี่ยนชื่อ tab ตามที่พี่บิวตั้งไว้นะคะ)
-      clickUrl = `${baseUrl}/?tab=friend_get_friend`; 
+      clickUrl = `${baseUrl}/?tab=affiliate`; 
     }
-    // 5. 📅 กิจกรรมทำงานของแต่ละคน (วาร์ปไปหน้าปฏิทิน + ระบุวันที่)
+    // 5. 📅 กิจกรรมทำงานของแต่ละคน (เหมือนเดิม)
     else if (action === 'task' || action === 'event') {
       title = data.title || `📅 งานใหม่/กิจกรรมของคุณ!`;
       body = data.body || `วันที่: ${data.date}\nรายละเอียด: คลิกเพื่อดูข้อมูล`;
-      // วาร์ปไปหน้าปฏิทิน + ส่งวันที่ไปด้วย (action=view_date & date=...)
       clickUrl = `${baseUrl}/?tab=calendar&action=view_date&date=${data.date}`;
     }
     else {
