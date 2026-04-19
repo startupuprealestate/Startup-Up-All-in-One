@@ -3023,26 +3023,29 @@ ${promptAction}`;
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
 
-      // 🛠️ เอ็กซเรย์จุดที่ 1: เช็กว่าแอปตื่นมาแล้วได้รับ URL ถูกต้องไหม?
+      // 🪄 1. ดักจับรหัสจาก URL ทันทีที่แอปโหลด และรอ Firebase 
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
-          if (action === 'view_event') {
-              alert(`🔍 [จุดที่ 1] แอปได้รับคำสั่งแล้ว!\nรหัสการลา: ${params.get('eventId')}\nกำลังรอ Firebase โหลดข้อมูล...`);
-          }
-      }, []);
+          const eventId = params.get('eventId');
+          const tab = params.get('tab');
 
-      // 🛠️ เอ็กซเรย์จุดที่ 2: เช็กว่าหาข้อมูลในตารางเจอไหม?
+          if (action === 'view_event' && eventId && isFirebaseLoaded) {
+              if (tab) setActiveApp(tab);
+              setPendingEventId(eventId); // สั่งจดรหัสเก็บไว้
+              // ล้าง URL ด้านบนทิ้งให้สะอาด
+              window.history.replaceState({}, '', window.location.pathname + '?tab=' + tab);
+          }
+      }, [isFirebaseLoaded]);
+
+      // 🪄 2. ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง"
       useEffect(() => {
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
               if (targetEvent) {
-                  alert(`✅ [จุดที่ 2] ดึงข้อมูลจาก Firebase สำเร็จ!\nกำลังจะเปิดหน้าต่างป๊อปอัปให้เดี๋ยวนี้ค่ะ`);
+                  // 🚀 เด้งป๊อปอัปรายละเอียดใบลา/นัดหมายขึ้นมาตรงนี้เลย!
                   setViewingEvent(targetEvent); 
-                  setPendingEventId(null); 
-              } else {
-                  alert(`❌ [จุดที่ 2] พัง! หาข้อมูลไม่เจอค่ะ\nรหัส ${pendingEventId} นี้อาจจะถูกลบไปแล้ว หรือเป็นของเก่า`);
-                  setPendingEventId(null); 
+                  setPendingEventId(null); // ขยำรหัสทิ้ง
               }
           }
       }, [pendingEventId, events]);
