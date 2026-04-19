@@ -606,6 +606,12 @@
         
         const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
         const [historyToDelete, setHistoryToDelete] = useState(null);
+        useEffect(() => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('action') === 'view_history') {
+                setIsHistoryModalOpen(true);
+            }
+        }, []);
 
         const validSheetData = getValidSheetData(sheetData);
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
@@ -2783,6 +2789,12 @@ ${promptAction}`;
         const [data, setData] = useState([]);
         const [isLoading, setIsLoading] = useState(true);
         const [searchQuery, setSearchQuery] = useState('');
+        useEffect(() => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('subtab') === 'FriendGetFriend') {
+                setActiveTab('FriendGetFriend');
+            }
+        }, []);
 
         const fetchData = async (sheetName) => {
             setIsLoading(true);
@@ -3023,54 +3035,52 @@ ${promptAction}`;
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
 
-      // 🪄 1. ชุดคอมโบ: ดักจับ URL + ฟังเสียงยามตอนแอปหลับ (แก้ปัญหาแอปเบื้องหลัง 100%)
+      // 🪄 1. ดักจับ URL ทันทีที่แอปโหลด (จัดการได้ทุกหน้า ไม่ใช่แค่การลา)
       useEffect(() => {
-          // ฟังก์ชันสลับหน้าและเปิดป๊อปอัป
-          const processUrlParams = (urlStr) => {
-              try {
-                  const urlObj = new URL(urlStr, window.location.origin);
-                  const tab = urlObj.searchParams.get('tab');
-                  const action = urlObj.searchParams.get('action');
-                  const eventId = urlObj.searchParams.get('eventId');
-                  const targetDate = urlObj.searchParams.get('date');
-
-                  if (tab) setActiveApp(tab);
-                  if (action === 'view_event' && eventId) setPendingEventId(eventId);
-                  else if (action === 'view_date' && targetDate) {
-                      if (typeof setSelectedDate === 'function') setSelectedDate(new Date(targetDate));
-                  }
-                  
-                  // ล้าง URL ให้สะอาด ป้องกันแอปจำค่าเดิมตอนรีเฟรช
-                  window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
-              } catch(e) {}
-          };
+          const params = new URLSearchParams(window.location.search);
+          const tab = params.get('tab');
+          const action = params.get('action');
+          const eventId = params.get('eventId');
+          const targetDate = params.get('date');
 
           if (isFirebaseLoaded) {
-              // A. ทำงานทันทีตอนแอปเปิดใหม่ (หรือ Force Close)
-              processUrlParams(window.location.href);
+              // 1️⃣ ถ้ามีคำสั่งให้เปลี่ยนแท็บ (เช่น affiliate หรือ schedule) ให้เปลี่ยนทันที!
+              if (tab) setActiveApp(tab);
 
-              // B. ติดตั้งหูทิพย์ฟังเสียงยาม (Service Worker) กรณีแอปหลับอยู่เบื้องหลัง!
+              // 2️⃣ โค้ดเดิมของพี่บิวที่เวิร์กเป๊ะๆ: ถ้ามีรหัสการลา ให้จดรหัสรอไว้เด้งป๊อปอัป
+              if (action === 'view_event' && eventId) {
+                  setPendingEventId(eventId);
+              }
+              // 3️⃣ ดูกิจกรรมตามวันที่ (ของระบบทำงานส่วนตัว)
+              else if (action === 'view_date' && targetDate) {
+                  if (typeof setSelectedDate === 'function') setSelectedDate(new Date(targetDate));
+              }
+
+              // ล้าง URL ด้านบนทิ้งให้สะอาด แต่เก็บ ?tab= ไว้ เผื่อรีเฟรชจะได้ไม่กลับหน้าแรก
+              window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
+
+              // 🚀 4. หูทิพย์: ดักจับตอนแอปอยู่เบื้องหลัง แล้วโดนยามตะโกนเรียก
               const handleWakeUp = (event) => {
                   if (event.data && event.data.type === 'APP_WAKE_UP' && event.data.url) {
-                      processUrlParams(event.data.url); // พอได้ยินปุ๊บ สลับหน้าให้ทันที
+                      // สั่งโหลดหน้าเว็บใหม่ทันที เพื่อกระชากแอปให้ตื่น 100%
+                      window.location.href = event.data.url;
                   }
               };
-              
               if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', handleWakeUp);
-              
               return () => {
                   if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', handleWakeUp);
               };
           }
-      }, [isFirebaseLoaded]); // ทำงานอัตโนมัติเมื่อ Firebase พร้อม
+      }, [isFirebaseLoaded]);
 
-      // 🪄 2. ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง"
+      // 🪄 2. โค้ดเดิมของพี่บิว 100%: ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง"
       useEffect(() => {
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
               if (targetEvent) {
+                  // 🚀 เด้งป๊อปอัปรายละเอียดใบลา/นัดหมายขึ้นมาตรงนี้เลย!
                   setViewingEvent(targetEvent); 
-                  setPendingEventId(null); 
+                  setPendingEventId(null); // ขยำรหัสทิ้ง
               }
           }
       }, [pendingEventId, events]);
