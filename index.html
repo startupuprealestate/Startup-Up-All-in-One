@@ -3035,7 +3035,34 @@ ${promptAction}`;
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
 
-      // 🪄 1. ดักจับ URL ทันทีที่แอปโหลด (จัดการได้ทุกหน้า ไม่ใช่แค่การลา)
+      // 🪄 1. ระบบตู้ล็อกเกอร์: ทันทีที่แอปตื่นจากเบื้องหลัง ให้เดินไปไขตู้
+      useEffect(() => {
+          const checkLocker = () => {
+              if ('caches' in window) {
+                  caches.match('/pending-notification').then(response => {
+                      if (response) {
+                          response.text().then(url => {
+                              // หยิบจดหมายเสร็จ ลบทิ้งเลย
+                              caches.open('pwa-wakes').then(cache => cache.delete('/pending-notification'));
+                              // 🚀 บังคับโหลดเว็บใหม่ไปที่หน้านั้นเลย! (กระชากแอปตื่น 100% ป๊อปอัปเด้งชัวร์!)
+                              window.location.href = url; 
+                          });
+                      }
+                  });
+              }
+          };
+
+          // สั่งให้เช็กตู้ล็อกเกอร์ "ทุกครั้ง" ที่แอปถูกดึงขึ้นมาบนหน้าจอ
+          const handleVisibility = () => {
+              if (document.visibilityState === 'visible') checkLocker();
+          };
+          document.addEventListener('visibilitychange', handleVisibility);
+          
+          checkLocker(); // เช็กเผื่อไว้ตอนเปิดแอปครั้งแรก
+          return () => document.removeEventListener('visibilitychange', handleVisibility);
+      }, []);
+
+      // 🪄 2. ดักจับ URL แบบปลอดภัย (ไม่ทำลาย URL ของหน้าย่อย!)
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
           const tab = params.get('tab');
@@ -3044,43 +3071,28 @@ ${promptAction}`;
           const targetDate = params.get('date');
 
           if (isFirebaseLoaded) {
-              // 1️⃣ ถ้ามีคำสั่งให้เปลี่ยนแท็บ (เช่น affiliate หรือ schedule) ให้เปลี่ยนทันที!
               if (tab) setActiveApp(tab);
 
-              // 2️⃣ โค้ดเดิมของพี่บิวที่เวิร์กเป๊ะๆ: ถ้ามีรหัสการลา ให้จดรหัสรอไว้เด้งป๊อปอัป
               if (action === 'view_event' && eventId) {
                   setPendingEventId(eventId);
+                  // 💡 ทริคสำคัญ: ลบทิ้งแค่ eventId เพื่อไม่ให้ป๊อปอัปเด้งซ้ำ แต่ "ห้ามลบ" tab หรือ subtab เด็ดขาด!
+                  params.delete('eventId');
+                  params.delete('action');
+                  window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
               }
-              // 3️⃣ ดูกิจกรรมตามวันที่ (ของระบบทำงานส่วนตัว)
               else if (action === 'view_date' && targetDate) {
                   if (typeof setSelectedDate === 'function') setSelectedDate(new Date(targetDate));
               }
-
-              // ล้าง URL ด้านบนทิ้งให้สะอาด แต่เก็บ ?tab= ไว้ เผื่อรีเฟรชจะได้ไม่กลับหน้าแรก
-              window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
-
-              // 🚀 4. หูทิพย์: ดักจับตอนแอปอยู่เบื้องหลัง แล้วโดนยามตะโกนเรียก
-              const handleWakeUp = (event) => {
-                  if (event.data && event.data.type === 'APP_WAKE_UP' && event.data.url) {
-                      // สั่งโหลดหน้าเว็บใหม่ทันที เพื่อกระชากแอปให้ตื่น 100%
-                      window.location.href = event.data.url;
-                  }
-              };
-              if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', handleWakeUp);
-              return () => {
-                  if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', handleWakeUp);
-              };
           }
       }, [isFirebaseLoaded]);
 
-      // 🪄 2. โค้ดเดิมของพี่บิว 100%: ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง"
+      // 🪄 3. (ของเดิม) ดึงข้อมูลมาโชว์ป๊อปอัปใบลางาน
       useEffect(() => {
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
               if (targetEvent) {
-                  // 🚀 เด้งป๊อปอัปรายละเอียดใบลา/นัดหมายขึ้นมาตรงนี้เลย!
                   setViewingEvent(targetEvent); 
-                  setPendingEventId(null); // ขยำรหัสทิ้ง
+                  setPendingEventId(null); 
               }
           }
       }, [pendingEventId, events]);
