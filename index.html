@@ -921,8 +921,8 @@
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
                                     {completedList.length > 0 ? (
-                                        <div className="border border-gray-200 rounded-xl overflow-hidden">
-                                            <table className="w-full text-left border-collapse">
+                                        <div className="border border-gray-200 rounded-xl overflow-x-auto custom-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                            <table className="w-full text-left border-collapse min-w-[700px] md:min-w-full">
                                                 <thead className="bg-gray-50 border-b border-gray-200">
                                                     <tr>
                                                         <th className="p-3 text-[12px] font-extrabold text-gray-500 uppercase">โครงการ</th>
@@ -3023,27 +3023,43 @@ ${promptAction}`;
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
 
-      // 🪄 1. ดักจับรหัสจาก URL ทันทีที่แอปโหลด และรอ Firebase 
+      // 🪄 1. ดักจับ URL ทันทีที่แอปโหลด (จัดการทั้งเปลี่ยนหน้าแท็บ, เปิดป๊อปอัป และเลื่อนวันที่)
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
+          const tab = params.get('tab');
           const action = params.get('action');
           const eventId = params.get('eventId');
-          const tab = params.get('tab');
+          const targetDate = params.get('date');
 
-          if (action === 'view_event' && eventId && isFirebaseLoaded) {
-              if (tab) setActiveApp(tab);
-              setPendingEventId(eventId); // สั่งจดรหัสเก็บไว้
-              // ล้าง URL ด้านบนทิ้งให้สะอาด
-              window.history.replaceState({}, '', window.location.pathname + '?tab=' + tab);
+          if (isFirebaseLoaded) {
+              // 1️⃣ ถ้ามีคำสั่งให้เปลี่ยนแท็บ (เช่น affiliate, house_history) ให้เปลี่ยนทันที
+              if (tab) {
+                  setActiveApp(tab);
+              }
+
+              // 2️⃣ ถ้าเป็นคำสั่ง "ดูรายละเอียดการลา/นัดหมาย" (เปิดป๊อปอัป)
+              if (action === 'view_event' && eventId) {
+                  setPendingEventId(eventId);
+              }
+              // 3️⃣ ถ้าเป็นคำสั่ง "ดูกิจกรรมของวันที่..." (จากระบบทำงานส่วนตัว)
+              else if (action === 'view_date' && targetDate) {
+                  // สมมติว่าตัวแปรปฏิทินของพี่บิวชื่อ setSelectedDate
+                  if (typeof setSelectedDate === 'function') {
+                      setSelectedDate(new Date(targetDate));
+                  }
+              }
+
+              // ล้าง URL ให้สวยงาม (เก็บไว้แค่ ?tab=... เพื่อให้รีเฟรชหน้าแล้วไม่กระโดด)
+              window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
           }
       }, [isFirebaseLoaded]);
 
-      // 🪄 2. ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง"
+      // 🪄 2. ดึงข้อมูลจากฐานข้อมูลมาโชว์เป็น "ป๊อปอัปของจริง" (ขาดตัวนี้ไม่ได้!)
       useEffect(() => {
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
               if (targetEvent) {
-                  // 🚀 เด้งป๊อปอัปรายละเอียดใบลา/นัดหมายขึ้นมาตรงนี้เลย!
+                  // 🚀 เด้งป๊อปอัปรายละเอียดใบลาขึ้นมาตรงนี้!
                   setViewingEvent(targetEvent); 
                   setPendingEventId(null); // ขยำรหัสทิ้ง
               }
@@ -3437,27 +3453,35 @@ ${promptAction}`;
 
       const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
 
-      // 🪄 ระบบวาร์ป: แก้ให้เปิดหน้าสรุป ไม่ใช่หน้าแก้ไข
+      // 🪄 ดักจับรหัสจาก URL ทันทีที่แอปโหลด และรอ Firebase 
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
+          const tab = params.get('tab');
           const action = params.get('action');
           const eventId = params.get('eventId');
+          const targetDate = params.get('date'); // 💡 ดึงวันที่ออกมา
 
-          if (action === 'view_event' && eventId) {
-              if (!isFirebaseLoaded || events.length === 0) return;
-              
-              const targetEvent = events.find(ev => ev.id === eventId);
-              
-              if (targetEvent) {
-                  setTimeout(() => {
-                      // 💡 เปลี่ยนจาก handleOpenModal เป็น setViewingEvent
-                      setViewingEvent(targetEvent); 
-                  }, 500);
-                  
-                  window.history.replaceState({}, '', window.location.pathname);
-              } 
+          if (isFirebaseLoaded) {
+              // 1. สลับหน้าแท็บ (เช่น ไปหน้า affiliate, house_history, calendar)
+              if (tab) setActiveApp(tab);
+
+              // 2. ถ้าเป็นคำสั่งดูการลา/งาน 1 ชิ้น
+              if (action === 'view_event' && eventId) {
+                  setPendingEventId(eventId);
+              }
+              // 3. 💡 ถ้าเป็นคำสั่ง "ดูกิจกรรมของวันที่..."
+              else if (action === 'view_date' && targetDate) {
+                  // สั่งให้ปฏิทิน (หรือ state ที่คุมวันที่) วิ่งไปหาวันที่นั้น
+                  // สมมติว่าพี่บิวใช้ตัวแปร setSelectedDate ควบคุมปฏิทิน ให้ใช้คำสั่งนี้ค่ะ:
+                  if (typeof setSelectedDate === 'function') {
+                      setSelectedDate(new Date(targetDate));
+                  }
+              }
+
+              // ล้าง URL ด้านบนทิ้งให้สะอาด แต่เหลือแค่ ?tab ไว้ให้รีเฟรชหน้าไม่เพี้ยน
+              window.history.replaceState({}, '', window.location.pathname + (tab ? '?tab=' + tab : ''));
           }
-      }, [isFirebaseLoaded, events]);
+      }, [isFirebaseLoaded]);
 
       const handleLeaveImageUpload = async (e) => {
         const file = e.target.files[0];
