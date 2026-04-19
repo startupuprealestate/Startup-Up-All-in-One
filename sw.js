@@ -13,23 +13,37 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ โค้ดดึงแอปขึ้นมาแบบคลีนๆ
+// ✨ ท่าไม้ตายสุดท้าย: บล็อก Firebase แย่งซีน + สาดข้อความปลุกทุกหน้าต่าง!
 self.addEventListener('notificationclick', function(event) {
-  event.notification.close(); 
+  // 🚨 1. เตะสกัด: สั่งหยุดการทำงานของ Firebase ตัวอื่นๆ ที่จะมาแย่งจัดการการกดปุ่มนี้!
+  event.stopImmediatePropagation(); 
+  
+  event.notification.close(); // ปิดป้ายแจ้งเตือน
+
+  // ดึงลิงก์จาก Vercel
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      
+      // 💡 กรณีแอปเปิดค้างอยู่เบื้องหลัง
       if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) { client = clientList[i]; break; }
-        }
-        client.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
-        return client.focus();
+        // หาหน้าต่างที่กำลังใช้งานอยู่ หรือเอาหน้าต่างแรกที่เจอ
+        let client = clientList.find(c => c.focused) || clientList[0];
+        
+        return client.focus().then(() => {
+            // 🚀 2. ปูพรม: สาดข้อความปลุกไปหา "ทุกหน้าต่าง" ของแอป (กันพลาดว่ามันไปผิดหน้า)
+            clientList.forEach(c => {
+                c.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
+            });
+        });
       }
-      if (clients.openWindow) return clients.openWindow(clickUrl);
+      
+      // 💡 กรณีแอปปิดสนิท
+      if (clients.openWindow) {
+        return clients.openWindow(clickUrl);
+      }
     })
   );
 });
