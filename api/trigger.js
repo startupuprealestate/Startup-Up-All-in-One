@@ -32,11 +32,11 @@ export default async function handler(req, res) {
       body = `ประเภท: ${data.leaveType}\nวันที่: ${data.date}\nเหตุผล: ${data.reason || '-'}`;
       clickUrl = `${baseUrl}/?tab=calendar&action=view_event&eventId=${data.eventId}`;
     } 
-    // 2. 🏠 บ้านทำเสร็จ (แก้จาก house_history เป็น schedule ธรรมดา ป้องกันจอขาว)
+    // 2. 🏠 บ้านทำเสร็จ (ส่งคำสั่งเปิดป๊อปอัปประวัติ: action=view_history)
     else if (action === 'house') {
       title = `🎉 อัปเดต: บ้านทำเสร็จแล้ว!`;
       body = `โครงการ: ${data.houseName}\nทำเสร็จเมื่อ: ${data.finishedDate}`;
-      clickUrl = `${baseUrl}/?tab=schedule`; 
+      clickUrl = `${baseUrl}/?tab=schedule&action=view_history`; 
     } 
     // 3. 📢 พันธมิตร (Affiliate)
     else if (action === 'lead') {
@@ -44,11 +44,11 @@ export default async function handler(req, res) {
       body = data.body || `มีลูกค้าสนใจเข้ามาระบบค่ะ`;
       clickUrl = `${baseUrl}/?tab=affiliate`;
     } 
-    // 4. 👥 เพื่อนแนะนำเพื่อน (แก้เป็น tab=affiliate ป้องกันจอขาว เพราะมันอยู่หน้าเดียวกัน)
+    // 4. 👥 เพื่อนแนะนำเพื่อน (ส่งคำสั่งเปิดหน้าย่อย: subtab=FriendGetFriend)
     else if (action === 'friend_referral') {
       title = data.title || `👥 สมาชิกใหม่! Friend get friend`;
       body = data.body || `มีการแนะนำเพื่อนใหม่เข้ามาในระบบค่ะ`;
-      clickUrl = `${baseUrl}/?tab=affiliate`; 
+      clickUrl = `${baseUrl}/?tab=affiliate&subtab=FriendGetFriend`; 
     }
     // 5. 📅 กิจกรรมทำงานของแต่ละคน (เหมือนเดิม)
     else if (action === 'task' || action === 'event') {
