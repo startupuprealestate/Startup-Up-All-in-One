@@ -13,29 +13,39 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// ✨ อาวุธหนัก: ดึงแอปขึ้นมา แล้วส่งข้อความไปเปลี่ยนหน้าต่างภายใน (ไม่รีเฟรชเว็บ)
+// ✨ ระบบระดับโลก: ใช้ Broadcast Channel และบังคับโหลดหน้าใหม่เจาะทะลุแอปแช่แข็ง
 self.addEventListener('notificationclick', function(event) {
   event.notification.close(); 
 
-  // ดึงลิงก์ลับที่เราซ่อนไว้
-  const clickUrl = event.notification?.data?.clickUrl || event.notification?.data?.FCM_MSG?.data?.clickUrl || '/';
+  const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
+  let clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
+
+  // 💡 ทริคระดับ Pro: เติมรหัสเวลาต่อท้าย URL เพื่อบังคับให้มือถือคิดว่าเป็น "ลิงก์ใหม่" เสมอ และต้องรีเฟรชหน้า!
+  clickUrl = clickUrl + (clickUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+
+  // สร้างช่องทางวิทยุสื่อสารฉุกเฉิน
+  const broadcast = new BroadcastChannel('startup_channel');
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       
-      // 💡 ถ้าแอปเปิดค้างอยู่เบื้องหลัง
       if (clientList.length > 0) {
         let client = clientList[0];
         for (let i = 0; i < clientList.length; i++) {
           if (clientList[i].focused) { client = clientList[i]; break; }
         }
-        // 1. ส่งข้อความปลุกแอป (React จะรับหน้าที่เปลี่ยนหน้าให้เอง)
-        client.postMessage({ type: 'APP_WAKE_UP', url: clickUrl });
-        // 2. ดึงแอปขึ้นมาโชว์บนหน้าจอ
-        return client.focus();
+        
+        return client.focus().then(c => {
+           // 1. ประกาศผ่านวิทยุสื่อสาร (รวดเร็ว ทะลุการแช่แข็ง)
+           broadcast.postMessage({ type: 'FORCE_WAKE', url: clickUrl });
+           
+           // 2. เตะปลั๊ก: บังคับเบราว์เซอร์ให้โหลดหน้าใหม่ตามลิงก์ทันที (ชัวร์ 100%)
+           if (c && 'navigate' in c) return c.navigate(clickUrl);
+           return client.navigate(clickUrl);
+        });
       }
       
-      // 💡 ถ้าแอปปิดสนิทไปแล้ว (Force Close)
+      // ถ้าแอปปิดสนิท (Force Close)
       if (clients.openWindow) {
         return clients.openWindow(clickUrl);
       }
