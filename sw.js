@@ -1,31 +1,27 @@
-// 🚨 1. ต้องเอาตัวดักจับการกดมาไว้ "บนสุด" ของไฟล์ เพื่อดักหน้า Firebase!
+// ✨ ระบบตู้ล็อกเกอร์: ทะลวงการแช่แข็งของ iOS ได้ 100%
 self.addEventListener('notificationclick', function(event) {
-  event.stopImmediatePropagation(); // คำสั่งระงับไม่ให้ Firebase มาแย่งการทำงาน
+  event.stopImmediatePropagation(); 
   event.notification.close(); 
 
   const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
   const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
-
-  // เติมรหัสเวลาเพื่อหลอกให้ระบบมองว่าเป็นลิงก์ใหม่เสมอ จะได้ยอมรีเฟรชหน้า
+  
+  // เติมรหัสเวลาเพื่อหลอกให้เป็นลิงก์ใหม่
   const finalUrl = clickUrl + (clickUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      
-      // 💡 กรณีแอปพับอยู่เบื้องหลัง
-      if (clientList.length > 0) {
-        let client = clientList.find(c => c.focused) || clientList[0];
-        return client.focus().then(c => {
-           const target = c || client;
-           // บังคับเปลี่ยน URL หน้าเว็บทันที! (ทะลุแอปค้างได้ 100%)
-           return target.navigate(finalUrl); 
+    // 💡 เปิดตู้ล็อกเกอร์ แล้วยัด URL เอาไว้
+    caches.open('pwa-wakes').then(cache => {
+      return cache.put('/pending-notification', new Response(finalUrl)).then(() => {
+        // ดึงแอปขึ้นมาหน้าจอ (เพื่อให้แอปตื่นมาไขตู้ล็อกเกอร์)
+        return clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+          if (clientList.length > 0) {
+            let client = clientList.find(c => c.focused) || clientList[0];
+            return client.focus();
+          }
+          if (clients.openWindow) return clients.openWindow(finalUrl);
         });
-      }
-      
-      // 💡 กรณีแอปปิดสนิท (Force Close)
-      if (clients.openWindow) {
-        return clients.openWindow(finalUrl);
-      }
+      });
     })
   );
 });
