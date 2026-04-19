@@ -3389,6 +3389,24 @@ ${promptAction}`;
 
       const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
 
+      useEffect(() => {
+          if (!isFirebaseLoaded || events.length === 0) return;
+          
+          const params = new URLSearchParams(window.location.search);
+          const action = params.get('action');
+          const eventId = params.get('eventId');
+
+          // ถ้าเป็นการแจ้งเตือน ลา/กิจกรรม -> ให้เปิดหน้าต่างกิจกรรมนั้นทันที
+          if (action === 'view_event' && eventId) {
+              const targetEvent = events.find(ev => ev.id === eventId);
+              if (targetEvent) {
+                  handleOpenModal(null, targetEvent); // สั่งเปิดหน้าต่างรายละเอียด
+              }
+              // ล้าง URL ทิ้งป้องกันการเด้งซ้ำ
+              window.history.replaceState({}, '', window.location.pathname);
+          }
+      }, [isFirebaseLoaded, events]);
+
       const handleLeaveImageUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -3422,11 +3440,20 @@ ${promptAction}`;
         try {
           if (editingEventId) { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData); } 
           else {
-              await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
+              // 1. รับไอดีที่ได้จาก Firebase มาใส่ในตัวแปร newDocRef
+              const newDocRef = await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
               
               if (eventData.type === 'leave') {
                   const displayDate = eventData.date ? eventData.date.split('-').reverse().join('-') : '-';
-                  sendNotification({ assignee: eventData.assignee, leaveType: eventData.leaveType, date: displayDate, reason: eventData.note });
+                  
+                  // 2. ส่ง eventId: newDocRef.id แนบไปกับแจ้งเตือนด้วย
+                  sendNotification({ 
+                      assignee: eventData.assignee, 
+                      leaveType: eventData.leaveType, 
+                      date: displayDate, 
+                      reason: eventData.note,
+                      eventId: newDocRef.id // <--- ส่งตั๋ววาร์ปไปตรงนี้!
+                  });
               }
           }
         } catch (error) { alert("พบข้อผิดพลาด กรุณาลองใหม่"); }
