@@ -3022,37 +3022,7 @@ ${promptAction}`;
       const [isUserFilterMobileOpen, setIsUserFilterMobileOpen] = useState(false);
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
-// 🪄 1. ระบบเดินไปถามยาม + บังคับรีเฟรชหน้า (เหมือนการ Force Close)
-      useEffect(() => {
-          // ฟังคำตอบจากยาม
-          const handleWakeUp = (event) => {
-              if (event.data && event.data.type === 'APP_WAKE_UP') {
-                  // ได้ URL มาปุ๊บ บังคับรีเฟรชเว็บเลย! ชัวร์ 100% ว่าเหมือน Force Close
-                  window.location.href = event.data.url;
-              }
-          };
-          if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', handleWakeUp);
 
-          // 💡 ทันทีที่แอปพลิเคชันตื่นขึ้นมา (ละลายน้ำแข็งเสร็จ) ให้เดินไปถามยาม!
-          const handleVisibilityChange = () => {
-              if (document.visibilityState === 'visible' && navigator.serviceWorker.controller) {
-                  navigator.serviceWorker.controller.postMessage({ type: 'CHECK_PENDING_NOTIFICATION' });
-              }
-          };
-          document.addEventListener('visibilitychange', handleVisibilityChange);
-
-          // ถามเผื่อไว้ตอนเปิดแอปครั้งแรกด้วย
-          if (navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({ type: 'CHECK_PENDING_NOTIFICATION' });
-          }
-
-          return () => {
-              if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', handleWakeUp);
-              document.removeEventListener('visibilitychange', handleVisibilityChange);
-          };
-      }, []);
-
-      // 🪄 2. ดักอ่าน URL กรณีแอปเปิดใหม่ (หรือเพิ่งโดนบังคับรีเฟรชมาเมื่อกี้)
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
@@ -3060,11 +3030,26 @@ ${promptAction}`;
           const tab = params.get('tab');
 
           if (action === 'view_event' && eventId && isFirebaseLoaded) {
+              // เปลี่ยนแท็บเมนู
               if (tab) setActiveApp(tab);
-              setPendingEventId(eventId); // สั่งจดรหัส รอ Firebase
+              // จดรหัสการลาเอาไว้ในมือ รอ Firebase โหลดข้อมูล
+              setPendingEventId(eventId); 
+              // ล้าง URL ข้างบนทิ้งให้สะอาด
               window.history.replaceState({}, '', window.location.pathname + '?tab=' + tab);
           }
-      }, [isFirebaseLoaded]);
+      }, [isFirebaseLoaded]); // ทำงานเมื่อ Firebase พร้อม
+
+      // 🪄 2. ดักรอจนกว่าตารางกิจกรรม (events) จะโหลดเสร็จ
+      useEffect(() => {
+          if (pendingEventId && events.length > 0) {
+              const targetEvent = events.find(ev => ev.id === pendingEventId);
+              if (targetEvent) {
+                  // ถ้าควานหาเจอปุ๊บ เด้งป๊อปอัปเลย!
+                  setViewingEvent(targetEvent); 
+                  setPendingEventId(null); // เคลียร์รหัสทิ้ง
+              }
+          }
+      }, [pendingEventId, events]);
 
       // 🪄 3. สไนเปอร์ซุ่มยิง (ตัวเดิม): ดักรอจนกว่าข้อมูล Firebase จะมา
       useEffect(() => {
