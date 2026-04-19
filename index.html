@@ -3023,40 +3023,25 @@ ${promptAction}`;
       const [viewingEvent, setViewingEvent] = useState(null);
       const [pendingEventId, setPendingEventId] = useState(null); 
 
+      // 🛠️ เอ็กซเรย์จุดที่ 1: เช็กว่าแอปตื่นมาแล้วได้รับ URL ถูกต้องไหม?
       useEffect(() => {
           const params = new URLSearchParams(window.location.search);
           const action = params.get('action');
-          const eventId = params.get('eventId');
-          const tab = params.get('tab');
-
-          if (action === 'view_event' && eventId && isFirebaseLoaded) {
-              // เปลี่ยนแท็บเมนู
-              if (tab) setActiveApp(tab);
-              // จดรหัสการลาเอาไว้ในมือ รอ Firebase โหลดข้อมูล
-              setPendingEventId(eventId); 
-              // ล้าง URL ข้างบนทิ้งให้สะอาด
-              window.history.replaceState({}, '', window.location.pathname + '?tab=' + tab);
+          if (action === 'view_event') {
+              alert(`🔍 [จุดที่ 1] แอปได้รับคำสั่งแล้ว!\nรหัสการลา: ${params.get('eventId')}\nกำลังรอ Firebase โหลดข้อมูล...`);
           }
-      }, [isFirebaseLoaded]); // ทำงานเมื่อ Firebase พร้อม
+      }, []);
 
-      // 🪄 2. ดักรอจนกว่าตารางกิจกรรม (events) จะโหลดเสร็จ
+      // 🛠️ เอ็กซเรย์จุดที่ 2: เช็กว่าหาข้อมูลในตารางเจอไหม?
       useEffect(() => {
           if (pendingEventId && events.length > 0) {
               const targetEvent = events.find(ev => ev.id === pendingEventId);
               if (targetEvent) {
-                  // ถ้าควานหาเจอปุ๊บ เด้งป๊อปอัปเลย!
+                  alert(`✅ [จุดที่ 2] ดึงข้อมูลจาก Firebase สำเร็จ!\nกำลังจะเปิดหน้าต่างป๊อปอัปให้เดี๋ยวนี้ค่ะ`);
                   setViewingEvent(targetEvent); 
-                  setPendingEventId(null); // เคลียร์รหัสทิ้ง
-              }
-          }
-      }, [pendingEventId, events]);
-
-      // 🪄 3. สไนเปอร์ซุ่มยิง (ตัวเดิม): ดักรอจนกว่าข้อมูล Firebase จะมา
-      useEffect(() => {
-          if (pendingEventId && events.length > 0) {
-              const targetEvent = events.find(ev => ev.id === pendingEventId);
-              if (targetEvent) {
-                  setViewingEvent(targetEvent); // เด้งป๊อปอัป!
+                  setPendingEventId(null); 
+              } else {
+                  alert(`❌ [จุดที่ 2] พัง! หาข้อมูลไม่เจอค่ะ\nรหัส ${pendingEventId} นี้อาจจะถูกลบไปแล้ว หรือเป็นของเก่า`);
                   setPendingEventId(null); 
               }
           }
