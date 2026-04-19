@@ -1,7 +1,42 @@
+// 🚨 1. ต้องเอาตัวดักจับการกดมาไว้ "บนสุด" ของไฟล์ เพื่อดักหน้า Firebase!
+self.addEventListener('notificationclick', function(event) {
+  event.stopImmediatePropagation(); // คำสั่งระงับไม่ให้ Firebase มาแย่งการทำงาน
+  event.notification.close(); 
+
+  const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
+  const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
+
+  // เติมรหัสเวลาเพื่อหลอกให้ระบบมองว่าเป็นลิงก์ใหม่เสมอ จะได้ยอมรีเฟรชหน้า
+  const finalUrl = clickUrl + (clickUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      
+      // 💡 กรณีแอปพับอยู่เบื้องหลัง
+      if (clientList.length > 0) {
+        let client = clientList.find(c => c.focused) || clientList[0];
+        return client.focus().then(c => {
+           const target = c || client;
+           // บังคับเปลี่ยน URL หน้าเว็บทันที! (ทะลุแอปค้างได้ 100%)
+           return target.navigate(finalUrl); 
+        });
+      }
+      
+      // 💡 กรณีแอปปิดสนิท (Force Close)
+      if (clients.openWindow) {
+        return clients.openWindow(finalUrl);
+      }
+    })
+  );
+});
+
+// =======================================================
+// ⬇️ 2. โค้ดตั้งค่า Firebase ของเดิม ย้ายมาไว้ด้านล่างสุด ⬇️
+// =======================================================
+
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// Config ของบริษัท
 firebase.initializeApp({
   apiKey: "AIzaSyDYhao1y-8YpWHsjualiimZc8CJei7xbDY",
   authDomain: "startupuprealestate-e4b0a.firebaseapp.com",
@@ -12,21 +47,3 @@ firebase.initializeApp({
 });
 
 const messaging = firebase.messaging();
-
-// ✨ กลับคืนสู่สามัญ: ใช้คำสั่งบังคับเปิดหน้าต่างใหม่ (Apple ปฏิเสธไม่ได้!)
-self.addEventListener('notificationclick', function(event) {
-  event.stopImmediatePropagation(); 
-  event.notification.close(); 
-
-  const fcmData = event.notification.data?.FCM_MSG?.data || event.notification.data;
-  const clickUrl = fcmData?.clickUrl || event.notification.data?.fcmOptions?.link || '/';
-
-  // 💡 ทริคสำคัญ: เติมรหัสเวลาต่อท้าย URL เพื่อหลอกให้ Apple คิดว่าเป็น "ลิงก์ใหม่เอี่ยม" และต้องโหลดใหม่เท่านั้น!
-  const finalUrl = clickUrl + (clickUrl.includes('?') ? '&' : '?') + 'refresh=' + Date.now();
-
-  // ไม่ต้องเช็กแล้วว่าแอปหลับหรือตื่น สั่ง "เปิดหน้าต่างใหม่" ทื่อๆ เลย!
-  // (ใน iOS PWA คำสั่งนี้จะดึงแอปขึ้นมาและบังคับรีเฟรชหน้าให้เองค่ะ)
-  event.waitUntil(
-    clients.openWindow(finalUrl)
-  );
-});
