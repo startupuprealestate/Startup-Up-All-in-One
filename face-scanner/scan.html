@@ -559,8 +559,7 @@
             lat: currentLat, 
             lng: currentLng, 
             note: note,
-            // ส่งชื่อชีทไปบอก Google Apps Script ด้วย!
-            sheetTarget: checkInType === 'site' ? "Site_CheckIn" : "Attendance_Log" 
+            sheetTarget: checkInType === 'site' ? "Site_CheckIn" : "Attendance" 
         })
       });
       const data = await res.json();
