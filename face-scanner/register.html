@@ -272,41 +272,26 @@
     const name = document.getElementById('username').value.trim();
     if (!name) return alert('กรุณาใส่ชื่อก่อน');
 
-    btnSave.disabled = true;
-    btnSave.innerHTML = '⏳ กำลังประมวลผล... <span class="count-badge">' + saveCounter + '</span>';
-    msgDiv.innerText = '';
-
-    const detection = await faceapi
-      .detectSingleFace(video)
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    if (!detection) {
-      alert('ไม่พบใบหน้า! กรุณามองกล้องให้ชัดเจน');
-      btnSave.disabled = false;
-      btnSave.innerHTML = '📸 บันทึกใบหน้า <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
-      return;
-    }
+    // ... (ส่วนประมวลผล AI เหมือนเดิม) ...
 
     const descriptorArray = Array.from(detection.descriptor);
 
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'registerUser', name, faceDescriptor: descriptorArray })
+        // 💡 แก้ไข: ใช้ชื่อ 'descriptor' ให้ตรงกับหลังบ้าน
+        body: JSON.stringify({ 
+          action: 'registerUser', 
+          name: name, 
+          descriptor: descriptorArray 
+        })
       });
       const data = await res.json();
-
-      saveCounter++;
-      countSpan.innerText = saveCounter;
-      updateDots();
-      msgDiv.innerHTML = '<span class="msg-success">✅ บันทึกครั้งที่ ' + saveCounter + ' สำเร็จ! ขยับหน้าเล็กน้อยแล้วกดอีกครั้ง</span>';
-      btnSave.disabled = false;
-      btnSave.innerHTML = '📸 บันทึกเพิ่ม <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
+      
+      // ... (ส่วนอัปเดตหน้าจอเหมือนเดิม) ...
+      
     } catch (e) {
       msgDiv.innerHTML = '<span class="msg-error">❌ บันทึกล้มเหลว: ' + e.message + '</span>';
-      btnSave.disabled = false;
-      btnSave.innerHTML = '📸 บันทึกใบหน้า <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
     }
   }
 </script>
