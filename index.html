@@ -2981,7 +2981,10 @@ ${promptAction}`;
 
       const [activeApp, setActiveApp] = useState('calendar');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-      const [showSplash, setShowSplash] = useState(true);
+      const [showSplash, setShowSplash] = useState(() => {
+          const params = new URLSearchParams(window.location.search);
+          return params.get('from') !== 'scanner'; // ถ้ามีรหัส from=scanner ให้ปิดหน้าโหลดทันที!
+      });
       const [splashFade, setSplashFade] = useState(false);
       const [menuSearchQuery, setMenuSearchQuery] = useState('');
       
