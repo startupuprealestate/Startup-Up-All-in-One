@@ -272,26 +272,62 @@
     const name = document.getElementById('username').value.trim();
     if (!name) return alert('กรุณาใส่ชื่อก่อน');
 
-    // ... (ส่วนประมวลผล AI เหมือนเดิม) ...
+    // ปิดปุ่มระหว่างรอประมวลผล
+    btnSave.disabled = true;
+    btnSave.innerHTML = '⏳ กำลังประมวลผล...';
+    msgDiv.innerText = '';
+
+    // --- ส่วนประมวลผล AI ของจริง ---
+    const detection = await faceapi
+      .detectSingleFace(video)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (!detection) {
+      alert('ไม่พบใบหน้า! กรุณามองกล้องให้ชัดเจน');
+      btnSave.disabled = false;
+      btnSave.innerHTML = '📸 บันทึกใบหน้า <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
+      return;
+    }
 
     const descriptorArray = Array.from(detection.descriptor);
 
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
-        // 💡 แก้ไข: ใช้ชื่อ 'descriptor' ให้ตรงกับหลังบ้าน
+        // 💡 ใช้ชื่อ 'descriptor' ให้ตรงกับหลังบ้าน
         body: JSON.stringify({ 
           action: 'registerUser', 
           name: name, 
           descriptor: descriptorArray 
         })
       });
+      
       const data = await res.json();
       
-      // ... (ส่วนอัปเดตหน้าจอเหมือนเดิม) ...
+      // --- ส่วนอัปเดตหน้าจอของจริง ---
+      if (data.status === 'success' || data.success) {
+        saveCounter++;
+        countSpan.innerText = saveCounter;
+        updateDots();
+        
+        if (saveCounter >= 3) {
+           msgDiv.innerHTML = '<span class="msg-success">🎉 ลงทะเบียนครบ 3 มุมสำเร็จ!</span>';
+           btnSave.innerHTML = '✅ ลงทะเบียนเรียบร้อย';
+           document.getElementById('username').disabled = true;
+        } else {
+           msgDiv.innerHTML = '<span class="msg-success">✅ บันทึกครั้งที่ ' + saveCounter + ' สำเร็จ! ขยับหน้าเล็กน้อยแล้วกดอีกครั้ง</span>';
+           btnSave.disabled = false;
+           btnSave.innerHTML = '📸 บันทึกเพิ่ม <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
+        }
+      } else {
+        throw new Error(data.message || 'เกิดข้อผิดพลาดจากระบบหลังบ้าน');
+      }
       
     } catch (e) {
       msgDiv.innerHTML = '<span class="msg-error">❌ บันทึกล้มเหลว: ' + e.message + '</span>';
+      btnSave.disabled = false;
+      btnSave.innerHTML = '📸 บันทึกใบหน้า <span class="count-badge" id="saveCount">' + saveCounter + '</span>';
     }
   }
 </script>
