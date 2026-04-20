@@ -11,7 +11,44 @@
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
+    // ใช้ Config เดียวกับแอปหลักของพี่บิวเลยนะคะ
+    const firebaseConfig = { 
+        apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", 
+        authDomain: "startupuprealestate-e4b0a.firebaseapp.com", 
+        projectId: "startupuprealestate-e4b0a", 
+        messagingSenderId: "966000130004", 
+        appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" 
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            // ⛔ ไม่ได้ล็อกอิน เตะกลับหน้าแรก
+            window.location.href = '/';
+        } else {
+            // ✅ ล็อกอินแล้ว เช็กต่อว่าเป็นพนักงานที่ได้รับอนุมัติหรือยัง
+            const userRef = doc(db, "users", user.email.toLowerCase());
+            const docSnap = await getDoc(userRef);
+            if (!docSnap.exists() || docSnap.data().status !== 'approved') {
+                alert("คุณยังไม่ได้รับสิทธิ์เข้าใช้งานระบบสแกนหน้าค่ะ");
+                window.location.href = '/';
+            }
+            // ถ้าผ่านหมด ก็นิ่งไว้ ปล่อยให้ระบบสแกนหน้าทำงานต่อค่ะ
+        }
+    });
+</script>
+
+<button onclick="window.location.href='/'" style="position:fixed; top:10px; left:10px; z-index:999; background:#0b3d1b; color:white; padding:8px 15px; border-radius:10px; border:none; font-weight:bold;">
+    ⬅️ กลับหน้าหลัก
+</button>
     body {
       font-family: 'Prompt', sans-serif;
       min-height: 100vh;
