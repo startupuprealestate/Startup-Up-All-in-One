@@ -198,20 +198,45 @@
       <span class="card-arrow">›</span>
     </a>
 
-    <a href="config.html" class="btn-menu btn-config">
-      <div class="card-icon">⚙️</div>
-      <div class="card-text">
-        <div class="card-title">ตั้งค่าระบบ</div>
-        <div class="card-desc">จัดการ GPS และ API (Admin)</div>
-      </div>
-      <span class="card-arrow">›</span>
-    </a>
+    <a href="config.html" id="admin-config-card" class="btn-menu btn-config" style="display: none;">
+  <div class="card-icon">⚙️</div>
+  <div class="card-text">
+    <div class="card-title">ตั้งค่าระบบ</div>
+    <div class="card-desc">จัดการ GPS และ API (Admin)</div>
   </div>
+  <span class="card-arrow">›</span>
+</a>
 
   <script>
     if (!localStorage.getItem('gasApiUrl') && typeof GAS_API_URL === 'undefined') {
       document.getElementById('apiWarning').style.display = 'block';
     }
   </script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+    // ใช้ Config เดียวกับแอปหลัก
+    const firebaseConfig = { 
+        apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", 
+        authDomain: "startupuprealestate-e4b0a.firebaseapp.com", 
+        projectId: "startupuprealestate-e4b0a", 
+        messagingSenderId: "966000130004", 
+        appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" 
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, (user) => {
+        if (user && user.email.toLowerCase() === 'startup.up.real.estate@gmail.com') {
+            // ✅ เป็น Admin ให้โชว์เมนูตั้งค่า
+            document.getElementById('admin-config-card').style.display = 'flex';
+        } else {
+            // ❌ ไม่ใช่ Admin ให้ซ่อนไว้เหมือนเดิม
+            document.getElementById('admin-config-card').style.display = 'none';
+        }
+    });
+</script>
 </body>
 </html>
