@@ -2981,20 +2981,31 @@ ${promptAction}`;
 
       const [activeApp, setActiveApp] = useState('calendar');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+      // 👇👇👇 ชุดแก้หน้าจอโหลด (มีระบบกัน Error จอขาวแล้ว 100%) 👇👇👇
       const [showSplash, setShowSplash] = useState(() => {
-          return sessionStorage.getItem('skipSplash') !== 'true';
+          try {
+              return sessionStorage.getItem('skipSplash') !== 'true';
+          } catch(e) { 
+              return true; // ถ้าเบราว์เซอร์บล็อกความจำ ให้โชว์หน้าโหลดปกติไปเลย จะได้ไม่จอขาว
+          }
       });
       const [splashFade, setSplashFade] = useState(false);
+      const [menuSearchQuery, setMenuSearchQuery] = useState('');
+      
+      // 🛡️ จุดแก้จอขาวที่ 1: ใส่ user.email ป้องกัน Error กรณีโหลดอีเมลไม่ทัน
+      const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com']; 
+      const isAdmin = user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
-      // 💡 2. ควบคุมเวลาหน้าจอโหลด
       useEffect(() => {
-          // ถ้าเพิ่งกลับมาจากสแกนหน้า ให้ลบความจำทิ้ง (เผื่อรอบหน้าเปิดใหม่) และไม่ต้องนับเวลา
-          if (sessionStorage.getItem('skipSplash') === 'true') {
-              sessionStorage.removeItem('skipSplash');
-              return; 
-          }
-          
-          // ถ้าเปิดแอปปกติ ค่อยโชว์หน้าจอเขียว 1.3 วินาที
+          try {
+              if (sessionStorage.getItem('skipSplash') === 'true') {
+                  sessionStorage.removeItem('skipSplash');
+                  setShowSplash(false);
+                  return;
+              }
+          } catch(e) {}
+
           const timer1 = setTimeout(() => setSplashFade(true), 800);
           const timer2 = setTimeout(() => setShowSplash(false), 1300);
           return () => { clearTimeout(timer1); clearTimeout(timer2); };
