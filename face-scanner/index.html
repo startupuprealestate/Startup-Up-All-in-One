@@ -23,7 +23,15 @@
       position: relative;
       overflow-x: hidden;
     }
-
+    <button 
+    onclick="window.location.href='/'" 
+    style="position: fixed; top: 15px; left: 15px; z-index: 9999; background-color: #0b3d1b; color: white; border: none; padding: 10px 16px; border-radius: 12px; font-family: 'Prompt', sans-serif; font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 6px; transition: all 0.2s;"
+    onmouseover="this.style.transform='scale(1.05)'"
+    onmouseout="this.style.transform='scale(1)'"
+>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    กลับหน้าหลัก All-in-One
+</button>
     /* Header */
     .header {
       text-align: center;
