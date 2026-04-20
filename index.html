@@ -3889,10 +3889,20 @@ ${promptAction}`;
 
       // --- หน้าที่รอโหลด ---
       if (!isAuthLoaded || accessStatus === 'checking') {
+          // 💡 ถ้าเพิ่งวาร์ปกลับมาจากหน้าสแกนหน้า ให้โชว์หน้าขาวๆ โหลดแป๊บเดียวพอ
+          if (sessionStorage.getItem('skipSplash') === 'true') {
+              return (
+                  <div className="fixed inset-0 z-[100] bg-background flex flex-col items-center justify-center">
+                      <Icon name="RefreshCw" size={32} className="animate-spin text-brand/50 mb-3" />
+                      <div className="text-gray-500 text-[14px] font-bold">กำลังดึงข้อมูล...</div>
+                  </div>
+              );
+          }
+          
+          // 💡 โชว์จอเขียวใหญ่ เฉพาะตอนเปิดแอปครั้งแรก (เหลือแค่โลโก้ตรงกลาง ไม่มีตัวหนังสือ)
           return (
             <div className="fixed inset-0 z-[100] bg-[#0b3d1b] flex flex-col items-center justify-center">
-              <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Logo" className="h-28 w-auto object-contain drop-shadow-lg mb-6 animate-pulse" />
-              <div className="text-white mt-3" style={{ fontFamily: "'Crimson Text', serif", fontSize: "16px", letterSpacing: "1px", fontStyle: "italic" }}>Verifying authorization...</div>
+              <img src="https://lh3.googleusercontent.com/d/1gKhLsrzU5lH26eRAbajDHCojJAbOkTPd" alt="Logo" className="h-28 w-auto object-contain drop-shadow-lg animate-pulse" />
             </div>
           );
       }
