@@ -1,6 +1,28 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+    const firebaseConfig = { 
+        apiKey: "AIzaSyD3G2S3SBjE08Q5m-B8HQjAgV5Uj0mSgW0", 
+        authDomain: "startupuprealestate-e4b0a.firebaseapp.com", 
+        projectId: "startupuprealestate-e4b0a", 
+        messagingSenderId: "966000130004", 
+        appId: "1:966000130004:web:5318ddaf6d2225b0cc8841" 
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, (user) => {
+        if (!user || user.email.toLowerCase() !== 'startup.up.real.estate@gmail.com') {
+            // ⛔ ถ้าไม่ใช่ Admin หรือไม่ได้ล็อกอิน ให้เตะกลับไปหน้าสแกนหน้าทันที
+            window.location.replace('index.html');
+        }
+    });
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ตั้งค่าระบบ</title>
