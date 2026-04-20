@@ -347,6 +347,10 @@
 </div>
 
 <script>
+  // 💡 1. เพิ่มตัวดักจับ URL ไว้บนสุดเลย
+  const urlParams = new URLSearchParams(window.location.search);
+  const checkInType = urlParams.get('type') || 'work';
+
   const API_URL        = localStorage.getItem('gasApiUrl') || GAS_API_URL;
   const video          = document.getElementById('video');
   const mainStatus     = document.getElementById('main-status');
@@ -363,6 +367,14 @@
   let currentMatch = null;
   let currentLat   = null;
   let currentLng   = null;
+
+  // 💡 2. เปลี่ยนหัวเว็บตามประเภทที่กดมา
+  window.addEventListener('DOMContentLoaded', () => {
+      if (checkInType === 'site') {
+          document.querySelector('h2').innerText = '📍 เช็กอินหน้างาน';
+          document.title = 'เช็กอินหน้างาน';
+      }
+  });
 
   if (!API_URL) {
     showError('ยังไม่ได้ตั้งค่า API URL — <a href="config.html" style="color:#d97706">ไปตั้งค่า</a>');
@@ -477,7 +489,7 @@
 
   function startScanLoop() {
     if (scanInterval) clearInterval(scanInterval);
-    overlayStatus.innerText     = 'มองกล้องเพื่อสแกน';
+    overlayStatus.innerText      = 'มองกล้องเพื่อสแกน';
     overlayStatus.style.background = 'rgba(255,255,255,0.9)';
     overlayStatus.style.color = '#1f2937';
 
@@ -531,6 +543,7 @@
     mainStatus.style.color = '#1f2937';
   }
 
+  // 💡 3. แก้ไขฟังก์ชันตอนกดยืนยัน ให้แนบชื่อ Sheet ส่งไปด้วย
   async function confirmAttendance() {
     const btn = document.getElementById('btnConfirm');
     const note = document.getElementById('noteInput').value.trim();
@@ -540,7 +553,15 @@
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'logAttendance', name: currentMatch, lat: currentLat, lng: currentLng, note: note })
+        body: JSON.stringify({ 
+            action: 'logAttendance', 
+            name: currentMatch, 
+            lat: currentLat, 
+            lng: currentLng, 
+            note: note,
+            // ส่งชื่อชีทไปบอก Google Apps Script ด้วย!
+            sheetTarget: checkInType === 'site' ? "Site_CheckIn" : "Attendance_Log" 
+        })
       });
       const data = await res.json();
       alert('✅ ' + (data.message || 'บันทึกเวลาสำเร็จ'));
