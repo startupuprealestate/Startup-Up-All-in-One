@@ -2982,20 +2982,22 @@ ${promptAction}`;
       const [activeApp, setActiveApp] = useState('calendar');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [showSplash, setShowSplash] = useState(() => {
-          const params = new URLSearchParams(window.location.search);
-          return params.get('from') !== 'scanner'; // ถ้ามีรหัส from=scanner ให้ปิดหน้าโหลดทันที!
+          return sessionStorage.getItem('skipSplash') !== 'true';
       });
       const [splashFade, setSplashFade] = useState(false);
-      const [menuSearchQuery, setMenuSearchQuery] = useState('');
-      
-      // 🛡️ จุดแก้จอขาวที่ 1: ใส่ user.email ป้องกัน Error กรณีโหลดอีเมลไม่ทัน
-      const ADMIN_EMAILS = ['startup.up.real.estate@gmail.com']; 
-      const isAdmin = user && user.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
+      // 💡 2. ควบคุมเวลาหน้าจอโหลด
       useEffect(() => {
-        const timer1 = setTimeout(() => setSplashFade(true), 800);
-        const timer2 = setTimeout(() => setShowSplash(false), 1300);
-        return () => { clearTimeout(timer1); clearTimeout(timer2); };
+          // ถ้าเพิ่งกลับมาจากสแกนหน้า ให้ลบความจำทิ้ง (เผื่อรอบหน้าเปิดใหม่) และไม่ต้องนับเวลา
+          if (sessionStorage.getItem('skipSplash') === 'true') {
+              sessionStorage.removeItem('skipSplash');
+              return; 
+          }
+          
+          // ถ้าเปิดแอปปกติ ค่อยโชว์หน้าจอเขียว 1.3 วินาที
+          const timer1 = setTimeout(() => setSplashFade(true), 800);
+          const timer2 = setTimeout(() => setShowSplash(false), 1300);
+          return () => { clearTimeout(timer1); clearTimeout(timer2); };
       }, []);
 
       const [currentDate, setCurrentDate] = useState(new Date());
