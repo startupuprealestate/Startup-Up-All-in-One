@@ -533,7 +533,7 @@
 
     const now = new Date();
     const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-    document.getElementById('modalTime').innerText  = 'เวลาเข้างาน: ' + timeStr + ' น.';
+    document.getElementById('modalTime').innerText  = 'เวลาที่สแกน: ' + timeStr + ' น.';
 
     const pct = ((1 - match.distance) * 100).toFixed(1);
     document.getElementById('modalScore').innerText = 'ความเหมือน: ' + pct + '%';
@@ -568,7 +568,7 @@
     } catch (e) {
       alert('❌ บันทึกล้มเหลว: ' + e.message);
       btn.disabled  = false;
-      btn.innerText = '✅ ยืนยันเข้างาน';
+      btn.innerText = '✅ ยืนยันเวลา';
     }
   }
 
