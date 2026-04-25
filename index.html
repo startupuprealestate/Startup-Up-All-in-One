@@ -1024,26 +1024,26 @@
 
         const [timeLeft, setTimeLeft] = useState("");
 
-useEffect(() => {
-    const timer = setInterval(() => {
-        const now = new Date();
-        let target = new Date();
-        target.setHours(9, 0, 0, 0);
+        useEffect(() => {
+            const timer = setInterval(() => {
+                const now = new Date();
+                let target = new Date();
+                target.setHours(9, 0, 0, 0);
 
-        // ถ้าตอนนี้เลย 9 โมงไปแล้ว ให้เป้าหมายเป็น 9 โมงของวันพรุ่งนี้
-        if (now >= target) {
-            target.setDate(target.getDate() + 1);
-        }
+                if (now >= target) {
+                    target.setDate(target.getDate() + 1);
+                }
 
-        const diff = target - now;
-        const h = Math.floor(diff / (1000 * 60 * 60));
-        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const s = Math.floor((diff % (1000 * 60)) / 1000);
+                const diff = target - now;
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        setTimeLeft(`${h} ชม. ${m} นาที ${s} วินาที`);
-    }, 1000);
-    return () => clearInterval(timer);
-}, []);
+                setTimeLeft(`${h} ชม. ${m} นาที ${s} วินาที`);
+            }, 1000);
+            return () => clearInterval(timer);
+        }, []);
+
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('s_h_val_post_v6');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] };
@@ -1074,11 +1074,10 @@ useEffect(() => {
             try { 
                 const updateData = { [assigneeName]: isChecked ? assignmentTodayStr : null };
                 
-                // 💡 ถ้ากดติ๊กถูก ให้ดึงชื่อจาก Gmail มาบันทึกด้วย
                 if (isChecked && user) {
                     updateData[`${assigneeName}_postedBy`] = user.displayName || user.email || 'ทีมงาน';
                 } else if (!isChecked) {
-                    updateData[`${assigneeName}_postedBy`] = null; // ถ้าติ๊กออก ก็ลบชื่อทิ้ง
+                    updateData[`${assigneeName}_postedBy`] = null; 
                 }
                 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", rowId), updateData, { merge: true }); 
@@ -1088,7 +1087,11 @@ useEffect(() => {
         const confirmSkip = (houseId, houseName) => { setHouseToSkip({ id: houseId, name: houseName }); setIsSkipModalOpen(true); };
         const executeSkip = async () => {
             if (!houseToSkip || !isFirebaseLoaded) return;
-            try { await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", houseToSkip.id), { lastSkippedTimestamp: Date.now() }, { merge: true }); } catch(err) {}
+            try { 
+                // 💡 จำประวัติการข้ามแยกเป็นรายบุคคลแทน
+                const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
+                await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", houseToSkip.id), { [userSkipKey]: Date.now() }, { merge: true }); 
+            } catch(err) {}
             setIsSkipModalOpen(false); setHouseToSkip(null);
         };
 
@@ -1099,6 +1102,21 @@ useEffect(() => {
             setIsDeleteHistoryModalOpen(false); setHistoryToDelete(null);
         };
 
+        const getLatestPostTime = (houseId) => {
+            const p = postTracking[houseId];
+            if (!p) return 0;
+            let maxTime = 0;
+            for (const key in p) {
+                if (!key.startsWith('skippedBy_') && !key.endsWith('_postedBy') && p[key]) {
+                    if (p[key] === assignmentTodayStr) continue; 
+                    const t = new Date(p[key]).getTime();
+                    if (t > maxTime) maxTime = t;
+                }
+            }
+            return maxTime;
+        };
+
+        // 💡 1. ระบบจัดคิวใหม่ กรองบ้านว่างที่แท้จริง
         let activePool = baseSheetData.filter(row => {
             const status = safeTrim(row['สถานะ']), website = safeTrim(row['Website']);
             if (status !== 'ว่าง' && status !== 'ยื่นซ้อน') return false;
@@ -1109,95 +1127,61 @@ useEffect(() => {
             return true;
         });
 
-        const getLatestPostTime = (houseId) => {
-            const p = postTracking[houseId];
-            if (!p) return 0;
-            let maxTime = 0;
-            for (const key in p) {
-                if (key !== 'lastSkippedTimestamp' && p[key]) {
-                    if (p[key] === assignmentTodayStr) continue; 
-                    const t = new Date(p[key]).getTime();
-                    if (t > maxTime) maxTime = t;
-                }
-            }
-            return maxTime;
-        };
+        // 💡 2. จัดเรียงคิวจากบ้านที่ยังไม่เคยโพสต์เลยให้อยู่บนสุด แล้วไล่ลงมาตามลำดับเวลาที่เคยโพสต์
+        const masterQueue = [...activePool].sort((a, b) => {
+            const lastA = getLatestPostTime(a.id);
+            const lastB = getLatestPostTime(b.id);
+            if (lastA !== lastB) return lastA - lastB; 
+            
+            const expA = parseThaiDate(safeTrim(a['หมดสัญญา']) || safeTrim(a['วันหมดสัญญา']));
+            const expB = parseThaiDate(safeTrim(b['หมดสัญญา']) || safeTrim(b['วันหมดสัญญา']));
+            const getScore = (exp) => (exp && !isNaN(exp.getTime())) ? exp.getTime() : Infinity;
+            return getScore(expA) - getScore(expB);
+        });
 
-        const skippedHouses = [], freshHouses = [];
-        activePool.forEach(h => { postTracking[h.id]?.lastSkippedTimestamp ? skippedHouses.push(h) : freshHouses.push(h); });
-        skippedHouses.sort((a, b) => (postTracking[a.id].lastSkippedTimestamp || 0) - (postTracking[b.id].lastSkippedTimestamp || 0));
-        
-        let newestPool = [...freshHouses].sort((a, b) => {
-             const lastA = getLatestPostTime(a.id);
-             const lastB = getLatestPostTime(b.id);
-             if (lastA !== lastB) return lastA - lastB; 
-             // 💡 แก้บั๊ก NaN: ดึง _originalRowId มาใช้เรียงลำดับ
-             const idA = parseInt(String(a._originalRowId || a.id).replace('row_', '')) || 0;
-             const idB = parseInt(String(b._originalRowId || b.id).replace('row_', '')) || 0;
-             return idB - idA;
-        }).concat(skippedHouses);
-        
-        let priorityPool = [...freshHouses].sort((a, b) => {
-             const lastA = getLatestPostTime(a.id);
-             const lastB = getLatestPostTime(b.id);
-             if (lastA !== lastB) return lastA - lastB; 
-             const expA = parseThaiDate(safeTrim(a['หมดสัญญา']) || safeTrim(a['วันหมดสัญญา'])), expB = parseThaiDate(safeTrim(b['หมดสัญญา']) || safeTrim(b['วันหมดสัญญา']));
-             const startA = parseThaiDate(safeTrim(a['เริ่มทำ'])), startB = parseThaiDate(safeTrim(b['เริ่มทำ']));
-             
-             const getScore = (exp, start) => {
-                 if (exp && !isNaN(exp.getTime())) return exp.getTime();
-                 if (start && !isNaN(start.getTime())) return start.getTime() + 10000000000000; return Infinity;
-             };
-
-             const scoreA = getScore(expA, startA);
-             const scoreB = getScore(expB, startB);
-
-             // 💡 ดักจับคะแนนชนกันเพื่อล็อกตำแหน่ง
-             if (scoreA !== scoreB) return scoreA - scoreB;
-             
-             const idA = parseInt(String(a._originalRowId || a.id).replace('row_', '')) || 0;
-             const idB = parseInt(String(b._originalRowId || b.id).replace('row_', '')) || 0;
-             return idA - idB;
-        }).concat(skippedHouses);
-
-        const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'], specificAssignees = ['May', 'Boom', 'Boat', 'Nan'], allAssigneesList = [...generalAssignees, ...specificAssignees];
+        const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'];
+        const specificAssignees = ['May', 'Boom', 'Boat', 'Nan'];
+        const allAssigneesList = [...generalAssignees, ...specificAssignees];
         const scheduleData = [];
         
         const assignedToday = new Set();
-        const specificSchedules = [];
         
+        // 💡 3. แจกจ่ายบ้านให้ทีมเฉพาะบุคคล (Specific)
+        const specificSchedules = [];
         specificAssignees.forEach(name => {
-            const myHouses = priorityPool.filter(row => {
+            const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
+            const myHouses = masterQueue.filter(row => {
                 const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
-                return caretaker.toLowerCase() === name.toLowerCase();
+                const skipTime = postTracking[row.id]?.[userSkipKey] || 0;
+                const isSkippedToday = (Date.now() - skipTime) < (24 * 60 * 60 * 1000);
+                
+                return caretaker.toLowerCase() === name.toLowerCase() && !isSkippedToday;
             }).slice(0, 4); 
             
             myHouses.forEach(h => assignedToday.add(h.id));
             specificSchedules.push({ name, type: 'specific', houses: myHouses });
         });
 
+        // 💡 4. แจกจ่ายบ้านให้ทีมส่วนกลาง (General) แบบแฟร์ๆ และไม่กระทบกัน
         const generalSchedules = [];
-        
+        const usedInGeneralToday = new Set(); 
+
         generalAssignees.forEach(name => {
             const assignedHouses = [];
-            const isPageKlang = name === 'เพจกลาง';
-            const myUsedInLoop = new Set(); 
+            const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
+            const isPageKlang = name === 'เพจกลาง'; 
 
-            for (let i = 0; i < newestPool.length; i++) {
-                const house = newestPool[i];
-                if (!myUsedInLoop.has(house.id) && (isPageKlang || !assignedToday.has(house.id))) { 
-                    assignedHouses.push(house); 
-                    myUsedInLoop.add(house.id); 
-                    if (!isPageKlang) assignedToday.add(house.id);
-                    break; 
-                }
-            }
-            for (let i = 0; i < priorityPool.length && assignedHouses.length < 4; i++) {
-                const house = priorityPool[i];
-                if (!myUsedInLoop.has(house.id) && (isPageKlang || !assignedToday.has(house.id))) { 
-                    assignedHouses.push(house); 
-                    myUsedInLoop.add(house.id); 
-                    if (!isPageKlang) assignedToday.add(house.id);
+            for (const house of masterQueue) {
+                if (assignedHouses.length >= 4) break;
+
+                const skipTime = postTracking[house.id]?.[userSkipKey] || 0;
+                const isSkippedToday = (Date.now() - skipTime) < (24 * 60 * 60 * 1000);
+
+                if (isSkippedToday) continue; 
+
+                if (isPageKlang || (!usedInGeneralToday.has(house.id) && !assignedToday.has(house.id))) {
+                    assignedHouses.push(house);
+                    if (!isPageKlang) usedInGeneralToday.add(house.id); 
                 }
             }
             generalSchedules.push({ name, type: 'general', houses: assignedHouses });
@@ -1205,25 +1189,17 @@ useEffect(() => {
         
         scheduleData.push(...generalSchedules, ...specificSchedules);
 
-        // 💡 ระบบล็อกตารางแช่แข็ง! (ป้องกันบ้านขยับเปลี่ยนหลังเวลามีข้อมูลใหม่แทรก)
         const [finalSchedule, setFinalSchedule] = useState([]);
         
         useEffect(() => {
-            const cacheKey = `daily_locked_schedule_${assignmentTodayStr}`;
-            const cachedStr = localStorage.getItem(cacheKey);
-            
-            const currentSkips = skippedHouses.length;
-            const cachedSkips = parseInt(localStorage.getItem(`${cacheKey}_skips`) || '0');
+            let refreshTrigger = 0;
+            masterQueue.forEach(h => { if(postTracking[h.id]) refreshTrigger++; });
 
-            if (cachedStr && currentSkips === cachedSkips && scheduleData.length > 0) {
-                setFinalSchedule(JSON.parse(cachedStr));
-            } else if (scheduleData.length > 0) {
+            if (scheduleData.length > 0) {
                 setFinalSchedule(scheduleData);
-                localStorage.setItem(cacheKey, JSON.stringify(scheduleData));
-                localStorage.setItem(`${cacheKey}_skips`, currentSkips.toString());
             }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [JSON.stringify(scheduleData), assignmentTodayStr, skippedHouses.length]);
+        }, [assignmentTodayStr, postTracking, sheetData.length]);
 
         const getPriorityLabel = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']), startStr = safeTrim(row['เริ่มทำ']);
@@ -1350,20 +1326,20 @@ useEffect(() => {
                {viewMode === 'daily' ? (
                    <div className="flex-1 overflow-y-auto custom-scrollbar pb-10" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                     <div className="mb-4 bg-brand/5 border border-brand/20 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-    <div className="flex items-center">
-        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-brand shadow-sm mr-3">
-            <Icon name="Clock" size={20} className="animate-pulse" />
-        </div>
-        <div>
-            <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">รีเซ็ตตารางถัดไปใน</p>
-            <p className="text-[18px] font-black text-brand tracking-tight">{timeLeft || "กำลังคำนวณ..."}</p>
-        </div>
-    </div>
-    <div className="text-right hidden sm:block">
-        <p className="text-[11px] font-bold text-brand/60 uppercase">เวลาตัดรอบ</p>
-        <p className="text-[13px] font-bold text-gray-700">09:00 น. ของทุกวัน</p>
-    </div>
-</div>
+                        <div className="flex items-center">
+                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-brand shadow-sm mr-3">
+                                <Icon name="Clock" size={20} className="animate-pulse" />
+                            </div>
+                            <div>
+                                <p className="text-[12px] font-bold text-gray-500 uppercase tracking-wider">รีเซ็ตตารางถัดไปใน</p>
+                                <p className="text-[18px] font-black text-brand tracking-tight">{timeLeft || "กำลังคำนวณ..."}</p>
+                            </div>
+                        </div>
+                        <div className="text-right hidden sm:block">
+                            <p className="text-[11px] font-bold text-brand/60 uppercase">เวลาตัดรอบ</p>
+                            <p className="text-[13px] font-bold text-gray-700">09:00 น. ของทุกวัน</p>
+                        </div>
+                    </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {finalSchedule.map((assignee, idx) => {
                             const completedCount = assignee.houses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
@@ -1471,16 +1447,16 @@ useEffect(() => {
                                                               <div className="flex flex-wrap gap-1.5 max-w-[300px]">
                                                                   {records.map(([assigneeName, dateStr]) => {
                                                                       const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
-        const postedBy = postTracking[row.id]?.[`${assigneeName}_postedBy`];
-        return (
-            <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
-                <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
-                {postedBy && <span className="ml-1 text-[9px] text-brand bg-brand/10 px-1 rounded">กดโดย: {postedBy}</span>}
-                <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
-                    <Icon name="X" size={10} />
-                </button>
-            </span>
-        );
+                                                                      const postedBy = postTracking[row.id]?.[`${assigneeName}_postedBy`];
+                                                                      return (
+                                                                          <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
+                                                                              <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
+                                                                              {postedBy && <span className="ml-1 text-[9px] text-brand bg-brand/10 px-1 rounded">กดโดย: {postedBy}</span>}
+                                                                              <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                                                                  <Icon name="X" size={10} />
+                                                                              </button>
+                                                                          </span>
+                                                                      );
                                                                   })}
                                                               </div>
                                                           ) : <span className="text-[12px] font-medium text-gray-400">ยังไม่เคยโพสต์</span>}
