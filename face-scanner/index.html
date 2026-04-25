@@ -215,6 +215,24 @@
   </div>
   <span class="card-arrow">›</span>
 </a>
+    {/* 📊 ปุ่มดูบันทึกเวลา (Google Sheet) */}
+<a 
+  href="https://docs.google.com/spreadsheets/d/1PlRrrlkYe7xruyqOh4sZoUYygLWjnOJsa3TTrNKeZ1M/edit?usp=sharing" 
+  target="_blank" 
+  rel="noopener noreferrer"
+  className="w-full bg-[#0b3d1b] text-white p-4 rounded-2xl flex items-center justify-between shadow-lg active:scale-95 transition-transform mb-3 border border-white/10"
+>
+  <div className="flex items-center gap-3">
+    <div className="bg-white/20 p-2 rounded-xl">
+      <Icon name="FileSpreadsheet" size={24} className="text-white" />
+    </div>
+    <div className="text-left">
+      <div className="font-bold text-[16px]">ดูบันทึกเวลางาน</div>
+      <div className="text-[12px] opacity-70 font-light">เปิดรายงาน Google Sheet</div>
+    </div>
+  </div>
+  <Icon name="ExternalLink" size={18} className="opacity-50" />
+</a>
 
   <script>
     if (!localStorage.getItem('gasApiUrl') && typeof GAS_API_URL === 'undefined') {
