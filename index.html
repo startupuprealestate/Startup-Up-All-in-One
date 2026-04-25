@@ -1009,6 +1009,7 @@
         );
     };
     
+    // 💡 ฟังก์ชัน PostSchedule ฉบับ "ล็อกไทเทเนียม" ไม่มีวันเคลื่อน!
     const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress, user }) => {
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -1029,16 +1030,12 @@
                 const now = new Date();
                 let target = new Date();
                 target.setHours(9, 0, 0, 0);
-
-                if (now >= target) {
-                    target.setDate(target.getDate() + 1);
-                }
+                if (now >= target) target.setDate(target.getDate() + 1);
 
                 const diff = target - now;
                 const h = Math.floor(diff / (1000 * 60 * 60));
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                 const s = Math.floor((diff % (1000 * 60)) / 1000);
-
                 setTimeLeft(`${h} ชม. ${m} นาที ${s} วินาที`);
             }, 1000);
             return () => clearInterval(timer);
@@ -1073,12 +1070,8 @@
             if (!isFirebaseLoaded) return;
             try { 
                 const updateData = { [assigneeName]: isChecked ? assignmentTodayStr : null };
-                
-                if (isChecked && user) {
-                    updateData[`${assigneeName}_postedBy`] = user.displayName || user.email || 'ทีมงาน';
-                } else if (!isChecked) {
-                    updateData[`${assigneeName}_postedBy`] = null; 
-                }
+                if (isChecked && user) updateData[`${assigneeName}_postedBy`] = user.displayName || user.email || 'ทีมงาน';
+                else if (!isChecked) updateData[`${assigneeName}_postedBy`] = null; 
                 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", rowId), updateData, { merge: true }); 
             } catch(err) {}
@@ -1088,7 +1081,6 @@
         const executeSkip = async () => {
             if (!houseToSkip || !isFirebaseLoaded) return;
             try { 
-                // 💡 จำประวัติการข้ามแยกเป็นรายบุคคลแทน
                 const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", houseToSkip.id), { [userSkipKey]: Date.now() }, { merge: true }); 
             } catch(err) {}
@@ -1116,7 +1108,7 @@
             return maxTime;
         };
 
-        // 💡 1. ระบบจัดคิวใหม่ กรองบ้านว่างที่แท้จริง
+        // --- เริ่มต้นจัดคิว ---
         let activePool = baseSheetData.filter(row => {
             const status = safeTrim(row['สถานะ']), website = safeTrim(row['Website']);
             if (status !== 'ว่าง' && status !== 'ยื่นซ้อน') return false;
@@ -1127,7 +1119,6 @@
             return true;
         });
 
-        // 💡 2. จัดเรียงคิวจากบ้านที่ยังไม่เคยโพสต์เลยให้อยู่บนสุด แล้วไล่ลงมาตามลำดับเวลาที่เคยโพสต์
         const masterQueue = [...activePool].sort((a, b) => {
             const lastA = getLatestPostTime(a.id);
             const lastB = getLatestPostTime(b.id);
@@ -1143,10 +1134,8 @@
         const specificAssignees = ['May', 'Boom', 'Boat', 'Nan'];
         const allAssigneesList = [...generalAssignees, ...specificAssignees];
         const scheduleData = [];
-        
         const assignedToday = new Set();
         
-        // 💡 3. แจกจ่ายบ้านให้ทีมเฉพาะบุคคล (Specific)
         const specificSchedules = [];
         specificAssignees.forEach(name => {
             const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
@@ -1154,7 +1143,6 @@
                 const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
                 const skipTime = postTracking[row.id]?.[userSkipKey] || 0;
                 const isSkippedToday = (Date.now() - skipTime) < (24 * 60 * 60 * 1000);
-                
                 return caretaker.toLowerCase() === name.toLowerCase() && !isSkippedToday;
             }).slice(0, 4); 
             
@@ -1162,7 +1150,6 @@
             specificSchedules.push({ name, type: 'specific', houses: myHouses });
         });
 
-        // 💡 4. แจกจ่ายบ้านให้ทีมส่วนกลาง (General) แบบแฟร์ๆ และไม่กระทบกัน
         const generalSchedules = [];
         const usedInGeneralToday = new Set(); 
 
@@ -1173,10 +1160,8 @@
 
             for (const house of masterQueue) {
                 if (assignedHouses.length >= 4) break;
-
                 const skipTime = postTracking[house.id]?.[userSkipKey] || 0;
                 const isSkippedToday = (Date.now() - skipTime) < (24 * 60 * 60 * 1000);
-
                 if (isSkippedToday) continue; 
 
                 if (isPageKlang || (!usedInGeneralToday.has(house.id) && !assignedToday.has(house.id))) {
@@ -1188,18 +1173,49 @@
         });
         
         scheduleData.push(...generalSchedules, ...specificSchedules);
+        const scheduleDataStr = JSON.stringify(scheduleData);
 
+        // 🛡️🛡️🛡️ ระบบล็อกไทเทเนียม (Titanium Lock) 🛡️🛡️🛡️
         const [finalSchedule, setFinalSchedule] = useState([]);
         
         useEffect(() => {
-            let refreshTrigger = 0;
-            masterQueue.forEach(h => { if(postTracking[h.id]) refreshTrigger++; });
+            if (viewMode !== 'daily') return;
 
+            const cacheKey = `titanium_lock_v1_${assignmentTodayStr}_${user?.uid || 'guest'}`;
+            const skipCacheKey = `titanium_skip_v1_${assignmentTodayStr}_${user?.uid || 'guest'}`;
+
+            // นับจำนวนการข้าม (Skip) ของพนักงานคนนี้ในวันนี้
+            const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
+            let currentSkips = 0;
+            Object.values(postTracking).forEach(tracking => {
+                if (tracking[userSkipKey] && (Date.now() - tracking[userSkipKey]) < 86400000) {
+                    currentSkips++;
+                }
+            });
+
+            const cachedStr = localStorage.getItem(cacheKey);
+            const cachedSkips = parseInt(localStorage.getItem(skipCacheKey) || '0');
+
+            // 🛑 กฎเหล็ก: ถ้ามีไฟล์ความจำของวันนี้อยู่แล้ว และ ไม่ได้มีการกดปุ่มข้ามเพิ่มเติม ให้ใช้ความจำเดิม 100% 
+            // เมินฐานข้อมูลที่ถูกลบไปเลย!
+            if (cachedStr && currentSkips === cachedSkips) {
+                const parsedData = JSON.parse(cachedStr);
+                if (parsedData && parsedData.length > 0) {
+                    setFinalSchedule(parsedData);
+                    return; // สั่งหยุดโค้ดตรงนี้เลย ไม่ต้องรันต่อ
+                }
+            }
+
+            // ถ้าเพิ่งเข้าแอปครั้งแรกของวัน หรือ เพิ่งกดข้าม ถึงจะยอมจัดคิวใหม่
             if (scheduleData.length > 0) {
                 setFinalSchedule(scheduleData);
+                localStorage.setItem(cacheKey, JSON.stringify(scheduleData));
+                localStorage.setItem(skipCacheKey, currentSkips.toString());
             }
+
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [assignmentTodayStr, postTracking, sheetData.length]);
+        }, [assignmentTodayStr, postTracking, user, viewMode, scheduleDataStr]); 
+        // 👆 (ซ่อนการดึงข้อมูลจาก Sheet ออกจาก Dependency)
 
         const getPriorityLabel = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']), startStr = safeTrim(row['เริ่มทำ']);
