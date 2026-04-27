@@ -221,11 +221,9 @@
             // 💡 ระบบกำจัด "ร่างโคลน" (กรองข้อมูลที่ซ้ำกันให้เหลือแค่ 1 หลัง)
             const uniqueMap = new Map();
             validRows.forEach(row => {
-                // ถ้ายังไม่มีรหัสบ้านนี้ในตระกร้า ให้เก็บไว้ (ถ้ามีแล้ว แปลว่าซ้ำ ให้โยนทิ้ง)
                 if (!uniqueMap.has(row.id)) {
                     uniqueMap.set(row.id, row);
                 } else {
-                    // (Optional) เลือกร่างโคลนที่อยู่บนสุดของ Sheet เป็นหลัก
                     const existingRow = uniqueMap.get(row.id);
                     const existingIdNum = parseInt(String(existingRow._originalRowId || existingRow.id).replace('row_', '')) || Infinity;
                     const currentIdNum = parseInt(String(row._originalRowId || row.id).replace('row_', '')) || Infinity;
@@ -233,8 +231,13 @@
                 }
             });
             
-            // เรียงลำดับแถวให้ตรงกับ Google Sheet แป๊ะๆ
-            return Array.from(uniqueMap.values()).sort((a, b) => (parseInt((a._originalRowId || a.id).replace('row_', '')) || 0) - (parseInt((b._originalRowId || b.id).replace('row_', '')) || 0));
+            // ✅ บรรทัดนี้คือหัวใจสำคัญ: สั่งให้เรียงลำดับตามแถวใน Google Sheet (rowOrder)
+            // ถ้าไม่มี rowOrder ให้ใช้เลขจาก _originalRowId (row_2, row_3...) มาเรียงแทนค่ะ
+            return Array.from(uniqueMap.values()).sort((a, b) => {
+                const orderA = parseInt(a.rowOrder) || parseInt(String(a._originalRowId || '').replace('row_', '')) || 0;
+                const orderB = parseInt(b.rowOrder) || parseInt(String(b._originalRowId || '').replace('row_', '')) || 0;
+                return orderA - orderB;
+            });
         };
     const getFormattedDateThai = (dStr) => { if (!dStr) return ''; const [y, m, d] = dStr.split('-'); return `${parseInt(d, 10)} ${MONTHS_TH[parseInt(m, 10) - 1]} ${parseInt(y, 10) + 543}`; };
     const parseThaiDate = (dStr) => {
