@@ -218,7 +218,6 @@
     const getValidSheetData = (d) => {
             const validRows = d.filter(r => r.id !== 'test_ping' && r['หมู่บ้าน'] !== 'Connected OK!' && Object.keys(r).some(k => k !== 'id' && k !== '_originalRowId' && safeTrim(r[k]) !== '') && (safeTrim(r['หมู่บ้าน']) || safeTrim(r['บ้านเลขที่'])));
             
-            // 💡 ระบบกำจัด "ร่างโคลน" (กรองข้อมูลที่ซ้ำกันให้เหลือแค่ 1 หลัง)
             const uniqueMap = new Map();
             validRows.forEach(row => {
                 if (!uniqueMap.has(row.id)) {
@@ -231,12 +230,11 @@
                 }
             });
             
-            // ✅ บรรทัดนี้คือหัวใจสำคัญ: สั่งให้เรียงลำดับตามแถวใน Google Sheet (rowOrder)
-            // ถ้าไม่มี rowOrder ให้ใช้เลขจาก _originalRowId (row_2, row_3...) มาเรียงแทนค่ะ
+            // ✅ บรรทัดนี้จะเรียงลำดับโดยบังคับให้เป็นตัวเลขเสมอ
             return Array.from(uniqueMap.values()).sort((a, b) => {
-                const orderA = parseInt(a.rowOrder) || parseInt(String(a._originalRowId || '').replace('row_', '')) || 0;
-                const orderB = parseInt(b.rowOrder) || parseInt(String(b._originalRowId || '').replace('row_', '')) || 0;
-                return orderA - orderB;
+                const valA = Number(a.rowOrder) || 0;
+                const valB = Number(b.rowOrder) || 0;
+                return valA - valB;
             });
         };
     const getFormattedDateThai = (dStr) => { if (!dStr) return ''; const [y, m, d] = dStr.split('-'); return `${parseInt(d, 10)} ${MONTHS_TH[parseInt(m, 10) - 1]} ${parseInt(y, 10) + 543}`; };
