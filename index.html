@@ -224,16 +224,21 @@
                     uniqueMap.set(row.id, row);
                 } else {
                     const existingRow = uniqueMap.get(row.id);
+                    // เก็บหลังที่อยู่บรรทัดบนๆ ของ Sheet ไว้
                     const existingIdNum = parseInt(String(existingRow._originalRowId || existingRow.id).replace('row_', '')) || Infinity;
                     const currentIdNum = parseInt(String(row._originalRowId || row.id).replace('row_', '')) || Infinity;
                     if (currentIdNum < existingIdNum) uniqueMap.set(row.id, row);
                 }
             });
             
-            // ✅ บรรทัดนี้จะเรียงลำดับโดยบังคับให้เป็นตัวเลขเสมอ
+            // ✅ เวอร์ชันจัดระเบียบใหม่: บังคับทุกอย่างให้เป็นตัวเลขก่อนเทียบกัน
             return Array.from(uniqueMap.values()).sort((a, b) => {
-                const valA = Number(a.rowOrder) || 0;
-                const valB = Number(b.rowOrder) || 0;
+                // 1. ลองใช้ rowOrder ก่อน
+                // 2. ถ้าไม่มี rowOrder ให้ไปแกะเลขจาก _originalRowId (เช่น row_5 -> 5)
+                // 3. ถ้าไม่มีทั้งคู่ ให้บรรทัดนั้นไปอยู่ท้ายสุด (999)
+                const valA = Number(a.rowOrder) || Number(String(a._originalRowId || '').replace('row_', '')) || 999;
+                const valB = Number(b.rowOrder) || Number(String(b._originalRowId || '').replace('row_', '')) || 999;
+                
                 return valA - valB;
             });
         };
