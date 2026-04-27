@@ -96,7 +96,33 @@
     
     window.firebaseAPI = { collection, onSnapshot, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getToken, onMessage, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
     
-    window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/"; 
+    window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/";
+    window.syncToZoneSheet = (action, docId, rowInfo, currentProg) => {
+        // 🚩 เอาลิงก์ Web App URL (ที่ได้จากการ Deploy GAS) มาใส่ในเครื่องหมายคำพูดด้านล่างนี้ค่ะ
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzXy7FI8XGruLEEySRqGFQNGoxHwdtzWktIuuRSQ2aaUMlBvpc0vobF6-naOPCscYVrxQ/exec"; 
+        
+        if (GAS_URL === "https://script.google.com/macros/s/AKfycbzXy7FI8XGruLEEySRqGFQNGoxHwdtzWktIuuRSQ2aaUMlBvpc0vobF6-naOPCscYVrxQ/exec") return;
+        
+        const dataToSend = {
+            docId: docId,
+            'หมู่บ้าน': rowInfo?.['หมู่บ้าน'] || '',
+            'บ้านเลขที่': rowInfo?.['บ้านเลขที่'] || '',
+            'ซอย': rowInfo?.['ซอย'] || '',
+            'ทำเล': rowInfo?.['ทำเล'] || '',
+            'ราคา': rowInfo?.['ราคา'] || '',
+            'สถานะ': rowInfo?.['สถานะ'] || '',
+            'ผู้ดูแลบ้าน': currentProg?.caretaker || '',
+            'ระดับการขาย': currentProg?.salesLevel || '',
+            'สถานะการถ่ายคลิป': currentProg?.isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'
+        };
+
+        fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors', // ใส่เพิ่มเพื่อกันบล็อกหน้าแอป
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action, data: dataToSend })
+        }).catch(e => console.log("Sync error:", e));
+    };
     window.dispatchEvent(new Event('firebaseLoaded'));
   </script>
 </head>
@@ -729,6 +755,8 @@
             if (!isFirebaseLoaded) return;
             try { 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
+                
+                // 🔔 1. โค้ดเดิม: ระบบแจ้งเตือนเมื่อบ้านทำเสร็จ
                 if (data.finishedDate) {
                     const rowInfo = validSheetData.find(r => r.id === rowId);
                     if (rowInfo) {
@@ -740,6 +768,14 @@
                         }).catch(e => console.log('Vercel API error', e));
                     }
                 }
+
+                // 🚀 2. โค้ดใหม่: อัปเดตข้อมูลไปที่หน้า Sheet "Zoneบ้าน" แบบ Real-time
+                const rowInfoSync = validSheetData.find(r => r.id === rowId);
+                const currentProg = { ...constructionProgress[rowId], ...data };
+                if (window.syncToZoneSheet) {
+                    window.syncToZoneSheet('edit', rowId, rowInfoSync, currentProg);
+                }
+                
             } catch(err) {}
         };
 
@@ -2379,6 +2415,14 @@ ${promptAction}`;
             if (!isFirebaseLoaded) return;
             try { 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
+                
+                // 🚀 เพิ่มแค่ระบบยิงไปอัปเดต Sheet "Zoneบ้าน" อย่างเดียวพอค่ะ
+                const rowInfoSync = validSheetData.find(r => r.id === rowId);
+                const currentProg = { ...constructionProgress[rowId], ...data };
+                if (window.syncToZoneSheet) {
+                    window.syncToZoneSheet('edit', rowId, rowInfoSync, currentProg);
+                }
+                
             } catch(err) {}
         };
 
