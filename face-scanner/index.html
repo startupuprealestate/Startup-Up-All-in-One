@@ -392,51 +392,54 @@
     }
 
     function renderTable(elementId, data, type) {
-      const body = document.getElementById(elementId);
-      if (!data || data.length === 0) {
-        const colSpan = type === 'att' ? 5 : 4;
-        body.innerHTML = `<tr><td colspan="${colSpan}" class="p-8 text-center text-slate-400 text-[14px] border-b border-slate-100">ไม่มีข้อมูลวันนี้</td></tr>`;
-        return;
-      }
+  const body = document.getElementById(elementId);
+  if (!data || data.length === 0) {
+    const colSpan = type === 'att' ? 5 : 4;
+    body.innerHTML = `<tr><td colspan="${colSpan}" class="p-8 text-center text-slate-400 text-[14px]">ไม่มีข้อมูลวันนี้</td></tr>`;
+    return;
+  }
 
-      body.innerHTML = data.map(row => {
-        const timeIn = formatTime(row['เวลาเข้า'] || row['เวลา']);
-        const timeOut = formatTime(row['เวลาออก']);
-        
-        const linkColor = type === 'att' ? 'text-[#065f46] hover:text-[#047857]' : 'text-teal-600 hover:text-teal-800';
+  body.innerHTML = data.map(row => {
+    // 1. ดึงเวลา (GAS ส่งมาในชื่อ "เวลา" สำหรับ Site และ "เวลาเข้า" สำหรับ Attendance)
+    const timeIn = formatTime(row['เวลา'] || row['เวลาเข้า']);
+    const timeOut = formatTime(row['เวลาออก']);
+    
+    // 2. ดึงพิกัด (ดึงจาก "Google Map Link" ตามที่ระบุใน GAS)
+    const mapUrl = row['Google Map Link'];
+    
+    const linkColor = type === 'att' ? 'text-[#065f46]' : 'text-teal-600';
 
-        // ปุ่ม "ดูพิกัด"
-        const mapLink = row['Google Map Link'] 
-          ? `<a href="${row['Google Map Link']}" target="_blank" class="text-[11px] sm:text-[14px] ${linkColor} underline decoration-1 underline-offset-2 sm:underline-offset-4 transition-colors whitespace-nowrap">ดูพิกัด</a>` 
-          : `<span class="text-slate-300 text-[11px] sm:text-[14px]">-</span>`;
+    const mapLink = mapUrl 
+      ? `<a href="${mapUrl}" target="_blank" class="${linkColor} text-[11px] sm:text-[14px] underline decoration-1 underline-offset-4">ดูพิกัด</a>` 
+      : `<span class="text-slate-300">-</span>`;
 
-        // ปุ่ม "ดูหมายเหตุ"
-        const rawRemark = row['หมายเหตุ'] || '';
-        const safeRemark = encodeURIComponent(rawRemark).replace(/'/g, "%27");
-        const remarkBtn = rawRemark.trim() !== ''
-          ? `<button onclick="openRemark('${safeRemark}')" class="text-[11px] sm:text-[14px] ${linkColor} underline decoration-1 underline-offset-2 sm:underline-offset-4 bg-transparent border-none p-0 cursor-pointer transition-colors outline-none whitespace-nowrap">ดูหมายเหตุ</button>`
-          : `<span class="text-slate-300 text-[11px] sm:text-[14px]">-</span>`;
+    // 3. ดึงหมายเหตุ
+    const rawRemark = row['หมายเหตุ'] || '';
+    const safeRemark = encodeURIComponent(rawRemark).replace(/'/g, "%27");
+    const remarkBtn = rawRemark.trim() !== ''
+      ? `<button onclick="openRemark('${safeRemark}')" class="${linkColor} text-[11px] sm:text-[14px] underline decoration-1 underline-offset-4">ดูหมายเหตุ</button>`
+      : `<span class="text-slate-300">-</span>`;
 
-        if (type === 'att') {
-          return `
-            <tr class="hover:bg-slate-50 transition-colors group">
-              <td class="border-y border-r border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-[11px] sm:text-[14px] font-medium text-slate-700 text-center whitespace-nowrap first:border-l-0">${timeIn}</td>
-              <td class="border border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-[11px] sm:text-[14px] font-medium text-slate-700 text-center whitespace-nowrap">${timeOut}</td>
-              <td class="border border-slate-200 px-2 sm:px-4 py-2 sm:py-3 text-[12px] sm:text-[14px] text-slate-800 font-medium break-words leading-tight sm:leading-normal">${row['ชื่อ'] || '-'}</td>
-              <td class="border border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle">${mapLink}</td>
-              <td class="border-y border-l border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle last:border-r-0">${remarkBtn}</td>
-            </tr>`;
-        } else {
-          return `
-            <tr class="hover:bg-slate-50 transition-colors group">
-              <td class="border-y border-r border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-[11px] sm:text-[14px] font-medium text-slate-700 text-center whitespace-nowrap first:border-l-0">${timeIn}</td>
-              <td class="border border-slate-200 px-2 sm:px-4 py-2 sm:py-3 text-[12px] sm:text-[14px] text-slate-800 font-medium break-words leading-tight sm:leading-normal">${row['ชื่อ'] || '-'}</td>
-              <td class="border border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle">${mapLink}</td>
-              <td class="border-y border-l border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle last:border-r-0">${remarkBtn}</td>
-            </tr>`;
-        }
-      }).join('');
+    if (type === 'att') {
+      return `
+        <tr class="hover:bg-slate-50">
+          <td class="border-y border-r border-slate-200 px-1 py-2 text-[11px] sm:text-[14px] text-center">${timeIn}</td>
+          <td class="border border-slate-200 px-1 py-2 text-[11px] sm:text-[14px] text-center">${timeOut}</td>
+          <td class="border border-slate-200 px-2 py-2 text-[12px] sm:text-[14px] font-medium">${row['ชื่อ'] || '-'}</td>
+          <td class="border border-slate-200 px-1 py-2 text-center">${mapLink}</td>
+          <td class="border-y border-l border-slate-200 px-1 py-2 text-center">${remarkBtn}</td>
+        </tr>`;
+    } else {
+      return `
+        <tr class="hover:bg-slate-50">
+          <td class="border-y border-r border-slate-200 px-1 py-2 text-[11px] sm:text-[14px] text-center">${timeIn}</td>
+          <td class="border border-slate-200 px-2 py-2 text-[12px] sm:text-[14px] font-medium">${row['ชื่อ'] || '-'}</td>
+          <td class="border border-slate-200 px-1 py-2 text-center">${mapLink}</td>
+          <td class="border-y border-l border-slate-200 px-1 py-2 text-center">${remarkBtn}</td>
+        </tr>`;
     }
+  }).join('');
+}
 
     // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
     loadTodayData();
