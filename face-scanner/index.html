@@ -7,7 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="js/api-config.js"></script>
+  <!-- นำเข้า Tailwind CSS สำหรับตาราง -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- ถ้ามีไฟล์นี้อยู่ ให้เปิดใช้งานได้เลย -->
+  <!-- <script src="js/api-config.js"></script> -->
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -119,6 +122,7 @@
     .btn-menu:nth-child(1) { animation-delay: 0.1s; }
     .btn-menu:nth-child(2) { animation-delay: 0.2s; }
     .btn-menu:nth-child(3) { animation-delay: 0.3s; }
+    .btn-menu:nth-child(4) { animation-delay: 0.4s; }
 
     .btn-menu:hover {
       transform: translateY(-3px);
@@ -152,8 +156,24 @@
     }
     .btn-menu:hover .card-arrow { transform: translateX(4px); color: #0b3d1b; }
 
+    /* Custom Scrollbar สำหรับตาราง */
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1; 
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1; 
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8; 
+    }
+
     /* Animations */
-    @keyframes fadeIn    { from { opacity: 0; }                      to { opacity: 1; } }
+    @keyframes fadeIn    { from { opacity: 0; }                     to { opacity: 1; } }
     @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes fadeInUp  { from { opacity: 0; transform: translateY(20px);  } to { opacity: 1; transform: translateY(0); } }
   </style>
@@ -179,6 +199,7 @@
     <a href="config.html">ไปตั้งค่าก่อน</a>
   </div>
 
+  <!-- ส่วนเมนูหลัก -->
   <div class="menu-cards">
     <a href="register.html" class="btn-menu btn-register">
       <div class="card-icon">👤</div>
@@ -208,28 +229,225 @@
     </a>
     
     <a href="config.html" id="admin-config-card" class="btn-menu btn-config" style="display: none;">
-  <div class="card-icon">⚙️</div>
-  <div class="card-text">
-    <div class="card-title">ตั้งค่าระบบ</div>
-    <div class="card-desc">จัดการ GPS และ API (Admin)</div>
-  </div>
-  <span class="card-arrow">›</span>
-</a>
-    <a href="https://docs.google.com/spreadsheets/d/1PlRrrlkYe7xruyqOh4sZoUYygLWjnOJsa3TTrNKeZ1M/edit?usp=sharing" target="_blank" rel="noopener noreferrer" class="btn-menu" style="background: #0b3d1b; border: none;">
-      <div class="card-icon" style="background: rgba(255,255,255,0.15); color: #ffffff; border: none;">📊</div>
+      <div class="card-icon">⚙️</div>
       <div class="card-text">
-        <div class="card-title" style="color: #ffffff;">ดูบันทึกเวลางาน</div>
-        <div class="card-desc" style="color: rgba(255,255,255,0.7);">เปิดรายงาน Google Sheet</div>
+        <div class="card-title">ตั้งค่าระบบ</div>
+        <div class="card-desc">จัดการ GPS และ API (Admin)</div>
       </div>
-      <span class="card-arrow" style="color: rgba(255,255,255,0.5);">↗</span>
+      <span class="card-arrow">›</span>
     </a>
-  </div> ```
+  </div>
 
+  <!-- ================= ส่วนตารางรายงาน Dashboard (อยู่ใต้เมนู) ================= -->
+  <div class="w-full max-w-4xl mt-12 space-y-8 animate-[fadeInUp_0.6s_ease_both]">
+    
+    <!-- 1. ตารางพนักงานที่มาทำงานประจำวัน -->
+    <div class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,95,70,0.15)] border border-slate-200 overflow-hidden relative">
+      <div class="absolute top-0 left-0 w-1 h-full bg-[#065f46]"></div>
+      <div class="bg-white px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-slate-800 font-semibold text-[15px] flex items-center gap-2 flex-wrap">
+          <span class="text-[#065f46] text-lg">🕒</span> 
+          พนักงานที่มาทำงานประจำวันที่ 
+          <span id="todayDateLabel" class="ml-1 text-[#065f46] font-bold bg-[#ebfbf1] px-2 py-0.5 rounded-md border border-[#bbf7d0]">--/--/----</span>
+        </h3>
+      </div>
+      <div class="overflow-x-auto custom-scrollbar p-0">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-[#ebfbf1]">
+              <th class="border-y border-r border-[#bbf7d0] px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-[#065f46] text-center whitespace-nowrap first:border-l-0">เวลาเข้า</th>
+              <th class="border border-[#bbf7d0] px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-[#065f46] text-center whitespace-nowrap">เวลาออก</th>
+              <th class="border border-[#bbf7d0] px-2 sm:px-4 py-2 sm:py-3.5 text-[12px] sm:text-[14px] font-semibold text-[#065f46] text-center w-full sm:w-1/3">ชื่อพนักงาน</th>
+              <th class="border border-[#bbf7d0] px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-[#065f46] text-center whitespace-nowrap">แผนที่</th>
+              <th class="border-y border-l border-[#bbf7d0] px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-[#065f46] text-center whitespace-nowrap last:border-r-0">หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody id="attendanceBody" class="bg-white">
+            <tr>
+              <td colspan="5" class="p-8 text-center">
+                <div class="flex flex-col items-center justify-center text-slate-400 space-y-2">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-[#065f46]"></div>
+                  <span class="text-[14px]">กำลังโหลดข้อมูล...</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. ตารางเช็กอินหน้างาน -->
+    <div class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(20,184,166,0.1)] border border-slate-200 overflow-hidden relative">
+      <div class="absolute top-0 left-0 w-1 h-full bg-teal-500"></div>
+      <div class="bg-white px-5 py-4 border-b border-slate-200">
+        <h3 class="text-slate-800 font-semibold text-[15px] flex items-center gap-2 flex-wrap">
+          <span class="text-teal-500 text-lg">📍</span> 
+          เช็กอินหน้างานประจำวันที่ 
+          <span id="todayDateLabelSite" class="ml-1 text-teal-600 font-bold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">--/--/----</span>
+        </h3>
+      </div>
+      <div class="overflow-x-auto custom-scrollbar p-0">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-teal-50/80">
+              <th class="border-y border-r border-teal-100 px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-teal-800 text-center whitespace-nowrap first:border-l-0">เวลา</th>
+              <th class="border border-teal-100 px-2 sm:px-4 py-2 sm:py-3.5 text-[12px] sm:text-[14px] font-semibold text-teal-800 text-center w-full sm:w-2/5">ชื่อพนักงาน</th>
+              <th class="border border-teal-100 px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-teal-800 text-center whitespace-nowrap">แผนที่</th>
+              <th class="border-y border-l border-teal-100 px-1 sm:px-4 py-2 sm:py-3.5 text-[11px] sm:text-[14px] font-semibold text-teal-800 text-center whitespace-nowrap last:border-r-0">หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody id="siteCheckinBody" class="bg-white">
+            <tr>
+              <td colspan="4" class="p-8 text-center">
+                <div class="flex flex-col items-center justify-center text-slate-400 space-y-2">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-500"></div>
+                  <span class="text-[14px]">กำลังโหลดข้อมูล...</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal สำหรับหมายเหตุ -->
+  <div id="remarkModal" class="hidden fixed inset-0 z-[9999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden transform scale-100 transition-transform">
+      <div class="bg-gradient-to-r from-[#ebfbf1] to-white px-5 py-3.5 flex justify-between items-center border-b border-slate-200">
+        <h3 class="text-slate-800 font-semibold text-[15px] flex items-center gap-2">
+          <span class="text-[#065f46] text-lg">💬</span> ข้อความหมายเหตุ
+        </h3>
+        <button onclick="closeRemark()" class="text-slate-400 hover:text-red-500 transition-colors font-bold p-1 text-xl leading-none outline-none">
+          &times;
+        </button>
+      </div>
+      <div class="p-6 bg-white min-h-[120px] flex items-center justify-center">
+        <p id="remarkModalTextDisplay" class="text-slate-700 text-[15px] text-center w-full break-words leading-relaxed"></p>
+      </div>
+      <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-center">
+        <button onclick="closeRemark()" class="px-6 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium rounded-lg text-[14px] shadow-sm transition-all focus:ring-2 focus:ring-slate-200 outline-none">
+          ปิดหน้าต่าง
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts สำหรับการทำงานของ Dashboard -->
   <script>
+    // ตรวจสอบการตั้งค่า API (มาจากโค้ดเดิม)
     if (!localStorage.getItem('gasApiUrl') && typeof GAS_API_URL === 'undefined') {
       document.getElementById('apiWarning').style.display = 'block';
     }
+
+    // --- ส่วนการทำงานของตาราง Dashboard ---
+    // ตั้งค่าหัวข้อวันที่
+    const now = new Date();
+    const dateString = now.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    document.getElementById('todayDateLabel').innerText = dateString;
+    document.getElementById('todayDateLabelSite').innerText = dateString;
+
+    // ฟังก์ชันเปิด-ปิด Pop-up หมายเหตุ
+    window.openRemark = function(encodedText) {
+      document.getElementById('remarkModalTextDisplay').innerText = decodeURIComponent(encodedText);
+      const modal = document.getElementById('remarkModal');
+      modal.classList.remove('hidden');
+    };
+    
+    window.closeRemark = function() {
+      const modal = document.getElementById('remarkModal');
+      modal.classList.add('hidden');
+    };
+
+    // แปลงเวลาให้ถูกต้อง
+    function formatTime(timeStr) {
+      if (!timeStr || timeStr === '-') return '<span class="text-slate-300">-</span>';
+      if (timeStr.includes('T') && timeStr.includes('Z')) {
+        try {
+          const date = new Date(timeStr);
+          return `${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} น.`;
+        } catch(e) { return timeStr; }
+      }
+      if (typeof timeStr === 'string' && timeStr.includes(':')) {
+        const parts = timeStr.split(':');
+        if (parts.length >= 2) return `${parts[0]}:${parts[1]} น.`;
+      }
+      return timeStr;
+    }
+
+    async function loadTodayData() {
+      // 🚨 วาง SCRIPT_URL อันล่าสุดของไฟล์ All in One ตรงนี้
+      const GAS_URL = "https://script.google.com/macros/s/AKfycbzXy7FI8XGruLEEySRqGFQNGoxHwdtzWktIuuRSQ2aaUMlBvpc0vobF6-naOPCscYVrxQ/exec";
+
+      try {
+        const resAtt = await fetch(GAS_URL + "?action=getTodayAttendance");
+        const dataAtt = await resAtt.json();
+        renderTable('attendanceBody', dataAtt, 'att');
+
+        const resSite = await fetch(GAS_URL + "?action=getTodaySiteCheckin");
+        const dataSite = await resSite.json();
+        renderTable('siteCheckinBody', dataSite, 'site');
+      } catch (e) {
+        console.error("Load Error:", e);
+        document.getElementById('attendanceBody').innerHTML = `<tr><td colspan="5" class="p-6 text-center text-red-500 text-[14px]">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
+        document.getElementById('siteCheckinBody').innerHTML = `<tr><td colspan="4" class="p-6 text-center text-red-500 text-[14px]">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>`;
+      }
+    }
+
+    function renderTable(elementId, data, type) {
+      const body = document.getElementById(elementId);
+      if (!data || data.length === 0) {
+        const colSpan = type === 'att' ? 5 : 4;
+        body.innerHTML = `<tr><td colspan="${colSpan}" class="p-8 text-center text-slate-400 text-[14px] border-b border-slate-100">ไม่มีข้อมูลวันนี้</td></tr>`;
+        return;
+      }
+
+      body.innerHTML = data.map(row => {
+        const timeIn = formatTime(row['เวลาเข้า'] || row['เวลา']);
+        const timeOut = formatTime(row['เวลาออก']);
+        
+        const linkColor = type === 'att' ? 'text-[#065f46] hover:text-[#047857]' : 'text-teal-600 hover:text-teal-800';
+
+        // ปุ่ม "ดูพิกัด"
+        const mapLink = row['Google Map Link'] 
+          ? `<a href="${row['Google Map Link']}" target="_blank" class="text-[11px] sm:text-[14px] ${linkColor} underline decoration-1 underline-offset-2 sm:underline-offset-4 transition-colors whitespace-nowrap">ดูพิกัด</a>` 
+          : `<span class="text-slate-300 text-[11px] sm:text-[14px]">-</span>`;
+
+        // ปุ่ม "ดูหมายเหตุ"
+        const rawRemark = row['หมายเหตุ'] || '';
+        const safeRemark = encodeURIComponent(rawRemark).replace(/'/g, "%27");
+        const remarkBtn = rawRemark.trim() !== ''
+          ? `<button onclick="openRemark('${safeRemark}')" class="text-[11px] sm:text-[14px] ${linkColor} underline decoration-1 underline-offset-2 sm:underline-offset-4 bg-transparent border-none p-0 cursor-pointer transition-colors outline-none whitespace-nowrap">ดูหมายเหตุ</button>`
+          : `<span class="text-slate-300 text-[11px] sm:text-[14px]">-</span>`;
+
+        if (type === 'att') {
+          return `
+            <tr class="hover:bg-slate-50 transition-colors group">
+              <td class="border-y border-r border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-[11px] sm:text-[14px] font-medium text-slate-700 text-center whitespace-nowrap first:border-l-0">${timeIn}</td>
+              <td class="border border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-[11px] sm:text-[14px] font-medium text-slate-700 text-center whitespace-nowrap">${timeOut}</td>
+              <td class="border border-slate-200 px-2 sm:px-4 py-2 sm:py-3 text-[12px] sm:text-[14px] text-slate-800 font-medium break-words leading-tight sm:leading-normal">${row['ชื่อ'] || '-'}</td>
+              <td class="border border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle">${mapLink}</td>
+              <td class="border-y border-l border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle last:border-r-0">${remarkBtn}</td>
+            </tr>`;
+        } else {
+          return `
+            <tr class="hover:bg-slate-50 transition-colors group">
+              <td class="border-y border-r border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-[11px] sm:text-[14px] font-medium text-slate-700 text-center whitespace-nowrap first:border-l-0">${timeIn}</td>
+              <td class="border border-slate-200 px-2 sm:px-4 py-2 sm:py-3 text-[12px] sm:text-[14px] text-slate-800 font-medium break-words leading-tight sm:leading-normal">${row['ชื่อ'] || '-'}</td>
+              <td class="border border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle">${mapLink}</td>
+              <td class="border-y border-l border-slate-200 px-1 sm:px-4 py-2 sm:py-3 text-center align-middle last:border-r-0">${remarkBtn}</td>
+            </tr>`;
+        }
+      }).join('');
+    }
+
+    // โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า
+    loadTodayData();
+    setInterval(loadTodayData, 60000);
   </script>
+
+  <!-- Script Firebase (มาจากโค้ดเดิม) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
@@ -255,6 +473,6 @@
             document.getElementById('admin-config-card').style.display = 'none';
         }
     });
-</script>
+  </script>
 </body>
 </html>
