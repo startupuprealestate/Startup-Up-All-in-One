@@ -1053,7 +1053,7 @@
         );
     };
     
-    // 💡 ฟังก์ชัน PostSchedule ฉบับ "ล็อกไทเทเนียม" ไม่มีวันเคลื่อน!
+    // 💡 ระบบ PostSchedule ฉบับ "จัดคิวล็อคตายตัว" (ไม่มีวันเคลื่อน และไม่ซ้ำเพจกลาง!)
     const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress, user }) => {
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -1075,7 +1075,6 @@
                 let target = new Date();
                 target.setHours(9, 0, 0, 0);
                 if (now >= target) target.setDate(target.getDate() + 1);
-
                 const diff = target - now;
                 const h = Math.floor(diff / (1000 * 60 * 60));
                 const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -1121,12 +1120,16 @@
             } catch(err) {}
         };
 
-        const confirmSkip = (houseId, houseName) => { setHouseToSkip({ id: houseId, name: houseName }); setIsSkipModalOpen(true); };
+        // 💡 1. แก้บั๊กปุ่มข้าม: ให้จำว่า "ใคร" เป็นคนข้าม (ไม่ใช่ผูกกับไอดีเครื่องแล้วรวน)
+        const confirmSkip = (houseId, houseName, assigneeName) => { 
+            setHouseToSkip({ id: houseId, name: houseName, assignee: assigneeName }); 
+            setIsSkipModalOpen(true); 
+        };
         const executeSkip = async () => {
             if (!houseToSkip || !isFirebaseLoaded) return;
             try { 
-                const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
-                await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", houseToSkip.id), { [userSkipKey]: Date.now() }, { merge: true }); 
+                const skipKey = `skippedBy_${houseToSkip.assignee}`;
+                await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "post_tracking", houseToSkip.id), { [skipKey]: Date.now() }, { merge: true }); 
             } catch(err) {}
             setIsSkipModalOpen(false); setHouseToSkip(null);
         };
@@ -1152,7 +1155,6 @@
             return maxTime;
         };
 
-        // --- เริ่มต้นจัดคิว ---
         let activePool = baseSheetData.filter(row => {
             const status = safeTrim(row['สถานะ']), website = safeTrim(row['Website']);
             if (status !== 'ว่าง' && status !== 'ยื่นซ้อน') return false;
@@ -1174,92 +1176,77 @@
             return getScore(expA) - getScore(expB);
         });
 
-        const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'];
+        // 💡 2. จัดทีมงานใหม่ตามที่พี่บิวต้องการ
+        const generalAssignees = ['เพจกลาง', 'Beau', 'Ketar', 'Noey'];
         const specificAssignees = ['May', 'Boom', 'Boat', 'Nan'];
         const allAssigneesList = [...generalAssignees, ...specificAssignees];
-        const scheduleData = [];
         const assignedToday = new Set();
         
+        // --- จ่ายงานทีมเจาะจง (Sales) ---
         const specificSchedules = [];
         specificAssignees.forEach(name => {
-            const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
-            const myHouses = masterQueue.filter(row => {
+            let myHouses = masterQueue.filter(row => {
                 const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
-                const skipTime = postTracking[row.id]?.[userSkipKey] || 0;
-                const isSkippedToday = (Date.now() - skipTime) < (24 * 60 * 60 * 1000);
-                return caretaker.toLowerCase() === name.toLowerCase() && !isSkippedToday;
-            }).slice(0, 4); 
-            
-            myHouses.forEach(h => assignedToday.add(h.id));
-            specificSchedules.push({ name, type: 'specific', houses: myHouses });
-        });
-
-        const generalSchedules = [];
-        const usedInGeneralToday = new Set(); 
-
-        generalAssignees.forEach(name => {
-            const assignedHouses = [];
-            const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
-            const isPageKlang = name === 'เพจกลาง'; 
-
-            for (const house of masterQueue) {
-                if (assignedHouses.length >= 4) break;
-                const skipTime = postTracking[house.id]?.[userSkipKey] || 0;
-                const isSkippedToday = (Date.now() - skipTime) < (24 * 60 * 60 * 1000);
-                if (isSkippedToday) continue; 
-
-                if (isPageKlang || (!usedInGeneralToday.has(house.id) && !assignedToday.has(house.id))) {
-                    assignedHouses.push(house);
-                    if (!isPageKlang) usedInGeneralToday.add(house.id); 
-                }
-            }
-            generalSchedules.push({ name, type: 'general', houses: assignedHouses });
-        });
-        
-        scheduleData.push(...generalSchedules, ...specificSchedules);
-        const scheduleDataStr = JSON.stringify(scheduleData);
-
-        // 🛡️🛡️🛡️ ระบบล็อกไทเทเนียม (Titanium Lock) 🛡️🛡️🛡️
-        const [finalSchedule, setFinalSchedule] = useState([]);
-        
-        useEffect(() => {
-            if (viewMode !== 'daily') return;
-
-            const cacheKey = `titanium_lock_v1_${assignmentTodayStr}_${user?.uid || 'guest'}`;
-            const skipCacheKey = `titanium_skip_v1_${assignmentTodayStr}_${user?.uid || 'guest'}`;
-
-            // นับจำนวนการข้าม (Skip) ของพนักงานคนนี้ในวันนี้
-            const userSkipKey = `skippedBy_${user?.uid || 'guest'}`;
-            let currentSkips = 0;
-            Object.values(postTracking).forEach(tracking => {
-                if (tracking[userSkipKey] && (Date.now() - tracking[userSkipKey]) < 86400000) {
-                    currentSkips++;
-                }
+                return caretaker.toLowerCase() === name.toLowerCase();
             });
 
-            const cachedStr = localStorage.getItem(cacheKey);
-            const cachedSkips = parseInt(localStorage.getItem(skipCacheKey) || '0');
-
-            // 🛑 กฎเหล็ก: ถ้ามีไฟล์ความจำของวันนี้อยู่แล้ว และ ไม่ได้มีการกดปุ่มข้ามเพิ่มเติม ให้ใช้ความจำเดิม 100% 
-            // เมินฐานข้อมูลที่ถูกลบไปเลย!
-            if (cachedStr && currentSkips === cachedSkips) {
-                const parsedData = JSON.parse(cachedStr);
-                if (parsedData && parsedData.length > 0) {
-                    setFinalSchedule(parsedData);
-                    return; // สั่งหยุดโค้ดตรงนี้เลย ไม่ต้องรันต่อ
+            const finalHouses = [];
+            for (const h of myHouses) {
+                if (finalHouses.length >= 4) break;
+                const skipTime = postTracking[h.id]?.[`skippedBy_${name}`] || 0;
+                const isSkipped = (Date.now() - skipTime) < 86400000;
+                if (!isSkipped) {
+                    finalHouses.push(h);
+                    assignedToday.add(h.id);
                 }
             }
+            specificSchedules.push({ name, type: 'specific', houses: finalHouses });
+        });
 
-            // ถ้าเพิ่งเข้าแอปครั้งแรกของวัน หรือ เพิ่งกดข้าม ถึงจะยอมจัดคิวใหม่
-            if (scheduleData.length > 0) {
-                setFinalSchedule(scheduleData);
-                localStorage.setItem(cacheKey, JSON.stringify(scheduleData));
-                localStorage.setItem(skipCacheKey, currentSkips.toString());
+        // --- 💡 3. แก้ปัญหาบ้านซ้ำ + จัดคิวล็อคตายตัว ทีมการตลาด ---
+        const generalSchedules = [];
+        const baseAllocations = {};
+        let poolIndex = 0;
+        
+        // รอบที่ 1: แจกบ้านพื้นฐานเรียงตามคิว (ป้องกันบ้านซ้ำกัน 100%)
+        generalAssignees.forEach(name => {
+            baseAllocations[name] = [];
+            while (baseAllocations[name].length < 4 && poolIndex < masterQueue.length) {
+                const house = masterQueue[poolIndex];
+                poolIndex++;
+                if (!assignedToday.has(house.id)) {
+                    baseAllocations[name].push(house);
+                }
             }
+        });
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [assignmentTodayStr, postTracking, user, viewMode, scheduleDataStr]); 
-        // 👆 (ซ่อนการดึงข้อมูลจาก Sheet ออกจาก Dependency)
+        // รอบที่ 2: เช็กว่ามีการ "ข้าม" ไหม ถ้ามีให้ดึงบ้านหลังถัดไปมาแทน (ตารางคนอื่นจะไม่เคลื่อน!)
+        generalAssignees.forEach(name => {
+            const finalHouses = [];
+            for (const house of baseAllocations[name]) {
+                const skipTime = postTracking[house.id]?.[`skippedBy_${name}`] || 0;
+                const isSkipped = (Date.now() - skipTime) < 86400000;
+                if (!isSkipped) {
+                    finalHouses.push(house);
+                }
+            }
+            
+            // หาตัวสำรองมาเติมให้ครบ 4
+            while (finalHouses.length < 4 && poolIndex < masterQueue.length) {
+                const house = masterQueue[poolIndex];
+                poolIndex++;
+                if (!assignedToday.has(house.id)) {
+                    const skipTime = postTracking[house.id]?.[`skippedBy_${name}`] || 0;
+                    const isSkipped = (Date.now() - skipTime) < 86400000;
+                    if (!isSkipped) {
+                        finalHouses.push(house);
+                    }
+                }
+            }
+            generalSchedules.push({ name, type: 'general', houses: finalHouses });
+        });
+
+        const finalSchedule = [...generalSchedules, ...specificSchedules];
 
         const getPriorityLabel = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']), startStr = safeTrim(row['เริ่มทำ']);
@@ -1440,7 +1427,7 @@
                                                                     </span>
                                                                  )}
                                                             </div>
-                                                            <button onClick={() => confirmSkip(house.id, combined)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
+                                                            <button onClick={() => confirmSkip(house.id, combined, assignee.name)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
                                                         </li>
                                                     );
                                                 })}
