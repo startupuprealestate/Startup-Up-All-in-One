@@ -98,10 +98,10 @@
     
     window.VERCEL_API_URL = "https://startup-up-all-in-one.vercel.app/";
     window.syncToZoneSheet = (action, docId, rowInfo, currentProg) => {
-        // 🚩 เอาลิงก์ Web App URL (ที่ได้จากการ Deploy GAS) มาใส่ในเครื่องหมายคำพูดด้านล่างนี้ค่ะ
+        // 🚩 เอาลิงก์ Web App URL (ที่ได้จากขั้นตอนที่ 1) มาใส่ในเครื่องหมายคำพูดด้านล่างนี้ค่ะ
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzXy7FI8XGruLEEySRqGFQNGoxHwdtzWktIuuRSQ2aaUMlBvpc0vobF6-naOPCscYVrxQ/exec"; 
         
-        if (GAS_URL === "https://script.google.com/macros/s/AKfycbzXy7FI8XGruLEEySRqGFQNGoxHwdtzWktIuuRSQ2aaUMlBvpc0vobF6-naOPCscYVrxQ/exec") return;
+        if (GAS_URL === "https://script.google.com/macros/s/AKfycbzXy7FI8XGruLEEySRqGFQNGoxHwdtzWktIuuRSQ2aaUMlBvpc0vobF6-naOPCscYVrxQ/exec" || !GAS_URL) return;
         
         const dataToSend = {
             docId: docId,
@@ -116,10 +116,9 @@
             'สถานะการถ่ายคลิป': currentProg?.isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'
         };
 
+        // 💡 อัปเกรด: เอา headers และ mode: no-cors ออก เพื่อให้ Google รับข้อมูลได้ง่ายขึ้น
         fetch(GAS_URL, {
             method: 'POST',
-            mode: 'no-cors', // ใส่เพิ่มเพื่อกันบล็อกหน้าแอป
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: action, data: dataToSend })
         }).catch(e => console.log("Sync error:", e));
     };
