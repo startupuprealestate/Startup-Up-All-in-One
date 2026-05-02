@@ -207,8 +207,8 @@
     const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
     
     // NEW: ข้อมูลโควต้าการลา
-    const LEAVE_QUOTAS = { 'ลาป่วย': 30, 'ลากิจ': 3, 'ลาพักร้อน': 6, 'ลางานศพ': 3, 'ลาคลอด': 45 };
-    const LEAVE_OPTIONS = ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน', 'ลางานศพ', 'ลาคลอด', 'ลาบวช'];
+    const LEAVE_QUOTAS = { 'ลาป่วย': 30, 'ลากิจ': 3, 'ลาพักร้อน': 6, 'ลางานศพ': 3, 'ลาคลอด': 45, 'ลาบวช': 15, 'ลาคลอดแบบไม่รับค่าจ้าง': 53, 'ลากิจพาครอบครัวไป รพ.': 3 };
+    const LEAVE_OPTIONS = ['ลาป่วย', 'ลากิจ', 'ลากิจพาครอบครัวไป รพ.', 'ลาพักร้อน', 'ลางานศพ', 'ลาคลอด', 'ลาบวช'];
 
     const compressImage = (f) => new Promise((res) => {
         const reader = new FileReader(); reader.readAsDataURL(f);
@@ -3071,7 +3071,7 @@ ${promptAction}`;
       const [constructionProgress, setConstructionProgress] = useState({});
       const [postTracking, setPostTracking] = useState({});
       // 💡 เพิ่มตัวแปร reminder (ตั้งเวลาเตือนล่วงหน้า)
-      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' });
+      const [formData, setFormData] = useState({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '', isUnpaid: false });
       const [isUploadingLeaveImg, setIsUploadingLeaveImg] = useState(false);
       const [fullScreenImg, setFullScreenImg] = useState(null);
       const [houses, setHouses] = useState([]);
@@ -3517,9 +3517,12 @@ ${promptAction}`;
 
       const handleOpenModal = (day = null, eventToEdit = null, prefillAssignee = '', prefillType = '') => {
         if (eventToEdit) {
+          const eventLeaveType = eventToEdit.leaveType || '';
+          const isUnpaidLeave = eventLeaveType.includes('แบบไม่รับค่าจ้าง');
+          const baseLeaveType = eventLeaveType.replace('แบบไม่รับค่าจ้าง', '');
+
           setFormData({ 
-              type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: eventToEdit.leaveType || '', leaveDuration: eventToEdit.leaveDuration || 'full', reminder: eventToEdit.reminder || '0', 
-              image: eventToEdit.image || '' 
+              type: eventToEdit.type || 'event', date: eventToEdit.date, hour: eventToEdit.time ? eventToEdit.time.split(':')[0] : '09', minute: eventToEdit.time ? eventToEdit.time.split(':')[1] : '00', activity: eventToEdit.activity || '', note: eventToEdit.note || '', assignee: eventToEdit.assignee || '', leaveType: baseLeaveType, leaveDuration: eventToEdit.leaveDuration || 'full', reminder: eventToEdit.reminder || '0', image: eventToEdit.image || '', isUnpaid: isUnpaidLeave 
           });
           setEditingEventId(eventToEdit.id); setIsModalOpen(true); return;
         }
@@ -3527,12 +3530,12 @@ ${promptAction}`;
         let dateStr = day ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : selectedDayString || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
         
         setFormData({ 
-            ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' 
+            ...formData, type: prefillType || (activeApp === 'holidays' ? 'holiday' : 'event'), date: dateStr, assignee: prefillAssignee || (selectedUser !== 'All' ? selectedUser : ''), activity: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '', isUnpaid: false 
         });
         setEditingEventId(null); setIsModalOpen(true);
       };
 
-      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '' }); };
+      const handleCloseModal = () => { setIsModalOpen(false); setEditingEventId(null); setSelectedDayString(''); setFormData({ type: 'event', date: '', hour: '09', minute: '00', activity: '', note: '', assignee: '', leaveType: '', leaveDuration: 'full', reminder: '0', image: '', isUnpaid: false }); };
 
       // 🪄 ดักจับรหัสจาก URL ทันทีที่แอปโหลด และรอ Firebase 
       useEffect(() => {
@@ -3578,39 +3581,32 @@ ${promptAction}`;
         } finally {
             setIsUploadingLeaveImg(false);
         }
-    };
+      };
 
       const handleSaveEvent = async (e) => {
         e.preventDefault(); if (!isFirebaseLoaded) return;
-        const eventData = { ...formData, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? (formData.leaveType ? `ลา: ${formData.leaveType} ${formData.leaveDuration === 'half' ? '(ครึ่งวัน)' : ''}`.trim() : 'วันลางาน') : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
         
-        // 💡 เพิ่มระบบคำนวณเวลาแจ้งเตือน (ที่เผลอลบหายไป) กลับมาแล้วค่ะ!
+        let finalLeaveType = formData.leaveType;
+        if (formData.type === 'leave' && formData.isUnpaid && ['ลาป่วย', 'ลากิจ', 'ลาคลอด'].includes(formData.leaveType)) {
+            finalLeaveType += 'แบบไม่รับค่าจ้าง';
+        }
+
+        const eventData = { ...formData, leaveType: finalLeaveType, time: (formData.type === 'holiday' || formData.type === 'leave' || formData.type === 'public_holiday') ? '' : `${formData.hour}:${formData.minute}`, activity: formData.type === 'holiday' ? 'วันหยุด' : formData.type === 'leave' ? (finalLeaveType ? `ลา: ${finalLeaveType} ${formData.leaveDuration === 'half' ? '(ครึ่งวัน)' : ''}`.trim() : 'วันลางาน') : formData.type === 'public_holiday' ? 'นักขัตฤกษ์' : formData.activity };
+        
         if (formData.type === 'event' && formData.reminder) {
             const eventDateTime = new Date(`${formData.date}T${formData.hour}:${formData.minute}:00`);
-            // ลบเวลาถอยหลังตามที่เลือก (ถ้าเลือก "0" ก็คือเตือนพอดีเวลา)
             eventDateTime.setMinutes(eventDateTime.getMinutes() - parseInt(formData.reminder));
-            
-            eventData.notifyAt = eventDateTime.getTime(); // บันทึกเวลาที่ต้องปลุก (Milliseconds)
-            eventData.isNotified = false; // สร้างตัวกั้นว่ายังไม่ได้เตือน
+            eventData.notifyAt = eventDateTime.getTime(); 
+            eventData.isNotified = false; 
         }
 
         try {
           if (editingEventId) { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "events", editingEventId), eventData); } 
           else {
-              // 1. รับไอดีที่ได้จาก Firebase มาใส่ในตัวแปร newDocRef
               const newDocRef = await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "events"), eventData);
-              
               if (eventData.type === 'leave') {
                   const displayDate = eventData.date ? eventData.date.split('-').reverse().join('-') : '-';
-                  
-                  // 2. ส่ง eventId: newDocRef.id แนบไปกับแจ้งเตือนด้วย
-                  sendNotification({ 
-                      assignee: eventData.assignee, 
-                      leaveType: eventData.leaveType, 
-                      date: displayDate, 
-                      reason: eventData.note,
-                      eventId: newDocRef.id // <--- ส่งตั๋ววาร์ปไปตรงนี้!
-                  });
+                  sendNotification({ assignee: eventData.assignee, leaveType: eventData.leaveType, date: displayDate, reason: eventData.note, eventId: newDocRef.id });
               }
           }
         } catch (error) { alert("พบข้อผิดพลาด กรุณาลองใหม่"); }
@@ -3847,7 +3843,7 @@ ${promptAction}`;
                                <td className="border border-gray-200 p-1.5 text-[10px] text-gray-600 bg-white group-hover:bg-gray-50 text-left">
                                   {(() => {
                                      const empLeaves = events.filter(ev => ev.type === 'leave' && ev.assignee === emp && ev.date.startsWith(`${year}-`));
-                                     const stats = { 'ลาป่วย': 0, 'ลากิจ': 0, 'ลาพักร้อน': 0, 'ลางานศพ': 0, 'ลาคลอด': 0, 'ลาบวช': 0, 'ไม่ระบุ': 0 };
+                                     const stats = { 'ลาป่วย': 0, 'ลากิจ': 0, 'ลาพักร้อน': 0, 'ลางานศพ': 0, 'ลาคลอด': 0, 'ลาบวช': 0, 'ลากิจพาครอบครัวไป รพ.': 0, 'ลาป่วยแบบไม่รับค่าจ้าง': 0, 'ลากิจแบบไม่รับค่าจ้าง': 0, 'ลาคลอดแบบไม่รับค่าจ้าง': 0, 'ไม่ระบุ': 0 };
                                      
                                      empLeaves.forEach(ev => { 
                                          const increment = ev.leaveDuration === 'half' ? 0.5 : 1;
@@ -3862,13 +3858,19 @@ ${promptAction}`;
 
                                      return (
                                         <div className="flex flex-col h-full justify-between gap-1.5">
-                                            <div className="grid grid-cols-2 gap-1 cursor-pointer select-none">
-                                               <div onClick={() => openLeaveDetails('ลาป่วย')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}`}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']}</div>
-                                               <div onClick={() => openLeaveDetails('ลากิจ')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}`}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']}</div>
-                                               <div onClick={() => openLeaveDetails('ลาพักร้อน')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}`}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']}</div>
-                                               <div onClick={() => openLeaveDetails('ลางานศพ')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}`}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']}</div>
-                                               <div onClick={() => openLeaveDetails('ลาคลอด')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}`}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']}</div>
-                                               <div onClick={() => openLeaveDetails('ลาบวช')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}`}>บวช: {stats['ลาบวช']}/-</div>
+                                            <div className="grid grid-cols-2 gap-1 cursor-pointer select-none text-[11px]">
+                                               <div onClick={() => openLeaveDetails('ลาป่วย')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาป่วย'] > 0 ? 'text-brand font-bold' : ''}`}>ป่วย: {stats['ลาป่วย']}/{LEAVE_QUOTAS['ลาป่วย']} วัน</div>
+                                               <div onClick={() => openLeaveDetails('ลากิจ')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลากิจ'] > 0 ? 'text-brand font-bold' : ''}`}>กิจ: {stats['ลากิจ']}/{LEAVE_QUOTAS['ลากิจ']} วัน</div>
+                                               <div onClick={() => openLeaveDetails('ลาพักร้อน')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาพักร้อน'] > 0 ? 'text-brand font-bold' : ''}`}>พักร้อน: {stats['ลาพักร้อน']}/{LEAVE_QUOTAS['ลาพักร้อน']} วัน</div>
+                                               <div onClick={() => openLeaveDetails('ลากิจพาครอบครัวไป รพ.')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลากิจพาครอบครัวไป รพ.'] > 0 ? 'text-brand font-bold' : ''}`}>พารพ.: {stats['ลากิจพาครอบครัวไป รพ.']}/{LEAVE_QUOTAS['ลากิจพาครอบครัวไป รพ.']} วัน</div>
+                                               <div onClick={() => openLeaveDetails('ลางานศพ')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลางานศพ'] > 0 ? 'text-brand font-bold' : ''}`}>งานศพ: {stats['ลางานศพ']}/{LEAVE_QUOTAS['ลางานศพ']} วัน</div>
+                                               <div onClick={() => openLeaveDetails('ลาคลอด')} className={`hover:bg-gray-200 rounded px-1 transition-colors ${stats['ลาคลอด'] > 0 ? 'text-brand font-bold' : ''}`}>คลอด: {stats['ลาคลอด']}/{LEAVE_QUOTAS['ลาคลอด']} วัน</div>
+                                               <div onClick={() => openLeaveDetails('ลาบวช')} className={`hover:bg-gray-200 rounded px-1 transition-colors col-span-2 ${stats['ลาบวช'] > 0 ? 'text-brand font-bold' : ''}`}>บวช: {stats['ลาบวช']}/{LEAVE_QUOTAS['ลาบวช']} วัน</div>
+                                               
+                                               {stats['ลาป่วยแบบไม่รับค่าจ้าง'] > 0 && <div onClick={() => openLeaveDetails('ลาป่วยแบบไม่รับค่าจ้าง')} className="text-red-600 col-span-2 hover:bg-red-50 rounded px-1 font-bold">ป่วย(ไม่รับเงิน): {stats['ลาป่วยแบบไม่รับค่าจ้าง']}/ไม่จำกัด</div>}
+                                               {stats['ลากิจแบบไม่รับค่าจ้าง'] > 0 && <div onClick={() => openLeaveDetails('ลากิจแบบไม่รับค่าจ้าง')} className="text-red-600 col-span-2 hover:bg-red-50 rounded px-1 font-bold">กิจ(ไม่รับเงิน): {stats['ลากิจแบบไม่รับค่าจ้าง']}/ไม่จำกัด</div>}
+                                               {stats['ลาคลอดแบบไม่รับค่าจ้าง'] > 0 && <div onClick={() => openLeaveDetails('ลาคลอดแบบไม่รับค่าจ้าง')} className="text-red-600 col-span-2 hover:bg-red-50 rounded px-1 font-bold">คลอด(ไม่รับเงิน): {stats['ลาคลอดแบบไม่รับค่าจ้าง']}/{LEAVE_QUOTAS['ลาคลอดแบบไม่รับค่าจ้าง']} วัน</div>}
+
                                                {stats['ไม่ระบุ'] > 0 && <div onClick={() => openLeaveDetails('ไม่ระบุ')} className="text-red-500 col-span-2 hover:bg-red-100 rounded px-1 font-bold">รอระบุ: {stats['ไม่ระบุ']} ครั้ง</div>}
                                             </div>
                                             <button onClick={() => openLeaveDetails('all')} className="mt-auto w-full py-1.5 text-[10px] font-bold text-brand bg-brand/10 hover:bg-brand hover:text-white rounded flex items-center justify-center transition-colors shadow-sm border border-brand/20">
@@ -3895,6 +3897,10 @@ ${promptAction}`;
                                        else if(lvType === 'ลางานศพ') label = 'งานศพ';
                                        else if(lvType === 'ลาคลอด') label = 'คลอด';
                                        else if(lvType === 'ลาบวช') label = 'บวช';
+                                       else if(lvType === 'ลากิจพาครอบครัวไป รพ.') label = 'พารพ.';
+                                       else if(lvType === 'ลาป่วยแบบไม่รับค่าจ้าง') label = 'ป่วย(ไม่รับเงิน)';
+                                       else if(lvType === 'ลากิจแบบไม่รับค่าจ้าง') label = 'กิจ(ไม่รับเงิน)';
+                                       else if(lvType === 'ลาคลอดแบบไม่รับค่าจ้าง') label = 'คลอด(ไม่รับเงิน)';
                                        else label = 'ลา';
                                        if (cellEv.find(e=>e.type==='leave')?.leaveDuration === 'half') label += ' ½';
                                    }
@@ -4195,7 +4201,7 @@ ${promptAction}`;
                             <label className="block text-[13px] font-bold text-gray-600 mb-1.5">ประเภทการลา</label>
                             <select required value={formData.leaveType} onChange={e => {
                                 const selectedType = e.target.value;
-                                setFormData({...formData, leaveType: selectedType, leaveDuration: selectedType === 'ลาป่วย' ? formData.leaveDuration : 'full'});
+                                setFormData({...formData, leaveType: selectedType, leaveDuration: selectedType === 'ลาป่วย' ? formData.leaveDuration : 'full', isUnpaid: false});
                             }} className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-[8px] outline-none focus:border-orange-500 transition-all text-[14px] text-gray-700">
                               <option value="" disabled hidden>-- กรุณาเลือก --</option>
                               {LEAVE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
@@ -4213,6 +4219,15 @@ ${promptAction}`;
                                       <input type="radio" checked={formData.leaveDuration === 'half'} onChange={()=>setFormData({...formData, leaveDuration: 'half'})} className="mr-2 w-4 h-4 accent-orange-500" /> ครึ่งวัน
                                    </label>
                                 </div>
+                              </div>
+                          )}
+
+                          {['ลาคลอด', 'ลากิจ', 'ลาป่วย'].includes(formData.leaveType) && (
+                              <div className="col-span-1 sm:col-span-2 mt-1">
+                                  <label className="flex items-center text-[13px] font-bold text-red-600 cursor-pointer bg-red-50 p-2.5 rounded-lg border border-red-200 w-max shadow-sm hover:bg-red-100 transition-colors">
+                                      <input type="checkbox" checked={formData.isUnpaid} onChange={(e) => setFormData({...formData, isUnpaid: e.target.checked})} className="mr-2 w-5 h-5 accent-red-600 cursor-pointer" />
+                                      ลาแบบไม่รับค่าจ้าง (Unpaid Leave)
+                                  </label>
                               </div>
                           )}
                         </div>
