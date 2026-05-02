@@ -2565,7 +2565,7 @@ ${promptAction}`;
                                                 else if (col === 'ผู้ดูแลบ้าน') {
                                                     const caretaker = prog.caretaker || val || '';
                                                     content = (
-                                                        <select value={['May', 'Boom', 'Boat'].includes(caretaker) ? caretaker : ''} onChange={(e) => handleUpdateProgress(row.id, { caretaker: e.target.value })} className="px-2 py-1.5 text-[13px] font-bold text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand w-[90px] shadow-sm">
+                                                        <select value={['May', 'Boom', 'Boat', 'Nan'].includes(caretaker) ? caretaker : ''} onChange={(e) => handleUpdateProgress(row.id, { caretaker: e.target.value })} className="px-2 py-1.5 text-[13px] font-bold text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand w-[90px] shadow-sm">
                                                             <option value="">- เลือก -</option>
                                                             <option value="May">May</option>
                                                             <option value="Boom">Boom</option>
