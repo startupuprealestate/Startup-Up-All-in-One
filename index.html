@@ -3466,15 +3466,15 @@ ${promptAction}`;
           const loaded = {}; snapshot.forEach((doc) => { loaded[doc.id] = doc.data(); }); setPostTracking(loaded);
         });
 
-        // 💡 ฟังก์ชันสร้างรหัสถาวรให้บ้านแต่ละหลัง (ไม่ให้ติ๊กถูกเลื่อนตามเวลาแทรกแถว)
+        // 💡 ฟังก์ชันสร้างรหัสถาวรให้บ้านแต่ละหลัง (อัปเกรด: ตัดราคาทิ้ง และลบช่องว่างกันรวน)
         const generateStableHouseId = (row, defaultId) => {
             const project = String(row['หมู่บ้าน'] || row['โครงการ'] || '').trim();
             const houseNo = String(row['บ้านเลขที่'] || '').trim();
-            const price = String(row['ราคา'] || '').trim();
 
             if (!project && !houseNo) return defaultId; // ถ้าไม่มีข้อมูลให้ใช้ row_ เดิมไปก่อน
 
-            let str = project + houseNo + price;
+            // ลบช่องว่างทิ้งทั้งหมด และไม่ใช้ราคา เพื่อให้ตรงกับฝั่ง Sheet เป๊ะๆ
+            let str = (project + houseNo).replace(/\s+/g, '');
             let hash = 0;
             for (let i = 0; i < str.length; i++) {
                 hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
