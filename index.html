@@ -270,7 +270,6 @@
                 return valA - valB;
             });
         };
-    const getFormattedDateThai = (dStr) => { if (!dStr) return ''; const [y, m, d] = dStr.split('-'); return `${parseInt(d, 10)} ${MONTHS_TH[parseInt(m, 10) - 1]} ${parseInt(y, 10) + 543}`; };
     const parseThaiDate = (dStr) => {
         if (!dStr) return null; const s = String(dStr).trim();
         if (s.includes('/')) {
@@ -278,6 +277,16 @@
             if (p.length >= 3) { let d=parseInt(p[0],10), m=parseInt(p[1],10), y=parseInt(p[2],10); if(y>2500) y-=543; else if(y<100) y+=2000; return new Date(y, m-1, d); }
         }
         return new Date(s);
+    };
+
+    const getFormattedDateThai = (dStr) => {
+        if (!dStr) return '';
+        const d = parseThaiDate(dStr);
+        if (!d || isNaN(d.getTime())) return dStr;
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear() + 543;
+        return `${dd}/${mm}/${yyyy}`;
     };
     const calculateDays = (sStr, eStr) => {
         const sD = parseThaiDate(sStr); if (!sD || isNaN(sD.getTime())) return '-';
@@ -932,9 +941,8 @@
                                       else if (col === 'ห้องน้ำ') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
                                       else if (col === 'ราคา') content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
                                       else if (col === 'เริ่มทำ') {
-                                          const sDate = safeTrim(row['เริ่มทำ']);
-                                          content = <span className="text-[14px] font-medium text-gray-500">{sDate ? (sDate.includes('-') ? getFormattedDateThai(sDate) : sDate) : '-'}</span>;
-                                      }
+                                                    content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(val) || '-'}</span>;
+                                                }
                                       else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
                                       else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
                                       else if (col === 'การตรวจงาน') {
@@ -2588,7 +2596,7 @@ ${promptAction}`;
                                                 else if (col === 'ทำเล') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
                                                 else if (col === 'ราคา') content = <span className="text-[14px] font-extrabold text-emerald-600">{val ? formatPriceInput(val) : '-'}</span>;
                                                 else if (col === 'เริ่มทำ') {
-                                                    content = <span className="text-[14px] font-medium text-gray-500">{val ? (val.includes('-') ? getFormattedDateThai(val) : val) : '-'}</span>;
+                                                      content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(safeTrim(row['เริ่มทำ'])) || '-'}</span>;
                                                 }
                                                 
                                                 // 💡 เปลี่ยนตรงนี้: จาก DatePicker เป็นแค่ตัวหนังสือแสดงข้อมูลเฉยๆ
