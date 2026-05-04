@@ -941,8 +941,9 @@
                                       else if (col === 'ห้องน้ำ') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
                                       else if (col === 'ราคา') content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
                                       else if (col === 'เริ่มทำ') {
-                                                    content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(val) || '-'}</span>;
-                                                }
+                                          const sDate = safeTrim(row['เริ่มทำ']);
+                                          content = <span className="text-[14px] font-medium text-gray-500">{sDate ? (sDate.includes('-') ? getFormattedDateThai(sDate) : sDate) : '-'}</span>;
+                                      }
                                       else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
                                       else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
                                       else if (col === 'การตรวจงาน') {
@@ -2596,8 +2597,8 @@ ${promptAction}`;
                                                 else if (col === 'ทำเล') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
                                                 else if (col === 'ราคา') content = <span className="text-[14px] font-extrabold text-emerald-600">{val ? formatPriceInput(val) : '-'}</span>;
                                                 else if (col === 'เริ่มทำ') {
-                                                      content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(safeTrim(row['เริ่มทำ'])) || '-'}</span>;
-                                                }
+                                          content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(safeTrim(row['เริ่มทำ'])) || '-'}</span>;
+                                      }
                                                 
                                                 // 💡 เปลี่ยนตรงนี้: จาก DatePicker เป็นแค่ตัวหนังสือแสดงข้อมูลเฉยๆ
                                                 else if (col === 'ทำเสร็จเมื่อ') {
