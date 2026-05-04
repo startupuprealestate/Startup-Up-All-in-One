@@ -1157,7 +1157,6 @@
 
         let activePool = baseSheetData.filter(row => {
             const status = safeTrim(row['สถานะ']), website = safeTrim(row['Website']);
-            // 💡 1. เอาเฉพาะสถานะ ว่าง และ ยื่นซ้อน เท่านั้น
             if (status !== 'ว่าง' && status !== 'ยื่นซ้อน') return false;
             if (website.includes('ฝากขาย')) return false;
             if (searchQuery && viewMode === 'daily') {
@@ -1166,21 +1165,20 @@
             return true;
         });
 
-        // 💡 2. ฟังก์ชันช่วยคำนวณอายุและวันหมดสัญญา
         const getExpScore = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']);
             const d = parseThaiDate(expStr);
-            return (d && !isNaN(d.getTime())) ? d.getTime() : Infinity; // ไม่มีวันหมดสัญญาให้ไปอยู่ท้ายสุด
+            return (d && !isNaN(d.getTime())) ? d.getTime() : Infinity;
         };
         const getStartScore = (row) => {
             const startStr = safeTrim(row['เริ่มทำ']);
             const d = parseThaiDate(startStr);
-            return (d && !isNaN(d.getTime())) ? d.getTime() : Infinity; // เรียงเก่าไปใหม่ (น้อยไปมาก)
+            return (d && !isNaN(d.getTime())) ? d.getTime() : Infinity;
         };
         const getStartScoreDesc = (row) => {
             const startStr = safeTrim(row['เริ่มทำ']);
             const d = parseThaiDate(startStr);
-            return (d && !isNaN(d.getTime())) ? d.getTime() : -Infinity; // เรียงใหม่ไปเก่า (มากไปน้อย)
+            return (d && !isNaN(d.getTime())) ? d.getTime() : -Infinity;
         };
 
         const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'];
@@ -1192,66 +1190,59 @@
             return (Date.now() - skipTime) < 86400000;
         };
 
-        // --- 💡 3. จ่ายงานทีมเจาะจง (Sales) คนละ 2 หลัง ---
+        // 💡 ฟังก์ชันช่วยจัดคิวบ้าน: ดึง 4 หลัง (วันนี้ 2, พรุ่งนี้ 2)
+        const pickHousesForAssignee = (myPool) => {
+            const finalHouses = [];
+            
+            // 🏠 วันนี้ - หลังที่ 1: ใกล้หมดสัญญา หรือ เก่าสุด
+            if (myPool.length > 0) {
+                myPool.sort((a, b) => {
+                    const expA = getExpScore(a), expB = getExpScore(b);
+                    if (expA !== expB) return expA - expB;
+                    return getStartScore(a) - getStartScore(b);
+                });
+                const h = myPool.shift(); h.scheduleType = 'today';
+                finalHouses.push(h); assignedToday.add(h.id);
+            }
+            // 🏠 วันนี้ - หลังที่ 2: มาใหม่ล่าสุด
+            if (myPool.length > 0) {
+                myPool.sort((a, b) => getStartScoreDesc(b) - getStartScoreDesc(a));
+                const h = myPool.shift(); h.scheduleType = 'today';
+                finalHouses.push(h); assignedToday.add(h.id);
+            }
+            
+            // 🏠 พรุ่งนี้ - หลังที่ 1 (คิวถัดไป): ใกล้หมดสัญญา หรือ เก่าสุด
+            if (myPool.length > 0) {
+                myPool.sort((a, b) => {
+                    const expA = getExpScore(a), expB = getExpScore(b);
+                    if (expA !== expB) return expA - expB;
+                    return getStartScore(a) - getStartScore(b);
+                });
+                const h = myPool.shift(); h.scheduleType = 'tomorrow';
+                finalHouses.push(h); assignedToday.add(h.id);
+            }
+            // 🏠 พรุ่งนี้ - หลังที่ 2 (คิวถัดไป): มาใหม่ล่าสุด
+            if (myPool.length > 0) {
+                myPool.sort((a, b) => getStartScoreDesc(b) - getStartScoreDesc(a));
+                const h = myPool.shift(); h.scheduleType = 'tomorrow';
+                finalHouses.push(h); assignedToday.add(h.id);
+            }
+            return finalHouses;
+        };
+
         const specificSchedules = [];
         specificAssignees.forEach(name => {
             let myPool = activePool.filter(row => {
                 const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
                 return caretaker.toLowerCase() === name.toLowerCase() && !assignedToday.has(row.id) && !isSkipped(row.id, name);
             });
-
-            const finalHouses = [];
-            
-            // 🏠 หลังที่ 1: ใกล้หมดสัญญาที่สุด -> ถ้าไม่มี เอาอายุเยอะสุด (เริ่มทำเก่าสุด)
-            if (myPool.length > 0) {
-                myPool.sort((a, b) => {
-                    const expA = getExpScore(a), expB = getExpScore(b);
-                    if (expA !== expB) return expA - expB;
-                    return getStartScore(a) - getStartScore(b);
-                });
-                const house1 = myPool.shift();
-                finalHouses.push(house1);
-                assignedToday.add(house1.id);
-            }
-
-            // 🏠 หลังที่ 2: มาใหม่ที่สุด (เริ่มทำใหม่สุด)
-            if (myPool.length > 0) {
-                myPool.sort((a, b) => getStartScoreDesc(b) - getStartScoreDesc(a));
-                const house2 = myPool.shift();
-                finalHouses.push(house2);
-                assignedToday.add(house2.id);
-            }
-
-            specificSchedules.push({ name, type: 'specific', houses: finalHouses });
+            specificSchedules.push({ name, type: 'specific', houses: pickHousesForAssignee(myPool) });
         });
 
-        // --- 💡 4. จ่ายงานทีมการตลาด (คนละ 2 หลัง ดึงจากกองกลาง) ---
         const generalSchedules = [];
         generalAssignees.forEach(name => {
             let myPool = activePool.filter(row => !assignedToday.has(row.id) && !isSkipped(row.id, name));
-            const finalHouses = [];
-
-            // 🏠 หลังที่ 1: ใกล้หมดสัญญาที่สุด -> ถ้าไม่มี เอาอายุเยอะสุด (เริ่มทำเก่าสุด)
-            if (myPool.length > 0) {
-                myPool.sort((a, b) => {
-                    const expA = getExpScore(a), expB = getExpScore(b);
-                    if (expA !== expB) return expA - expB;
-                    return getStartScore(a) - getStartScore(b);
-                });
-                const house1 = myPool.shift();
-                finalHouses.push(house1);
-                assignedToday.add(house1.id);
-            }
-
-            // 🏠 หลังที่ 2: มาใหม่ที่สุด (เริ่มทำใหม่สุด)
-            if (myPool.length > 0) {
-                myPool.sort((a, b) => getStartScoreDesc(b) - getStartScoreDesc(a));
-                const house2 = myPool.shift();
-                finalHouses.push(house2);
-                assignedToday.add(house2.id);
-            }
-
-            generalSchedules.push({ name, type: 'general', houses: finalHouses });
+            generalSchedules.push({ name, type: 'general', houses: pickHousesForAssignee(myPool) });
         });
 
         const finalSchedule = [...generalSchedules, ...specificSchedules];
@@ -1397,9 +1388,48 @@
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {finalSchedule.map((assignee, idx) => {
-                            const completedCount = assignee.houses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
+                            // 💡 แยกบ้านเป็น 2 กองเพื่อวาด UI ให้ชัดเจน
+                            const todayHouses = assignee.houses.filter(h => h.scheduleType === 'today');
+                            const tomorrowHouses = assignee.houses.filter(h => h.scheduleType === 'tomorrow');
+                            const completedTodayCount = todayHouses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
                             const avatarClass = getAvatarColor(assignee.name);
                             const avatarLetter = getAvatarLetter(assignee.name);
+
+                            // 💡 ฟังก์ชันช่วยวาดรายการบ้าน
+                            const renderHouseList = (houseList, maxCount, isTomorrow) => (
+                                <ul className="space-y-3">
+                                    {houseList.map((house, hIdx) => {
+                                        const combined = `${safeTrim(house['หมู่บ้าน'])} ${safeTrim(house['บ้านเลขที่'])} ${safeTrim(house['ซอย'])}`.trim();
+                                        const isPostedToday = postTracking[house.id]?.[assignee.name] === assignmentTodayStr;
+
+                                        return (
+                                            <li key={hIdx} className={`flex items-start p-3 rounded-xl border transition-colors ${isPostedToday ? 'bg-[#f0fdf4] border-[#34d399]' : (isTomorrow ? 'bg-gray-50/40 border-gray-200 border-dashed' : 'bg-gray-50/80 border-gray-100 hover:border-brand/30')}`}>
+                                                <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(house.id, e.target.checked, assignee.name)} className="mt-0.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" disabled={isTomorrow} />
+                                                <div className="flex-1">
+                                                    <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : (isTomorrow ? 'text-gray-600' : 'text-gray-800')}`}>{combined || '-'}</h4>
+                                                    <div className="flex flex-wrap items-center mt-1 gap-1">
+                                                        {!isPostedToday && getPriorityLabel(house)}
+                                                        {!isPostedToday && !isTomorrow && renderPreviousPostInfo(house, assignee.name)}
+                                                    </div>
+                                                    {isPostedToday && (
+                                                        <span className="inline-block mt-1 text-[11px] font-bold text-[#059669]">
+                                                            ✔ โพสต์แล้วโดย: {postTracking[house.id]?.[`${assignee.name}_postedBy`] || 'ทีมงาน'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <button onClick={() => confirmSkip(house.id, combined, assignee.name)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
+                                            </li>
+                                        );
+                                    })}
+                                    {/* 💡 วาดช่องว่างถ้าบ้านไม่ครบ */}
+                                    {houseList.length < maxCount && Array.from({ length: maxCount - houseList.length }).map((_, emptyIdx) => (
+                                        <div key={`empty-${emptyIdx}`} className="flex items-center p-3 rounded-xl border border-dashed border-gray-200 opacity-50">
+                                            <span className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-[11px] font-bold text-gray-400 mr-3 shrink-0">{houseList.length + emptyIdx + 1}</span>
+                                            <span className="text-[13px] font-medium text-gray-400">โควต้าว่าง</span>
+                                        </div>
+                                    ))}
+                                </ul>
+                            );
 
                             return (
                                 <div key={idx} className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
@@ -1411,48 +1441,18 @@
                                                 <p className="text-[11px] text-gray-500 font-medium">{assignee.type === 'general' ? 'โพสต์บ้านทั่วไป' : 'โพสต์บ้านของตนเอง'}</p>
                                             </div>
                                         </div>
-                                        <span className={`px-3 py-1 rounded-full text-[12px] font-bold shadow-sm border ${completedCount === 2 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-white text-gray-600 border-gray-200'}`}>{completedCount}/2 โพสต์</span>
+                                        {/* 💡 นับความคืบหน้าเฉพาะของ "วันนี้" */}
+                                        <span className={`px-3 py-1 rounded-full text-[12px] font-bold shadow-sm border ${completedTodayCount === 2 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-white text-gray-600 border-gray-200'}`}>{completedTodayCount}/2 โพสต์วันนี้</span>
                                     </div>
-                                    <div className="p-4 flex-1">
-                                        {assignee.houses.length > 0 ? (
-                                            <ul className="space-y-3">
-                                                {assignee.houses.map((house, hIdx) => {
-                                                    const combined = `${safeTrim(house['หมู่บ้าน'])} ${safeTrim(house['บ้านเลขที่'])} ${safeTrim(house['ซอย'])}`.trim();
-                                                    const isPostedToday = postTracking[house.id]?.[assignee.name] === assignmentTodayStr;
-
-                                                    return (
-                                                        <li key={hIdx} className={`flex items-start p-3 rounded-xl border transition-colors ${isPostedToday ? 'bg-[#f0fdf4] border-[#34d399]' : 'bg-gray-50/50 border-gray-100 hover:border-brand/30'}`}>
-                                                            <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(house.id, e.target.checked, assignee.name)} className="mt-0.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" />
-                                                            <div className="flex-1">
-                                                                <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : 'text-gray-800'}`}>{combined || '-'}</h4>
-                                                                <div className="flex flex-wrap items-center mt-1 gap-1">
-                                                                    {!isPostedToday && getPriorityLabel(house)}
-                                                                    {!isPostedToday && renderPreviousPostInfo(house, assignee.name)}
-                                                                </div>
-                                                                {isPostedToday && (
-                                                                    <span className="inline-block mt-1 text-[11px] font-bold text-[#059669]">
-                                                                        ✔ โพสต์แล้วโดย: {postTracking[house.id]?.[`${assignee.name}_postedBy`] || 'ทีมงาน'}
-                                                                    </span>
-                                                                 )}
-                                                            </div>
-                                                            <button onClick={() => confirmSkip(house.id, combined, assignee.name)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center h-[150px] text-gray-400"><Icon name="CheckSquare" size={32} className="mb-2 opacity-30"/><span className="text-[13px] font-medium">ไม่มีบ้านที่ต้องโพสต์วันนี้</span></div>
-                                        )}
-                                        {assignee.houses.length > 0 && assignee.houses.length < 2 && (
-                                            <div className="mt-3 space-y-3">
-                                                {Array.from({ length: 2 - assignee.houses.length }).map((_, emptyIdx) => (
-                                                    <div key={`empty-${emptyIdx}`} className="flex items-center p-3 rounded-xl border border-dashed border-gray-200 opacity-60">
-                                                        <span className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-[11px] font-bold text-gray-400 mr-3 shrink-0">{assignee.houses.length + emptyIdx + 1}</span>
-                                                        <span className="text-[13px] font-medium text-gray-400">โควต้าว่าง</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                    <div className="p-4 flex-1 space-y-4">
+                                        <div>
+                                            <h5 className="text-[13px] font-bold text-brand mb-2 flex items-center"><Icon name="CheckSquare" size={14} className="mr-1.5"/> แพลนโพสต์วันนี้</h5>
+                                            {renderHouseList(todayHouses, 2, false)}
+                                        </div>
+                                        <div className="border-t border-gray-100 pt-4">
+                                            <h5 className="text-[12px] font-bold text-gray-400 mb-2 flex items-center"><Icon name="Clock" size={14} className="mr-1.5"/> แพลนพรุ่งนี้ (เตรียมข้อมูล)</h5>
+                                            {renderHouseList(tomorrowHouses, 2, true)}
+                                        </div>
                                     </div>
                                 </div>
                             );
