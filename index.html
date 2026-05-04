@@ -573,13 +573,21 @@
                                         badgeContent = <span className="mr-3 px-2.5 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-[11px] font-bold shadow-sm">ยังไม่ครบ ({completedTasks}/{totalTasks})</span>;
                                     }
                                     content = <div className="flex items-center">{badgeContent}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
-                                } else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                } else if (col === 'พื้นที่') { content = <span className="text-[13px] font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{safeTrim(row[col]) || '-'}</span>;
-                                } else if (col === 'ห้องนอน') { content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
-                                } else if (col === 'ห้องน้ำ') { content = <span className="text-[13px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
-                                } else if (col === 'ราคา') { content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
-                                } else { content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; }
+                                } else if (col === 'บ้านเลขที่' || col === 'ซอย') { 
+                                    content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                } else if (col === 'พื้นที่') { 
+                                    content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                } else if (col === 'ห้องนอน') { 
+                                    content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
+                                } else if (col === 'ห้องน้ำ') { 
+                                    content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
+                                } else if (col === 'ราคา') { 
+                                    content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
+                                } else if (col === 'สถานะ') { 
+                                    content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                } else { 
+                                    content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; 
+                                }
                                 return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
                             })}
                           </tr>
@@ -919,9 +927,9 @@
                                       let content = null;
                                       if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
                                       else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
-                                      else if (col === 'พื้นที่') content = <span className="text-[13px] font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{safeTrim(row[col]) || '-'}</span>;
-                                      else if (col === 'ห้องนอน') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
-                                      else if (col === 'ห้องน้ำ') content = <span className="text-[13px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
+                                      else if (col === 'พื้นที่') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                      else if (col === 'ห้องนอน') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
+                                      else if (col === 'ห้องน้ำ') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
                                       else if (col === 'ราคา') content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
                                       else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
                                       else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
@@ -2571,10 +2579,10 @@ ${promptAction}`;
                                                 
                                                 if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{val || '-'}</span>;
                                                 else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
-                                                else if (col === 'พื้นที่') content = <span className="text-[13px] font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{val || '-'}</span>;
-                                                else if (col === 'ห้องนอน') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{val ? `${val} นอน` : '-'}</span>;
-                                                else if (col === 'ห้องน้ำ') content = <span className="text-[13px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100">{val ? `${val} น้ำ` : '-'}</span>;
-                                                else if (col === 'ทำเล') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
+                                                else if (col === 'พื้นที่') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                                else if (col === 'ห้องนอน') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
+                                                else if (col === 'ห้องน้ำ') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
+                                                else if (col === 'ทำเล') content = <span className="text-[14px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
                                                 else if (col === 'ราคา') content = <span className="text-[14px] font-extrabold text-emerald-600">{val ? formatPriceInput(val) : '-'}</span>;
                                                 else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{val || '-'}</span>;
                                                 
