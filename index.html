@@ -1190,40 +1190,47 @@
             return (Date.now() - skipTime) < 86400000;
         };
 
-        // 💡 ฟังก์ชันช่วยจัดคิวบ้าน: ดึง 4 หลัง (วันนี้ 2, พรุ่งนี้ 2)
+        // 💡 ฟังก์ชันช่วยจัดคิวบ้าน: ดึง 4 หลัง (วันนี้ 2, พรุ่งนี้ 2) พร้อมระบบล็อคตำแหน่งป้องกันบ้านสลับที่
         const pickHousesForAssignee = (myPool) => {
             const finalHouses = [];
             
+            // 🔒 สร้างกฎการเรียงลำดับแบบล็อคเป้าหมาย (ป้องกันบ้านเด้งเปลี่ยนหลัง)
+            const sortOldest = (a, b) => {
+                const expA = getExpScore(a), expB = getExpScore(b);
+                if (expA !== expB) return expA - expB;
+                const startA = getStartScore(a), startB = getStartScore(b);
+                if (startA !== startB) return startA - startB;
+                return String(a.id).localeCompare(String(b.id)); // 💡 ท่าไม้ตาย: คะแนนเท่ากัน ให้ยึดรหัส ID เป็นหลัก
+            };
+
+            const sortNewest = (a, b) => {
+                const startA = getStartScoreDesc(a), startB = getStartScoreDesc(b);
+                if (startA !== startB) return startB - startA;
+                return String(a.id).localeCompare(String(b.id)); // 💡 ท่าไม้ตายล็อคตำแหน่ง
+            };
+
             // 🏠 วันนี้ - หลังที่ 1: ใกล้หมดสัญญา หรือ เก่าสุด
             if (myPool.length > 0) {
-                myPool.sort((a, b) => {
-                    const expA = getExpScore(a), expB = getExpScore(b);
-                    if (expA !== expB) return expA - expB;
-                    return getStartScore(a) - getStartScore(b);
-                });
+                myPool.sort(sortOldest);
                 const h = myPool.shift(); h.scheduleType = 'today';
                 finalHouses.push(h); assignedToday.add(h.id);
             }
             // 🏠 วันนี้ - หลังที่ 2: มาใหม่ล่าสุด
             if (myPool.length > 0) {
-                myPool.sort((a, b) => getStartScoreDesc(b) - getStartScoreDesc(a));
+                myPool.sort(sortNewest);
                 const h = myPool.shift(); h.scheduleType = 'today';
                 finalHouses.push(h); assignedToday.add(h.id);
             }
             
             // 🏠 พรุ่งนี้ - หลังที่ 1 (คิวถัดไป): ใกล้หมดสัญญา หรือ เก่าสุด
             if (myPool.length > 0) {
-                myPool.sort((a, b) => {
-                    const expA = getExpScore(a), expB = getExpScore(b);
-                    if (expA !== expB) return expA - expB;
-                    return getStartScore(a) - getStartScore(b);
-                });
+                myPool.sort(sortOldest);
                 const h = myPool.shift(); h.scheduleType = 'tomorrow';
                 finalHouses.push(h); assignedToday.add(h.id);
             }
             // 🏠 พรุ่งนี้ - หลังที่ 2 (คิวถัดไป): มาใหม่ล่าสุด
             if (myPool.length > 0) {
-                myPool.sort((a, b) => getStartScoreDesc(b) - getStartScoreDesc(a));
+                myPool.sort(sortNewest);
                 const h = myPool.shift(); h.scheduleType = 'tomorrow';
                 finalHouses.push(h); assignedToday.add(h.id);
             }
@@ -1403,7 +1410,7 @@
                                         const isPostedToday = postTracking[house.id]?.[assignee.name] === assignmentTodayStr;
 
                                         return (
-                                            <li key={hIdx} className={`flex items-start p-3 rounded-xl border transition-colors ${isPostedToday ? 'bg-[#f0fdf4] border-[#34d399]' : (isTomorrow ? 'bg-gray-50/40 border-gray-200 border-dashed' : 'bg-gray-50/80 border-gray-100 hover:border-brand/30')}`}>
+                                            <li key={house.id} className={`flex items-start p-3 rounded-xl border transition-colors ${isPostedToday ? 'bg-[#f0fdf4] border-[#34d399]' : (isTomorrow ? 'bg-gray-50/40 border-gray-200 border-dashed' : 'bg-gray-50/80 border-gray-100 hover:border-brand/30')}`}>
                                                 <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(house.id, e.target.checked, assignee.name)} className="mt-0.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" disabled={isTomorrow} />
                                                 <div className="flex-1">
                                                     <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : (isTomorrow ? 'text-gray-600' : 'text-gray-800')}`}>{combined || '-'}</h4>
