@@ -399,14 +399,14 @@
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
         const [expandedRowId, setExpandedRowId] = useState(null); const [showFilters, setShowFilters] = useState(false);
 
-        const [hiddenValues, setHiddenValues] = useState(() => { const s = localStorage.getItem('s_h_val_v6'); return s ? JSON.parse(s) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] }; }); 
-        const [visibleColumns, setVisibleColumns] = useState(() => { const s = localStorage.getItem('s_v_col_v6'); return s ? JSON.parse(s) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะ']; });
+        const [hiddenValues, setHiddenValues] = useState(() => { const s = localStorage.getItem('s_h_val_v7'); return s ? JSON.parse(s) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] }; }); 
+        const [visibleColumns, setVisibleColumns] = useState(() => { const s = localStorage.getItem('s_v_col_v7'); return s ? JSON.parse(s) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ']; });
 
-        useEffect(() => { localStorage.setItem('s_h_val_v6', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_v6', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_v7', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_v7', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
-        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะ'];
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ'];
         const uniqueStatuses = [...new Set(validSheetData.map(i => safeTrim(i['สถานะ'])).filter(Boolean))], uniqueWebsites = [...new Set(validSheetData.map(i => safeTrim(i['Website'])).filter(Boolean))];
         const taskOptions = [
             { key: 'main_vertical', label: 'คลิปแนวตั้ง' }, { key: 'main_horizontal', label: 'คลิปแนวนอน' }, { key: 'main_person', label: 'คลิปมีคน' }, { key: 'main_photo', label: 'ถ่ายรูป' },
@@ -575,6 +575,10 @@
                                     content = <div className="flex items-center">{badgeContent}<span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span></div>;
                                 } else if (col === 'บ้านเลขที่' || col === 'ซอย') { content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
                                 } else if (col === 'สถานะ') { content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                } else if (col === 'พื้นที่') { content = <span className="text-[13px] font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{safeTrim(row[col]) || '-'}</span>;
+                                } else if (col === 'ห้องนอน') { content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
+                                } else if (col === 'ห้องน้ำ') { content = <span className="text-[13px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
+                                } else if (col === 'ราคา') { content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
                                 } else { content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row[col]) || '-'}</span>; }
                                 return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
                             })}
@@ -650,7 +654,7 @@
         }, []);
 
         const validSheetData = getValidSheetData(sheetData);
-        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
         const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
@@ -668,12 +672,12 @@
         });
 
         const [visibleColsUnfinished, setVisibleColsUnfinished] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_unfin_v15');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
+            const saved = localStorage.getItem('s_v_col_unfin_v16');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         });
         const [visibleColsAll, setVisibleColsAll] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_all_v15');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
+            const saved = localStorage.getItem('s_v_col_all_v16');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         });
 
         // 💡 ติดตั้งค่าเริ่มต้นให้โหมดกำลังทำ (โชว์เฉพาะ 'ยังไม่เสร็จ')
@@ -684,10 +688,10 @@
         }, [uniqueStatuses.length]);
 
         // เซฟความจำแยกลงเครื่อง
-        useEffect(() => { if(hiddenValuesUnfinished) localStorage.setItem('s_h_val_unfin_v15', JSON.stringify(hiddenValuesUnfinished)); }, [hiddenValuesUnfinished]);
-        useEffect(() => { localStorage.setItem('s_h_val_all_v15', JSON.stringify(hiddenValuesAll)); }, [hiddenValuesAll]);
-        useEffect(() => { localStorage.setItem('s_v_col_unfin_v15', JSON.stringify(visibleColsUnfinished)); }, [visibleColsUnfinished]);
-        useEffect(() => { localStorage.setItem('s_v_col_all_v15', JSON.stringify(visibleColsAll)); }, [visibleColsAll]);
+        useEffect(() => { if(hiddenValuesUnfinished) localStorage.setItem('s_h_val_unfin_v16', JSON.stringify(hiddenValuesUnfinished)); }, [hiddenValuesUnfinished]);
+        useEffect(() => { localStorage.setItem('s_h_val_all_v16', JSON.stringify(hiddenValuesAll)); }, [hiddenValuesAll]);
+        useEffect(() => { localStorage.setItem('s_v_col_unfin_v16', JSON.stringify(visibleColsUnfinished)); }, [visibleColsUnfinished]);
+        useEffect(() => { localStorage.setItem('s_v_col_all_v16', JSON.stringify(visibleColsAll)); }, [visibleColsAll]);
 
         // ตัวแปรสลับสมองอัตโนมัติตามโหมดที่เปิดอยู่
         const currentHiddenValues = viewMode === 'unfinished' ? (hiddenValuesUnfinished || defaultUnfinishedHidden) : hiddenValuesAll;
@@ -915,6 +919,10 @@
                                       let content = null;
                                       if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{safeTrim(row['หมู่บ้าน']) || '-'}</span>;
                                       else if (col === 'บ้านเลขที่' || col === 'ซอย') content = <span className="text-[14px] font-medium text-gray-700">{safeTrim(row[col]) || '-'}</span>;
+                                      else if (col === 'พื้นที่') content = <span className="text-[13px] font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{safeTrim(row[col]) || '-'}</span>;
+                                      else if (col === 'ห้องนอน') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} นอน` : '-'}</span>;
+                                      else if (col === 'ห้องน้ำ') content = <span className="text-[13px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100">{safeTrim(row[col]) ? `${safeTrim(row[col])} น้ำ` : '-'}</span>;
+                                      else if (col === 'ราคา') content = <span className="text-[14px] font-black text-emerald-600">{safeTrim(row['ราคา sale']) || safeTrim(row['ราคา']) ? formatPriceInput(safeTrim(row['ราคา sale']) || safeTrim(row['ราคา'])) : '-'}</span>;
                                       else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{safeTrim(row['เริ่มทำ']) || '-'}</span>;
                                       else if (col === 'ทำเสร็จเมื่อ') content = <DatePickerFixed value={prog.finishedDate || ''} onChange={(e) => handleUpdateProgress(row.id, { finishedDate: e.target.value })} className="px-3 py-1.5 text-[13px] rounded-lg outline-none bg-white border border-gray-300 focus:border-brand w-[110px] text-center" />;
                                       else if (col === 'รวมเวลา (วัน)' || col === 'ระยะเวลา') { const days = calculateDays(safeTrim(row['เริ่มทำ']), prog.finishedDate); content = <span className="text-[14px] font-bold text-gray-600 bg-gray-50 px-3 py-1 rounded-md">{days === '-' ? '-' : `${days} วัน`}</span>; }
@@ -2360,19 +2368,19 @@ ${promptAction}`;
         const [showFilters, setShowFilters] = useState(false);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_zone_v4');
+            const saved = localStorage.getItem('s_h_val_zone_v5');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_zone_v4');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+            const saved = localStorage.getItem('s_v_col_zone_v5');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_zone_v4', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_zone_v4', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_zone_v5', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_zone_v5', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
-        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
         
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
         const uniqueZones = [...new Set(validSheetData.map(item => safeTrim(item['ทำเล'])).filter(Boolean))];
@@ -2563,6 +2571,9 @@ ${promptAction}`;
                                                 
                                                 if (col === 'หมู่บ้าน') content = <span className={`text-[15px] font-extrabold ${style.text}`}>{val || '-'}</span>;
                                                 else if (col === 'สถานะ' || col === 'สถานะบ้าน') content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
+                                                else if (col === 'พื้นที่') content = <span className="text-[13px] font-bold text-gray-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{val || '-'}</span>;
+                                                else if (col === 'ห้องนอน') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{val ? `${val} นอน` : '-'}</span>;
+                                                else if (col === 'ห้องน้ำ') content = <span className="text-[13px] font-bold text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-100">{val ? `${val} น้ำ` : '-'}</span>;
                                                 else if (col === 'ทำเล') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
                                                 else if (col === 'ราคา') content = <span className="text-[14px] font-extrabold text-emerald-600">{val ? formatPriceInput(val) : '-'}</span>;
                                                 else if (col === 'เริ่มทำ') content = <span className="text-[14px] font-medium text-gray-500">{val || '-'}</span>;
