@@ -1113,16 +1113,16 @@
         }, []);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_post_v6');
+            const saved = localStorage.getItem('s_h_val_post_v7');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_post_v6');
+            const saved = localStorage.getItem('s_v_col_post_v7');
             return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'ประวัติการโพสต์'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_post_v6', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_post_v6', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_post_v7', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_post_v7', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const baseSheetData = getValidSheetData(sheetData);
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'ประวัติการโพสต์'];
