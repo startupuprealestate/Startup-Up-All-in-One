@@ -410,11 +410,11 @@
         const [searchQuery, setSearchQuery] = useState(''); const [isRefreshing, setIsRefreshing] = useState(false);
         const [expandedRowId, setExpandedRowId] = useState(null); const [showFilters, setShowFilters] = useState(false);
 
-        const [hiddenValues, setHiddenValues] = useState(() => { const s = localStorage.getItem('s_h_val_v7'); return s ? JSON.parse(s) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] }; }); 
-        const [visibleColumns, setVisibleColumns] = useState(() => { const s = localStorage.getItem('s_v_col_v7'); return s ? JSON.parse(s) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ']; });
+        const [hiddenValues, setHiddenValues] = useState(() => { const s = localStorage.getItem('s_h_val_v8'); return s ? JSON.parse(s) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] }; }); 
+        const [visibleColumns, setVisibleColumns] = useState(() => { const s = localStorage.getItem('s_v_col_v8'); return s ? JSON.parse(s) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ']; });
 
-        useEffect(() => { localStorage.setItem('s_h_val_v7', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_v7', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_v8', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_v8', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ'];
@@ -678,24 +678,24 @@
         const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
 
         // 💡 1. แยกระบบตัวกรองเป็น 2 สมอง (แยกความจำโหมด "กำลังทำ" กับ "ทั้งหมด")
-        const defaultUnfinishedHidden = { 'สถานะ': uniqueStatuses.filter(s => s !== 'ยังไม่เสร็จ'), 'Website': [] };
+        const defaultUnfinishedHidden = { 'สถานะ': uniqueStatuses.filter(s => s !== 'ยังไม่เสร็จ'), 'Website': ['ฝากขาย'] };
         
         const [hiddenValuesUnfinished, setHiddenValuesUnfinished] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_unfin_v15');
+            const saved = localStorage.getItem('s_h_val_unfin_v17');
             return saved ? JSON.parse(saved) : null;
         });
         const [hiddenValuesAll, setHiddenValuesAll] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_all_v15');
-            // โหมดทั้งหมด: โชว์ทุกอย่าง ยกเว้น "ขายแล้ว"
-            return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': [] };
+            const saved = localStorage.getItem('s_h_val_all_v17');
+            // โหมดทั้งหมด: โชว์ทุกอย่าง ยกเว้น "ขายแล้ว" และ "ฝากขาย"
+            return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] };
         });
 
         const [visibleColsUnfinished, setVisibleColsUnfinished] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_unfin_v16');
+            const saved = localStorage.getItem('s_v_col_unfin_v17');
             return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         });
         const [visibleColsAll, setVisibleColsAll] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_all_v16');
+            const saved = localStorage.getItem('s_v_col_all_v17');
             return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะบ้าน', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'รวมเวลา (วัน)', 'การตรวจงาน'];
         });
 
@@ -707,10 +707,10 @@
         }, [uniqueStatuses.length]);
 
         // เซฟความจำแยกลงเครื่อง
-        useEffect(() => { if(hiddenValuesUnfinished) localStorage.setItem('s_h_val_unfin_v16', JSON.stringify(hiddenValuesUnfinished)); }, [hiddenValuesUnfinished]);
-        useEffect(() => { localStorage.setItem('s_h_val_all_v16', JSON.stringify(hiddenValuesAll)); }, [hiddenValuesAll]);
-        useEffect(() => { localStorage.setItem('s_v_col_unfin_v16', JSON.stringify(visibleColsUnfinished)); }, [visibleColsUnfinished]);
-        useEffect(() => { localStorage.setItem('s_v_col_all_v16', JSON.stringify(visibleColsAll)); }, [visibleColsAll]);
+        useEffect(() => { if(hiddenValuesUnfinished) localStorage.setItem('s_h_val_unfin_v17', JSON.stringify(hiddenValuesUnfinished)); }, [hiddenValuesUnfinished]);
+        useEffect(() => { localStorage.setItem('s_h_val_all_v17', JSON.stringify(hiddenValuesAll)); }, [hiddenValuesAll]);
+        useEffect(() => { localStorage.setItem('s_v_col_unfin_v17', JSON.stringify(visibleColsUnfinished)); }, [visibleColsUnfinished]);
+        useEffect(() => { localStorage.setItem('s_v_col_all_v17', JSON.stringify(visibleColsAll)); }, [visibleColsAll]);
 
         // ตัวแปรสลับสมองอัตโนมัติตามโหมดที่เปิดอยู่
         const currentHiddenValues = viewMode === 'unfinished' ? (hiddenValuesUnfinished || defaultUnfinishedHidden) : hiddenValuesAll;
@@ -1138,16 +1138,16 @@
         }, []);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_post_v7');
+            const saved = localStorage.getItem('s_h_val_post_v8');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว'], 'Website': ['ฝากขาย'] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_post_v7');
+            const saved = localStorage.getItem('s_v_col_post_v8');
             return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'ประวัติการโพสต์'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_post_v7', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_post_v7', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_post_v8', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_post_v8', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const baseSheetData = getValidSheetData(sheetData);
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'สถานะบ้าน', 'ประวัติการโพสต์'];
@@ -2458,16 +2458,16 @@ ${promptAction}`;
         const [houseToDelete, setHouseToDelete] = useState(null);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_zone_v8');
-            return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': [] };
+            const saved = localStorage.getItem('s_h_val_zone_v9');
+            return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': ['ฝากขาย'] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_zone_v8');
+            const saved = localStorage.getItem('s_v_col_zone_v9');
             return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ราคา', 'สถานะ', 'ทำเล', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'ผู้ดูแลบ้าน (Admin)', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_zone_v8', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_zone_v8', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_zone_v9', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_zone_v9', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
         // 💡 เพิ่มคอลัมน์ผู้ดูแลบ้าน (Admin)
@@ -4831,7 +4831,7 @@ ${promptAction}`;
                       )}
                       <div className="flex flex-col gap-1">
                         <span className="text-[13px] font-bold text-gray-500">หมายเหตุ / เหตุผล</span>
-                        <p className="text-[14px] text-gray-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-100 min-h-[60px]">
+                        <p className="text-[14px] text-gray-700 leading-relaxed bg-white p-3 rounded-xl border border-gray-100 min-h-[60px] whitespace-pre-wrap">
                           {viewingEvent.note || '- ไม่ระบุ -'}
                         </p>
                       </div>
