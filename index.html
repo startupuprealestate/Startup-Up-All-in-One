@@ -2423,6 +2423,9 @@ ${promptAction}`;
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [searchQuery, setSearchQuery] = useState('');
+        const [isRefreshing, setIsRefreshing] = useState(false);
+        const [showFilters, setShowFilters] = useState(false);
+
         const [isDeleteHouseModalOpen, setIsDeleteHouseModalOpen] = useState(false);
         const [houseToDelete, setHouseToDelete] = useState(null);
 
@@ -2487,7 +2490,6 @@ ${promptAction}`;
             try { 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
                 
-                // 🚀 เพิ่มแค่ระบบยิงไปอัปเดต Sheet "Zoneบ้าน" อย่างเดียวพอค่ะ
                 const rowInfoSync = validSheetData.find(r => r.id === rowId);
                 const currentProg = { ...constructionProgress[rowId], ...data };
                 if (window.syncToZoneSheet) {
@@ -2599,7 +2601,6 @@ ${promptAction}`;
                         <tr>
                           <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
                           {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                          {/* 💡 เพิ่มหัวคอลัมน์ ลบ ติดขอบขวา */}
                           <th className="py-4 px-3 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-l-2 border-gray-200 sticky right-0 z-30 bg-gray-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] w-[50px]">ลบ</th>
                         </tr>
                       </thead>
@@ -2638,19 +2639,15 @@ ${promptAction}`;
                                                 else if (col === 'ทำเล') content = <span className="text-[13px] font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">{val || '-'}</span>;
                                                 else if (col === 'ราคา') content = <span className="text-[14px] font-extrabold text-emerald-600">{val ? formatPriceInput(val) : '-'}</span>;
                                                 else if (col === 'เริ่มทำ') {
-                                          content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(safeTrim(row['เริ่มทำ'])) || '-'}</span>;
-                                      }
-                                                
-                                                // 💡 เปลี่ยนตรงนี้: จาก DatePicker เป็นแค่ตัวหนังสือแสดงข้อมูลเฉยๆ
+                                                  content = <span className="text-[14px] font-medium text-gray-500">{getFormattedDateThai(safeTrim(row['เริ่มทำ'])) || '-'}</span>;
+                                                }
                                                 else if (col === 'ทำเสร็จเมื่อ') {
                                                     const fDate = prog.finishedDate;
-                                                    // แปลงจาก YYYY-MM-DD เป็น DD/MM/YYYY
                                                     const displayDate = fDate ? fDate.split('-').reverse().join('/') : null;
                                                     content = displayDate 
                                                         ? <span className="text-[13px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">{displayDate}</span> 
                                                         : <span className="text-[13px] text-gray-400">-</span>;
                                                 }
-
                                                 else if (col === 'ผู้ดูแลบ้าน') {
                                                     const caretaker = prog.caretaker || val || '';
                                                     content = (
@@ -2689,7 +2686,6 @@ ${promptAction}`;
                                                 
                                                 return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
                                             })}
-                                            {/* 💡 ปุ่มถังขยะด้านขวาสุดของแต่ละบรรทัด */}
                                             <td className="py-4 px-3 align-middle text-center border border-gray-200 border-l-2 sticky right-0 z-10 bg-white group-hover:bg-gray-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                 <button onClick={() => { setHouseToDelete(row); setIsDeleteHouseModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="ลบข้อมูลบ้าน">
                                                     <Icon name="Trash" size={16} />
@@ -2706,7 +2702,6 @@ ${promptAction}`;
                   </div>
                 </div>
 
-                {/* 💡 ป๊อปอัปยืนยันการลบบ้าน (ทำงานร่วมกับแอปและ Google Sheet) */}
                 {isDeleteHouseModalOpen && houseToDelete && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                         <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
@@ -2721,10 +2716,8 @@ ${promptAction}`;
                                 <button onClick={async () => {
                                     if (!isFirebaseLoaded) return;
                                     try {
-                                        // 1. ลบออกจากตู้ข้อมูลแอป
                                         await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "google_sheet_data", houseToDelete.id));
                                         
-                                        // 2. ส่งสัญญาณให้ Google Apps Script เตะบรรทัดนี้ทิ้งด้วย
                                         if (window.syncToZoneSheet) {
                                             window.syncToZoneSheet('delete', houseToDelete.id, houseToDelete, {});
                                         }
