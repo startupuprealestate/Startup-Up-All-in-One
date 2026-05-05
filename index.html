@@ -4586,7 +4586,12 @@ ${promptAction}`;
                                else if (ev.type === 'leave') { borderColorClass = 'border-orange-400'; bgColorClass = 'bg-orange-50/40'; typeLabel = <span className="text-[11px] px-2 py-0.5 rounded text-orange-700 bg-orange-200/50 font-bold mb-1.5 w-max shadow-sm">ลางาน {ev.leaveType ? `(${ev.leaveType})` : ''}</span>; }
 
                                return (
-                                 <div key={ev.id || idx} onClick={() => {setIsDayViewOpen(false); handleOpenModal(null, ev)}} className={`relative flex flex-col sm:flex-row gap-3 md:gap-4 p-4 rounded-xl border-l-4 ${borderColorClass} border-y border-r border-gray-200 ${bgColorClass} hover:shadow-md cursor-pointer transition-all group overflow-hidden`}>
+                                 <div 
+                                    key={ev.id || idx} 
+                                    // 💡 1. เปลี่ยนคำสั่งตอนกดกล่อง ให้ไปเปิดหน้าต่าง View แทน (ไม่เปิดโหมดแก้ไข)
+                                    onClick={() => { setIsDayViewOpen(false); setViewingEvent(ev); }} 
+                                    className={`relative flex flex-col sm:flex-row gap-3 md:gap-4 p-4 rounded-xl border-l-4 ${borderColorClass} border-y border-r border-gray-200 ${bgColorClass} hover:shadow-md cursor-pointer transition-all group overflow-hidden`}
+                                 >
                                      
                                      <div className="flex flex-row sm:flex-col justify-between sm:justify-start items-center sm:items-start sm:w-[130px] shrink-0 gap-2 sm:gap-2.5">
                                          {ev.type === 'event' ? (
@@ -4603,7 +4608,8 @@ ${promptAction}`;
                                          </div>
                                      </div>
 
-                                     <div className="flex-1 min-w-0 flex flex-col">
+                                     {/* 💡 ดันข้อความไปทางซ้ายนิดนึง เพื่อไม่ให้ทับกับปุ่มแก้ไข */}
+                                     <div className="flex-1 min-w-0 flex flex-col pr-12">
                                          {typeLabel}
                                          <div className="font-bold text-[15px] md:text-[16px] text-gray-800 flex items-start leading-snug">
                                             {ev.type === 'event' && <span className="mr-2 mt-0.5 opacity-80 shrink-0">{getActivityIcon(ev.activity)}</span>}
@@ -4618,9 +4624,18 @@ ${promptAction}`;
                                          )}
                                      </div>
                                      
-                                     <div className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block bg-white p-2 rounded-full shadow-sm border border-gray-100">
-                                        <Icon name="Edit" size={16} className="text-gray-400 hover:text-brand" />
-                                     </div>
+                                     {/* 💡 2. อัปเกรดปุ่มแก้ไข (เปลี่ยนเป็นปุ่ม และใส่สมองกล e.stopPropagation แยกสวิตช์กัน) */}
+                                     <button 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); // 🛑 ห้ามทะลุไปคลิกกล่องใหญ่ด้านหลัง
+                                            setIsDayViewOpen(false); 
+                                            handleOpenModal(null, ev); // ✏️ เปิดหน้าต่างแก้ไข
+                                        }} 
+                                        className="absolute right-3 md:right-4 top-1/2 transform -translate-y-1/2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all bg-white p-2.5 md:p-3 rounded-full shadow-md border border-gray-200 hover:border-brand hover:shadow-lg z-10 flex items-center justify-center"
+                                        title="แก้ไขกิจกรรมนี้"
+                                     >
+                                        <Icon name="Edit" size={16} className="text-gray-500 hover:text-brand transition-colors" />
+                                     </button>
                                  </div>
                                );
                              })}
