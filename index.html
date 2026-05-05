@@ -1290,8 +1290,18 @@
             return null;
         };
 
+        // 💡 โค้ดตาทิพย์ 1: ค้นหาข้อมูลทั้งรหัสเก่าและใหม่
+        const getPostDataWithTelepathy = (house) => {
+            const proj = safeTrim(house['หมู่บ้าน']), hNo = safeTrim(house['บ้านเลขที่']), price = safeTrim(house['ราคา']);
+            let oldIdStr = proj + hNo + price; let oldHash = 0;
+            for (let i = 0; i < oldIdStr.length; i++) { oldHash = Math.imul(31, oldHash) + oldIdStr.charCodeAt(i) | 0; }
+            const oldDocId = `h_${Math.abs(oldHash)}`;
+            return { data: postTracking[house.id] || postTracking[oldDocId] || {}, targetId: postTracking[house.id] ? house.id : (postTracking[oldDocId] ? oldDocId : house.id) };
+        };
+
         const renderPreviousPostInfo = (house, assigneeName) => {
-            const lastPost = postTracking[house.id]?.[assigneeName];
+            const { data } = getPostDataWithTelepathy(house);
+            const lastPost = data[assigneeName];
             if (!lastPost || lastPost === assignmentTodayStr) return null;
             const diffDays = getDaysAgo(lastPost, assignmentTodayStr);
             if (diffDays <= 0) return null;
@@ -1427,7 +1437,9 @@
                             // 💡 แยกบ้านเป็น 2 กองเพื่อวาด UI ให้ชัดเจน
                             const todayHouses = assignee.houses.filter(h => h.scheduleType === 'today');
                             const tomorrowHouses = assignee.houses.filter(h => h.scheduleType === 'tomorrow');
-                            const completedTodayCount = todayHouses.filter(h => postTracking[h.id]?.[assignee.name] === assignmentTodayStr).length;
+                            
+                            // ใช้ตาทิพย์นับจำนวนโพสต์วันนี้
+                            const completedTodayCount = todayHouses.filter(h => getPostDataWithTelepathy(h).data[assignee.name] === assignmentTodayStr).length;
                             const avatarClass = getAvatarColor(assignee.name);
                             const avatarLetter = getAvatarLetter(assignee.name);
 
@@ -1436,11 +1448,14 @@
                                 <ul className="space-y-3">
                                     {houseList.map((house, hIdx) => {
                                         const combined = `${safeTrim(house['หมู่บ้าน'])} ${safeTrim(house['บ้านเลขที่'])} ${safeTrim(house['ซอย'])}`.trim();
-                                        const isPostedToday = postTracking[house.id]?.[assignee.name] === assignmentTodayStr;
+                                        
+                                        // 💡 โค้ดตาทิพย์ 2: ดึงข้อมูลการกดลงกระดานจ่ายงาน
+                                        const { data: postData, targetId } = getPostDataWithTelepathy(house);
+                                        const isPostedToday = postData[assignee.name] === assignmentTodayStr;
 
                                         return (
                                             <li key={house.id} className={`flex items-start p-3 rounded-xl border transition-colors ${isPostedToday ? 'bg-[#f0fdf4] border-[#34d399]' : (isTomorrow ? 'bg-gray-50/40 border-gray-200 border-dashed' : 'bg-gray-50/80 border-gray-100 hover:border-brand/30')}`}>
-                                                <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(house.id, e.target.checked, assignee.name)} className="mt-0.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" disabled={isTomorrow} />
+                                                <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(targetId, e.target.checked, assignee.name)} className="mt-0.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" disabled={isTomorrow} />
                                                 <div className="flex-1">
                                                     <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : (isTomorrow ? 'text-gray-600' : 'text-gray-800')}`}>{combined || '-'}</h4>
                                                     <div className="flex flex-wrap items-center mt-1 gap-1">
@@ -1449,11 +1464,11 @@
                                                     </div>
                                                     {isPostedToday && (
                                                         <span className="inline-block mt-1 text-[11px] font-bold text-[#059669]">
-                                                            ✔ โพสต์แล้วโดย: {postTracking[house.id]?.[`${assignee.name}_postedBy`] || 'ทีมงาน'}
+                                                            ✔ โพสต์แล้วโดย: {postData[`${assignee.name}_postedBy`] || 'ทีมงาน'}
                                                         </span>
                                                     )}
                                                 </div>
-                                                <button onClick={() => confirmSkip(house.id, combined, assignee.name)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
+                                                <button onClick={() => confirmSkip(targetId, combined, assignee.name)} className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0" title="ข้ามบ้านหลังนี้"><Icon name="Trash" size={14} /></button>
                                             </li>
                                         );
                                     })}
