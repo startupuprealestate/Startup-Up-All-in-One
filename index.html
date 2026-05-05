@@ -1240,6 +1240,7 @@
             else if (i % 3 === 2) workloads.Ketar.push(h);
         });
 
+        // 💡 2. สมองกลจัดไพ่ (ดึงเฉพาะจากตะกร้าตัวเอง ไม่กวนคนอื่น)
         const pickHousesForAssignee = (name) => {
             let myPool = workloads[name].filter(h => !isSkipped(h, name));
             const finalHouses = [];
@@ -1261,10 +1262,11 @@
             let poolOld = [...myPool];
             let poolNew = [...myPool];
 
-            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); h.scheduleType = 'today'; finalHouses.push(h); poolNew = poolNew.filter(x => x.id !== h.id); }
-            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); h.scheduleType = 'today'; finalHouses.push(h); poolOld = poolOld.filter(x => x.id !== h.id); }
-            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); h.scheduleType = 'tomorrow'; finalHouses.push(h); poolNew = poolNew.filter(x => x.id !== h.id); }
-            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); h.scheduleType = 'tomorrow'; finalHouses.push(h); }
+            // 🚨 แก้บั๊กตรงนี้: ใช้คำสั่ง { ...h } เพื่อสร้างร่างโคลนบ้านให้แต่ละคน ป้องกันสถานะ วันนี้/พรุ่งนี้ ทับกัน!
+            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'today' }); poolNew = poolNew.filter(x => x.id !== h.id); }
+            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'today' }); poolOld = poolOld.filter(x => x.id !== h.id); }
+            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow' }); poolNew = poolNew.filter(x => x.id !== h.id); }
+            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow' }); }
             
             return finalHouses;
         };
