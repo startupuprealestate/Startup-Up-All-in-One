@@ -112,7 +112,8 @@
             'สถานะ': rowInfo?.['สถานะ'] || '',
             'ผู้ดูแลบ้าน': currentProg?.caretaker || '',
             'ระดับการขาย': currentProg?.salesLevel || '',
-            'สถานะการถ่ายคลิป': currentProg?.isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'
+            'สถานะการถ่ายคลิป': currentProg?.isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย',
+            'สถานะการถ่ายคลิป (Admin)': currentProg?.isVideoShotAdmin ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย' // 💡 เพิ่มบรรทัดนี้ลงไป
         };
 
         // 🚀 อัปเกรด: อาวุธทะลวงกำแพง Google CORS Policy
@@ -1262,11 +1263,11 @@
             let poolOld = [...myPool];
             let poolNew = [...myPool];
 
-            // 🚨 แก้บั๊กตรงนี้: ใช้คำสั่ง { ...h } เพื่อสร้างร่างโคลนบ้านให้แต่ละคน ป้องกันสถานะ วันนี้/พรุ่งนี้ ทับกัน!
-            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'today' }); poolNew = poolNew.filter(x => x.id !== h.id); }
-            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'today' }); poolOld = poolOld.filter(x => x.id !== h.id); }
-            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow' }); poolNew = poolNew.filter(x => x.id !== h.id); }
-            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow' }); }
+            // 💡 เติมตัวแปร slotLabel ลงไปเพื่อแปะป้ายให้หน้าจอมองเห็นว่ามาจากคิวไหน
+            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'today', slotLabel: 'คิวบ้านเก่าสุด' }); poolNew = poolNew.filter(x => x.id !== h.id); }
+            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'today', slotLabel: 'คิวบ้านมาใหม่' }); poolOld = poolOld.filter(x => x.id !== h.id); }
+            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow', slotLabel: 'คิวบ้านเก่าสุด' }); poolNew = poolNew.filter(x => x.id !== h.id); }
+            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow', slotLabel: 'คิวบ้านมาใหม่' }); }
             
             return finalHouses;
         };
@@ -1434,19 +1435,34 @@
                             const avatarClass = getAvatarColor(assignee.name);
                             const avatarLetter = getAvatarLetter(assignee.name);
 
+                            // 💡 วาดรายการบ้าน พร้อมวงกลมบอกลำดับ และป้ายกำกับคิว
                             const renderHouseList = (houseList, maxCount, isTomorrow) => (
                                 <ul className="space-y-3">
                                     {houseList.map((house, hIdx) => {
                                         const combined = `${safeTrim(house['หมู่บ้าน'])} ${safeTrim(house['บ้านเลขที่'])} ${safeTrim(house['ซอย'])}`.trim();
                                         const { data: postData, targetId } = getPostDataWithTelepathy(house);
                                         const isPostedToday = postData[assignee.name] === assignmentTodayStr;
+                                        
+                                        // สีของป้าย (เก่าสุด=ส้ม, มาใหม่=ฟ้า)
+                                        const badgeColor = house.slotLabel === 'คิวบ้านเก่าสุด' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200';
 
                                         return (
                                             <li key={house.id} className={`flex items-start p-3 rounded-xl border transition-colors ${isPostedToday ? 'bg-[#f0fdf4] border-[#34d399]' : (isTomorrow ? 'bg-gray-50/40 border-gray-200 border-dashed' : 'bg-gray-50/80 border-gray-100 hover:border-brand/30')}`}>
-                                                <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(targetId, e.target.checked, assignee.name)} className="mt-0.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" disabled={isTomorrow} />
+                                                
+                                                {/* 💡 วงกลมบอกลำดับ (1, 2) */}
+                                                <div className="mt-0.5 mr-3 w-6 h-6 flex items-center justify-center bg-white border border-gray-200 shadow-sm rounded-full text-[12px] font-black text-gray-500 shrink-0">
+                                                    {hIdx + 1}
+                                                </div>
+
+                                                <input type="checkbox" checked={isPostedToday} onChange={(e) => handleTogglePost(targetId, e.target.checked, assignee.name)} className="mt-1.5 mr-3 w-5 h-5 accent-[#059669] cursor-pointer shrink-0" disabled={isTomorrow} />
+                                                
                                                 <div className="flex-1">
-                                                    <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : (isTomorrow ? 'text-gray-600' : 'text-gray-800')}`}>{combined || '-'}</h4>
-                                                    <div className="flex flex-wrap items-center mt-1 gap-1">
+                                                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                                        <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : (isTomorrow ? 'text-gray-600' : 'text-gray-800')}`}>{combined || '-'}</h4>
+                                                        {/* 💡 ป้ายบอกคิว */}
+                                                        {house.slotLabel && <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${badgeColor}`}>{house.slotLabel}</span>}
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-1">
                                                         {!isPostedToday && getPriorityLabel(house)}
                                                         {!isPostedToday && renderPreviousPostInfo(house, assignee.name)}
                                                     </div>
@@ -1460,9 +1476,11 @@
                                             </li>
                                         );
                                     })}
+                                    
+                                    {/* 💡 ช่องโควต้าว่าง ก็มีลำดับให้เหมือนกัน */}
                                     {houseList.length < maxCount && Array.from({ length: maxCount - houseList.length }).map((_, emptyIdx) => (
                                         <div key={`empty-${emptyIdx}`} className="flex items-center p-3 rounded-xl border border-dashed border-gray-200 opacity-50">
-                                            <span className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-[11px] font-bold text-gray-400 mr-3 shrink-0">{houseList.length + emptyIdx + 1}</span>
+                                            <span className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-[12px] font-bold text-gray-400 mr-3 shrink-0">{houseList.length + emptyIdx + 1}</span>
                                             <span className="text-[13px] font-medium text-gray-400">โควต้าว่าง</span>
                                         </div>
                                     ))}
@@ -2403,7 +2421,6 @@ ${promptAction}`;
     };
     const HouseZoneTable = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
         const [activeCaretakerTab, setActiveCaretakerTab] = useState('All');
-        // 💡 1. เพิ่ม State สำหรับปุ่มเมนูย่อยรายบุคคล
         const [activeSubTab, setActiveSubTab] = useState('All');
 
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -2416,19 +2433,32 @@ ${promptAction}`;
         const [houseToDelete, setHouseToDelete] = useState(null);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_zone_v6');
+            const saved = localStorage.getItem('s_h_val_zone_v7');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_zone_v6');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ราคา', 'สถานะ', 'ทำเล', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+            const saved = localStorage.getItem('s_v_col_zone_v7');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ราคา', 'สถานะ', 'ทำเล', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_zone_v6', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_zone_v6', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_zone_v7', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_zone_v7', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
-        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
+        
+        // 💡 สมองกลซ่อนคอลัมน์และตัวกรองอัตโนมัติ ตามทีมที่เลือก!
+        const displayColumns = visibleColumns.filter(col => {
+            if (activeCaretakerTab === 'Admin' && col === 'สถานะการถ่ายคลิป') return false;
+            if (activeCaretakerTab === 'Sale' && col === 'สถานะการถ่ายคลิป (Admin)') return false;
+            return true;
+        });
+
+        const displayAllColumnsOption = allColumns.filter(col => {
+            if (activeCaretakerTab === 'Admin' && col === 'สถานะการถ่ายคลิป') return false;
+            if (activeCaretakerTab === 'Sale' && col === 'สถานะการถ่ายคลิป (Admin)') return false;
+            return true;
+        });
         
         const uniqueStatuses = [...new Set(validSheetData.map(item => safeTrim(item['สถานะ'])).filter(Boolean))];
         const uniqueZones = [...new Set(validSheetData.map(item => safeTrim(item['ทำเล'])).filter(Boolean))];
@@ -2457,14 +2487,19 @@ ${promptAction}`;
         const filteredData = validSheetData.filter(row => {
             const prog = constructionProgress[row.id] || {};
             const currentSalesLvl = prog.salesLevel || safeTrim(row['ระดับการขาย']) || 'ไม่ระบุ';
+            
             const isVideoShot = prog.isVideoShot ?? (safeTrim(row['สถานะการถ่ายคลิป']) === 'ถ่ายแล้ว');
             const videoStatus = isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย';
+            
+            const isVideoShotAdmin = prog.isVideoShotAdmin ?? (safeTrim(row['สถานะการถ่ายคลิป (Admin)']) === 'ถ่ายแล้ว');
+            const videoStatusAdmin = isVideoShotAdmin ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย';
 
             if (hiddenValues['สถานะ']?.includes(safeTrim(row['สถานะ']))) return false;
             if (hiddenValues['ทำเล']?.includes(safeTrim(row['ทำเล']))) return false;
             if (hiddenValues['Website']?.includes(safeTrim(row['Website']))) return false;
             if (hiddenValues['ระดับการขาย']?.includes(currentSalesLvl)) return false;
             if (hiddenValues['สถานะการถ่ายคลิป']?.includes(videoStatus)) return false;
+            if (hiddenValues['สถานะการถ่ายคลิป (Admin)']?.includes(videoStatusAdmin)) return false;
             if (searchQuery && !`${safeTrim(row['หมู่บ้าน'])} ${safeTrim(row['บ้านเลขที่'])} ${safeTrim(row['ซอย'])} ${safeTrim(row['ทำเล'])}`.toLowerCase().includes(searchQuery.toLowerCase())) return false;
             return true;
         });
@@ -2489,7 +2524,6 @@ ${promptAction}`;
             else if (i % 3 === 2) workloads.Ketar.push(h);
         });
 
-        // 💡 2. เพิ่มเงื่อนไขให้กรองข้อมูลตามปุ่มเมนูย่อย (activeSubTab)
         let groupedData = [];
         if (activeCaretakerTab === 'All') {
             groupedData = [
@@ -2550,7 +2584,7 @@ ${promptAction}`;
                     {caretakerTabs.map(tab => (
                         <button 
                             key={tab.id}
-                            onClick={() => { setActiveCaretakerTab(tab.id); setActiveSubTab('All'); }} // 💡 รีเซ็ตปุ่มย่อยเวลากดเปลี่ยนทีม
+                            onClick={() => { setActiveCaretakerTab(tab.id); setActiveSubTab('All'); }}
                             className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all whitespace-nowrap ${activeCaretakerTab === tab.id ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}
                         >
                             <Icon name={tab.icon} size={16} className="mr-2" /> {tab.label}
@@ -2560,7 +2594,7 @@ ${promptAction}`;
 
                {activeCaretakerTab === 'Sale' && (
                    <div className="flex gap-2.5 mb-4 md:mb-6 overflow-x-auto horizontal-scrollbar shrink-0 px-1 py-1">
-                       {['All', 'May', 'Boom', 'Boat', 'Nan'].map(sub => ( // 💡 เติมชื่อ 'Nan' ในวงเล็บนี้
+                       {['All', 'May', 'Boom', 'Boat', 'Nan'].map(sub => (
                            <button key={sub} onClick={() => setActiveSubTab(sub)} className={`px-4 py-1.5 rounded-full text-[13px] font-bold border transition-colors whitespace-nowrap ${activeSubTab === sub ? 'bg-brand text-white border-brand shadow-md scale-105' : 'bg-white text-gray-500 border-gray-200 shadow-sm hover:border-brand/40 hover:text-brand'}`}>
                                {sub === 'All' ? 'รวมทุกคน (Sale)' : `เซลล์ ${sub}`}
                            </button>
@@ -2568,7 +2602,6 @@ ${promptAction}`;
                    </div>
                )}
 
-               {/* 💡 4. วาดปุ่มเมนูย่อย สำหรับทีม Admin */}
                {activeCaretakerTab === 'Admin' && (
                    <div className="flex gap-2.5 mb-4 md:mb-6 overflow-x-auto horizontal-scrollbar shrink-0 px-1 py-1">
                        {['All', 'Beau', 'Noey', 'Ketar'].map(sub => (
@@ -2601,7 +2634,7 @@ ${promptAction}`;
                                         <div className="absolute top-full left-0 mt-2 w-[240px] bg-white border border-gray-100 shadow-xl rounded-xl z-20 overflow-hidden flex flex-col max-h-[300px]">
                                             <div className="p-3 bg-gray-50 border-b border-gray-100 text-[12px] font-bold text-gray-500">ติ๊กเพื่อแสดงบนตาราง</div>
                                             <div className="overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                                {allColumns.map(col => (
+                                                {displayAllColumnsOption.map(col => (
                                                     <label key={col} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"><input type="checkbox" checked={visibleColumns.includes(col)} onChange={() => toggleColumn(col)} className="mr-3 w-4 h-4 accent-brand" /><span className="text-[13px] font-semibold">{col}</span></label>
                                                 ))}
                                             </div>
@@ -2610,13 +2643,15 @@ ${promptAction}`;
                                 )}
                             </div>
 
+                            {/* 💡 ซ่อนปุ่มกรองตามทีมที่กำลังดูอยู่ */}
                             {[
                                 { key: 'ระดับการขาย', icon: 'Tag', options: uniqueSalesLevels },
-                                { key: 'สถานะการถ่ายคลิป', icon: 'Video', options: uniqueVideoStatuses },
+                                { key: 'สถานะการถ่ายคลิป', icon: 'Video', options: uniqueVideoStatuses, hideIn: 'Admin' },
+                                { key: 'สถานะการถ่ายคลิป (Admin)', icon: 'Video', options: uniqueVideoStatuses, hideIn: 'Sale' },
                                 { key: 'ทำเล', icon: 'MapPin', options: uniqueZones },
                                 { key: 'สถานะ', icon: 'Search', options: uniqueStatuses },
                                 { key: 'Website', icon: 'Globe', options: uniqueWebsites }
-                            ].map(filter => filter.options.length > 0 && (
+                            ].filter(f => f.hideIn !== activeCaretakerTab).map(filter => filter.options.length > 0 && (
                                 <div key={filter.key} className="relative shrink-0 w-full sm:w-auto">
                                     <button onClick={() => { setActiveFilterDropdown(activeFilterDropdown === filter.key ? null : filter.key); setIsDropdownOpen(false); }} className={`flex items-center justify-between w-full px-4 py-2 bg-white border rounded-xl text-[13px] font-bold text-gray-700 shadow-sm ${hiddenValues[filter.key]?.length > 0 ? 'border-brand/50 bg-brand/5' : ''}`}>
                                         <Icon name={filter.icon} size={14} className="mr-1.5 text-gray-400" /> {filter.key} {hiddenValues[filter.key]?.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-brand text-white text-[10px] rounded-md">{filter.options.length - hiddenValues[filter.key].length}/{filter.options.length}</span>} <Icon name={activeFilterDropdown === filter.key ? "ChevronUp" : "ChevronDown"} size={16} className="ml-1.5 text-gray-400" />
@@ -2638,7 +2673,7 @@ ${promptAction}`;
                             ))}
                         </div>
                         <div className="flex-1 overflow-x-auto mt-4 xl:mt-0 xl:ml-4 flex gap-2 horizontal-scrollbar pb-2 xl:pb-0 w-full border-t xl:border-t-0 xl:border-l border-gray-100 pt-3 xl:pt-0 xl:pl-4">
-                            {visibleColumns.map((col, idx) => (
+                            {displayColumns.map((col, idx) => (
                                 <span key={col} className="inline-flex items-center px-3 py-1.5 bg-brand/5 text-brand rounded-lg text-[12px] font-bold whitespace-nowrap border border-brand/10"><span className="text-brand/50 mr-1.5">{idx + 1}.</span> {col} <button onClick={() => toggleColumn(col)} className="ml-2 text-brand/50 hover:text-red-500"><Icon name="X" size={12} /></button></span>
                             ))}
                         </div>
@@ -2651,17 +2686,18 @@ ${promptAction}`;
                       <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                         <tr>
                           <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
-                          {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                          {/* 💡 วาดเฉพาะคอลัมน์ที่ไม่ได้โดนสมองกลซ่อน */}
+                          {displayColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
                           <th className="py-4 px-3 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-l-2 border-gray-200 w-[50px]">ลบ</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
+                        {displayColumns.length === 0 && validSheetData.length > 0 && <tr><td colSpan={100} className="py-12 text-center text-gray-400 font-medium">กรุณาเลือกคอลัมน์ที่ต้องการแสดงจากตัวจัดการข้อมูลด้านบน</td></tr>}
                         
                         {groupedData.map((group, gIdx) => (
                             <React.Fragment key={group.caretaker}>
                                 <tr className="bg-gray-100/80 border-y-2 border-gray-200">
-                                    <td colSpan={visibleColumns.length + 2} className="py-3 px-4 sticky left-0 z-10">
+                                    <td colSpan={displayColumns.length + 2} className="py-3 px-4 sticky left-0 z-10">
                                         <div className="flex items-center">
                                             <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center mr-3 shadow-md"><Icon name={group.caretaker === 'ยังไม่ระบุ' ? 'HelpCircle' : 'User'} size={16} /></div>
                                             <span className="font-black text-[15px] text-gray-800">ผู้ดูแลบ้าน: <span className="text-brand">{group.caretaker}</span></span>
@@ -2678,7 +2714,7 @@ ${promptAction}`;
                                     return (
                                         <tr key={row.id || idx} className={`border-b transition-colors group hover:bg-gray-50`}>
                                             <td className="py-4 px-2 align-middle text-center text-[13px] font-bold border border-gray-200 border-r-2 text-gray-400 sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">{idx + 1}</td>
-                                            {visibleColumns.map(col => {
+                                            {displayColumns.map(col => {
                                                 let content = null;
                                                 const val = safeTrim(row[col]);
                                                 
@@ -2734,6 +2770,15 @@ ${promptAction}`;
                                                         <label className="flex items-center cursor-pointer group w-max">
                                                             <input type="checkbox" checked={isVideoShot} onChange={(e) => handleUpdateProgress(row.id, { isVideoShot: e.target.checked })} className="w-5 h-5 accent-brand rounded cursor-pointer" />
                                                             <span className={`ml-2 text-[13px] font-bold transition-colors ${isVideoShot ? 'text-brand' : 'text-gray-400 group-hover:text-gray-600'}`}>{isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'}</span>
+                                                        </label>
+                                                    );
+                                                }
+                                                else if (col === 'สถานะการถ่ายคลิป (Admin)') {
+                                                    const isVideoShotAdmin = prog.isVideoShotAdmin ?? (val === 'ถ่ายแล้ว');
+                                                    content = (
+                                                        <label className="flex items-center cursor-pointer group w-max">
+                                                            <input type="checkbox" checked={isVideoShotAdmin} onChange={(e) => handleUpdateProgress(row.id, { isVideoShotAdmin: e.target.checked })} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
+                                                            <span className={`ml-2 text-[13px] font-bold transition-colors ${isVideoShotAdmin ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`}>{isVideoShotAdmin ? 'ถ่ายแล้ว (Admin)' : 'ยังไม่ถ่าย'}</span>
                                                         </label>
                                                     );
                                                 }
