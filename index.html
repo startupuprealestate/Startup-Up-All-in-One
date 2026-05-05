@@ -1526,10 +1526,24 @@
                                                   content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
                                               }
                                               else if (col === 'ประวัติการโพสต์') {
-                                                  const postData = postTracking[row.id] || {};
-                                                  const records = Object.entries(postData).filter(([k,v]) => v && allAssigneesList.includes(k));
+                                                  // 💡 โค้ดตาทิพย์: สร้างรหัสเก่า (แบบมีราคา) มารอตรวจเช็กด้วย
                                                   const proj = safeTrim(row['หมู่บ้าน']);
                                                   const hNo = safeTrim(row['บ้านเลขที่']);
+                                                  const price = safeTrim(row['ราคา']);
+                                                  
+                                                  let oldIdStr = proj + hNo + price;
+                                                  let oldHash = 0;
+                                                  for (let i = 0; i < oldIdStr.length; i++) {
+                                                      oldHash = Math.imul(31, oldHash) + oldIdStr.charCodeAt(i) | 0;
+                                                  }
+                                                  const oldDocId = `h_${Math.abs(oldHash)}`;
+
+                                                  // 💡 ให้แอปหารหัสใหม่ก่อน ถ้าไม่เจอให้ไปดึงข้อมูลจากรหัสเก่ามาโชว์
+                                                  const postData = postTracking[row.id] || postTracking[oldDocId] || {};
+                                                  const targetId = postTracking[row.id] ? row.id : (postTracking[oldDocId] ? oldDocId : row.id); 
+                                                  
+                                                  const postAssigneeNames = ['เพจกลาง', 'Ketar', 'Noey', 'May', 'Boom', 'Boat', 'Nan'];
+                                                  const records = Object.entries(postData).filter(([k,v]) => v && postAssigneeNames.includes(k));
                                                   let combined = `${proj} ${hNo}`.trim();
                                                   
                                                   content = (
@@ -1538,12 +1552,12 @@
                                                               <div className="flex flex-wrap gap-1.5 max-w-[300px]">
                                                                   {records.map(([assigneeName, dateStr]) => {
                                                                       const diffDays = getDaysAgo(dateStr, assignmentTodayStr); 
-                                                                      const postedBy = postTracking[row.id]?.[`${assigneeName}_postedBy`];
+                                                                      const postedBy = postData[`${assigneeName}_postedBy`]; 
                                                                       return (
                                                                           <span key={assigneeName} className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-[11px] font-bold text-gray-600 border border-gray-200 shadow-sm">
                                                                               <span className="text-gray-800 mr-1">{assigneeName}</span> ({diffDays === 0 ? 'วันนี้' : `${diffDays} วันที่แล้ว`})
                                                                               {postedBy && <span className="ml-1 text-[9px] text-brand bg-brand/10 px-1 rounded">กดโดย: {postedBy}</span>}
-                                                                              <button onClick={() => confirmDeleteHistory(row.id, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                                                              <button onClick={() => confirmDeleteHistory(targetId, assigneeName, combined)} className="ml-1.5 p-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
                                                                                   <Icon name="X" size={10} />
                                                                               </button>
                                                                           </span>
@@ -1559,10 +1573,10 @@
                                                                       <div className="fixed inset-0 z-10" onClick={() => setPostMenuOpen(null)}></div>
                                                                       <div className="absolute top-full left-0 mt-1 w-[170px] bg-white shadow-xl border border-gray-200 rounded-xl p-2 z-20 flex flex-col gap-1">
                                                                           <span className="text-[10px] font-bold text-gray-500 mb-1 text-center">ใครเป็นคนโพสต์วันนี้?</span>
-                                                                          {allAssigneesList.map(name => {
-                                                                              const isAlreadyChecked = postTracking[row.id]?.[name] === assignmentTodayStr;
+                                                                          {postAssigneeNames.map(name => {
+                                                                              const isAlreadyChecked = postData[name] === assignmentTodayStr;
                                                                               return (
-                                                                                  <button key={name} onClick={() => { handleTogglePost(row.id, !isAlreadyChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between text-left px-3 py-2 text-[12px] font-bold rounded-lg transition-colors ${isAlreadyChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10 hover:text-brand'}`}>
+                                                                                  <button key={name} onClick={() => { handleTogglePost(targetId, !isAlreadyChecked, name); setPostMenuOpen(null); }} className={`flex items-center justify-between text-left px-3 py-2 text-[12px] font-bold rounded-lg transition-colors ${isAlreadyChecked ? 'bg-[#d1fae5] text-[#065f46]' : 'text-gray-700 hover:bg-brand/10 hover:text-brand'}`}>
                                                                                       {name} {isAlreadyChecked && <Icon name="Check" size={12} />}
                                                                                   </button>
                                                                               )
