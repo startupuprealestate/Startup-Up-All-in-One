@@ -2423,8 +2423,8 @@ ${promptAction}`;
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
         const [searchQuery, setSearchQuery] = useState('');
-        const [isRefreshing, setIsRefreshing] = useState(false);
-        const [showFilters, setShowFilters] = useState(false);
+        const [isDeleteHouseModalOpen, setIsDeleteHouseModalOpen] = useState(false);
+        const [houseToDelete, setHouseToDelete] = useState(null);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
             const saved = localStorage.getItem('s_h_val_zone_v5');
@@ -2599,6 +2599,8 @@ ${promptAction}`;
                         <tr>
                           <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
                           {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
+                          {/* 💡 เพิ่มหัวคอลัมน์ ลบ ติดขอบขวา */}
+                          <th className="py-4 px-3 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-l-2 border-gray-200 sticky right-0 z-30 bg-gray-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] w-[50px]">ลบ</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2607,7 +2609,7 @@ ${promptAction}`;
                         {groupedData.map((group, gIdx) => (
                             <React.Fragment key={group.caretaker}>
                                 <tr className="bg-gray-100/80 border-y-2 border-gray-200">
-                                    <td colSpan={visibleColumns.length + 1} className="py-3 px-4 sticky left-0 z-10">
+                                    <td colSpan={visibleColumns.length + 2} className="py-3 px-4 sticky left-0 z-10">
                                         <div className="flex items-center">
                                             <div className="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center mr-3 shadow-md"><Icon name={group.caretaker === 'ยังไม่ระบุ' ? 'HelpCircle' : 'User'} size={16} /></div>
                                             <span className="font-black text-[15px] text-gray-800">ผู้ดูแลบ้าน: <span className="text-brand">{group.caretaker}</span></span>
@@ -2687,6 +2689,12 @@ ${promptAction}`;
                                                 
                                                 return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
                                             })}
+                                            {/* 💡 ปุ่มถังขยะด้านขวาสุดของแต่ละบรรทัด */}
+                                            <td className="py-4 px-3 align-middle text-center border border-gray-200 border-l-2 sticky right-0 z-10 bg-white group-hover:bg-gray-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                <button onClick={() => { setHouseToDelete(row); setIsDeleteHouseModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="ลบข้อมูลบ้าน">
+                                                    <Icon name="Trash" size={16} />
+                                                </button>
+                                            </td>
                                         </tr>
                                     )
                                 })}
@@ -2694,9 +2702,44 @@ ${promptAction}`;
                         ))}
                         {filteredData.length === 0 && <tr><td colSpan={100} className="py-16 text-center text-gray-400">ไม่มีข้อมูลที่ค้นหา</td></tr>}
                       </tbody>
-                   </table>
-                 </div>
-               </div>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 💡 ป๊อปอัปยืนยันการลบบ้าน (ทำงานร่วมกับแอปและ Google Sheet) */}
+                {isDeleteHouseModalOpen && houseToDelete && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
+                            <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon name="Trash" size={24}/></div>
+                            <h3 className="text-xl font-bold text-gray-800 mb-2">ลบข้อมูลบ้าน?</h3>
+                            <p className="text-sm text-gray-500 mb-5 leading-relaxed">
+                                คุณต้องการลบข้อมูล <b>{safeTrim(houseToDelete['หมู่บ้าน'])} {safeTrim(houseToDelete['บ้านเลขที่'])}</b> ใช่หรือไม่?<br/>
+                                <span className="text-xs text-red-500">(ข้อมูลจะถูกลบออกจากแอปและชีท Zoneบ้าน ทันที)</span>
+                            </p>
+                            <div className="flex justify-center space-x-2">
+                                <button onClick={() => { setIsDeleteHouseModalOpen(false); setHouseToDelete(null); }} className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">ยกเลิก</button>
+                                <button onClick={async () => {
+                                    if (!isFirebaseLoaded) return;
+                                    try {
+                                        // 1. ลบออกจากตู้ข้อมูลแอป
+                                        await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "google_sheet_data", houseToDelete.id));
+                                        
+                                        // 2. ส่งสัญญาณให้ Google Apps Script เตะบรรทัดนี้ทิ้งด้วย
+                                        if (window.syncToZoneSheet) {
+                                            window.syncToZoneSheet('delete', houseToDelete.id, houseToDelete, {});
+                                        }
+                                        
+                                        setIsDeleteHouseModalOpen(false);
+                                        setHouseToDelete(null);
+                                    } catch (e) {
+                                        alert("เกิดข้อผิดพลาดในการลบข้อมูลค่ะ");
+                                    }
+                                }} className="px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-red-600 hover:bg-red-700 transition-colors">ยืนยันการลบ</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
             </div>
         );
     };
