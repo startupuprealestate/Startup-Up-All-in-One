@@ -111,9 +111,10 @@
             'ราคา': rowInfo?.['ราคา'] || '',
             'สถานะ': rowInfo?.['สถานะ'] || '',
             'ผู้ดูแลบ้าน': currentProg?.caretaker || '',
+            'ผู้ดูแลบ้าน (Admin)': currentProg?.caretakerAdmin || '', // 💡 เพิ่มบรรทัดนี้
             'ระดับการขาย': currentProg?.salesLevel || '',
             'สถานะการถ่ายคลิป': currentProg?.isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย',
-            'สถานะการถ่ายคลิป (Admin)': currentProg?.isVideoShotAdmin ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย' // 💡 เพิ่มบรรทัดนี้ลงไป
+            'สถานะการถ่ายคลิป (Admin)': currentProg?.isVideoShotAdmin ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'
         };
 
         // 🚀 อัปเกรด: อาวุธทะลวงกำแพง Google CORS Policy
@@ -2433,30 +2434,31 @@ ${promptAction}`;
         const [houseToDelete, setHouseToDelete] = useState(null);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_zone_v7');
+            const saved = localStorage.getItem('s_h_val_zone_v8');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_zone_v7');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ราคา', 'สถานะ', 'ทำเล', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
+            const saved = localStorage.getItem('s_v_col_zone_v8');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ราคา', 'สถานะ', 'ทำเล', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'ผู้ดูแลบ้าน (Admin)', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_zone_v7', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_zone_v7', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_zone_v8', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_zone_v8', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
-        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
+        // 💡 เพิ่มคอลัมน์ผู้ดูแลบ้าน (Admin)
+        const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'ผู้ดูแลบ้าน (Admin)', 'สถานะการถ่ายคลิป', 'สถานะการถ่ายคลิป (Admin)'];
         
-        // 💡 สมองกลซ่อนคอลัมน์และตัวกรองอัตโนมัติ ตามทีมที่เลือก!
+        // 💡 สมองกลซ่อนคอลัมน์อัตโนมัติ ตามทีมที่เลือก (Sale ไม่เห็นของ Admin / Admin ไม่เห็นของ Sale)
         const displayColumns = visibleColumns.filter(col => {
-            if (activeCaretakerTab === 'Admin' && col === 'สถานะการถ่ายคลิป') return false;
-            if (activeCaretakerTab === 'Sale' && col === 'สถานะการถ่ายคลิป (Admin)') return false;
+            if (activeCaretakerTab === 'Admin' && (col === 'สถานะการถ่ายคลิป' || col === 'ผู้ดูแลบ้าน')) return false;
+            if (activeCaretakerTab === 'Sale' && (col === 'สถานะการถ่ายคลิป (Admin)' || col === 'ผู้ดูแลบ้าน (Admin)')) return false;
             return true;
         });
 
         const displayAllColumnsOption = allColumns.filter(col => {
-            if (activeCaretakerTab === 'Admin' && col === 'สถานะการถ่ายคลิป') return false;
-            if (activeCaretakerTab === 'Sale' && col === 'สถานะการถ่ายคลิป (Admin)') return false;
+            if (activeCaretakerTab === 'Admin' && (col === 'สถานะการถ่ายคลิป' || col === 'ผู้ดูแลบ้าน')) return false;
+            if (activeCaretakerTab === 'Sale' && (col === 'สถานะการถ่ายคลิป (Admin)' || col === 'ผู้ดูแลบ้าน (Admin)')) return false;
             return true;
         });
         
@@ -2643,7 +2645,6 @@ ${promptAction}`;
                                 )}
                             </div>
 
-                            {/* 💡 ซ่อนปุ่มกรองตามทีมที่กำลังดูอยู่ */}
                             {[
                                 { key: 'ระดับการขาย', icon: 'Tag', options: uniqueSalesLevels },
                                 { key: 'สถานะการถ่ายคลิป', icon: 'Video', options: uniqueVideoStatuses, hideIn: 'Admin' },
@@ -2686,7 +2687,6 @@ ${promptAction}`;
                       <thead className="sticky top-0 z-20 bg-gray-50/90 backdrop-blur-md shadow-sm border-b border-gray-100">
                         <tr>
                           <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
-                          {/* 💡 วาดเฉพาะคอลัมน์ที่ไม่ได้โดนสมองกลซ่อน */}
                           {displayColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
                           <th className="py-4 px-3 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-l-2 border-gray-200 w-[50px]">ลบ</th>
                         </tr>
@@ -2751,6 +2751,22 @@ ${promptAction}`;
                                                         </select>
                                                     );
                                                 }
+                                                // 💡 เพิ่มช่องเลือกผู้ดูแลบ้านฝั่ง Admin
+                                                else if (col === 'ผู้ดูแลบ้าน (Admin)') {
+                                                    const adminCaretaker = prog.caretakerAdmin || val || '';
+                                                    content = (
+                                                        <select 
+                                                            value={['Beau', 'Noey', 'Ketar'].includes(adminCaretaker) ? adminCaretaker : ''} 
+                                                            onChange={(e) => handleUpdateProgress(row.id, { caretakerAdmin: e.target.value })} 
+                                                            className="px-2 py-1.5 text-[12px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg outline-none focus:border-blue-500 w-[110px] shadow-sm"
+                                                        >
+                                                            <option value="">- เลือกแอดมิน -</option>
+                                                            <option value="Beau">Beau</option>
+                                                            <option value="Noey">Noey</option>
+                                                            <option value="Ketar">Ketar</option>
+                                                        </select>
+                                                    );
+                                                }
                                                 else if (col === 'ระดับการขาย') {
                                                     const salesLevel = prog.salesLevel || val || '';
                                                     let salesClass = 'bg-white text-gray-700 border-gray-300';
@@ -2768,7 +2784,9 @@ ${promptAction}`;
                                                     const isVideoShot = prog.isVideoShot ?? (val === 'ถ่ายแล้ว');
                                                     content = (
                                                         <label className="flex items-center cursor-pointer group w-max">
-                                                            <input type="checkbox" checked={isVideoShot} onChange={(e) => handleUpdateProgress(row.id, { isVideoShot: e.target.checked })} className="w-5 h-5 accent-brand rounded cursor-pointer" />
+                                                            <input type="checkbox" checked={isVideoShot} onChange={(e) => {
+                                                                handleUpdateProgress(row.id, { isVideoShot: e.target.checked });
+                                                            }} className="w-5 h-5 accent-brand rounded cursor-pointer" />
                                                             <span className={`ml-2 text-[13px] font-bold transition-colors ${isVideoShot ? 'text-brand' : 'text-gray-400 group-hover:text-gray-600'}`}>{isVideoShot ? 'ถ่ายแล้ว' : 'ยังไม่ถ่าย'}</span>
                                                         </label>
                                                     );
@@ -2777,7 +2795,14 @@ ${promptAction}`;
                                                     const isVideoShotAdmin = prog.isVideoShotAdmin ?? (val === 'ถ่ายแล้ว');
                                                     content = (
                                                         <label className="flex items-center cursor-pointer group w-max">
-                                                            <input type="checkbox" checked={isVideoShotAdmin} onChange={(e) => handleUpdateProgress(row.id, { isVideoShotAdmin: e.target.checked })} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
+                                                            <input type="checkbox" checked={isVideoShotAdmin} onChange={(e) => {
+                                                                // 💡 ถ้า Admin ติ๊ก และยังไม่มีชื่อผู้ดูแล Admin ให้ระบบใส่ชื่อตาม subTab (ถ้าเลือกไว้) ให้ด้วย
+                                                                const updates = { isVideoShotAdmin: e.target.checked };
+                                                                if (e.target.checked && !prog.caretakerAdmin && ['Beau', 'Noey', 'Ketar'].includes(activeSubTab)) {
+                                                                    updates.caretakerAdmin = activeSubTab;
+                                                                }
+                                                                handleUpdateProgress(row.id, updates);
+                                                            }} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
                                                             <span className={`ml-2 text-[13px] font-bold transition-colors ${isVideoShotAdmin ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`}>{isVideoShotAdmin ? 'ถ่ายแล้ว (Admin)' : 'ยังไม่ถ่าย'}</span>
                                                         </label>
                                                     );
