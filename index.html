@@ -1081,7 +1081,7 @@
         );
     };
     
-    // 💡 ระบบ PostSchedule ฉบับ "จัดคิวล็อคตายตัว" (ไม่มีวันเคลื่อน และไม่ซ้ำเพจกลาง!)
+    // 💡 ระบบ PostSchedule ฉบับ "จัดคิวล็อคตายตัว" (แก้ไขจอขาว + แยกตะกร้า 100%)
     const PostSchedule = ({ sheetData, setManualRefreshKey, postTracking, isFirebaseLoaded, constructionProgress, user }) => {
         const [viewMode, setViewMode] = useState('daily');
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -1094,7 +1094,6 @@
         const [isDeleteHistoryModalOpen, setIsDeleteHistoryModalOpen] = useState(false);
         const [historyToDelete, setHistoryToDelete] = useState(null);
         const [showFilters, setShowFilters] = useState(false);
-
         const [timeLeft, setTimeLeft] = useState("");
 
         useEffect(() => {
@@ -1148,7 +1147,6 @@
             } catch(err) {}
         };
 
-        // 💡 1. แก้บั๊กปุ่มข้าม: ให้จำว่า "ใคร" เป็นคนข้าม (ไม่ใช่ผูกกับไอดีเครื่องแล้วรวน)
         const confirmSkip = (houseId, houseName, assigneeName) => { 
             setHouseToSkip({ id: houseId, name: houseName, assignee: assigneeName }); 
             setIsSkipModalOpen(true); 
@@ -1169,20 +1167,6 @@
             setIsDeleteHistoryModalOpen(false); setHistoryToDelete(null);
         };
 
-        const getLatestPostTime = (houseId) => {
-            const p = postTracking[houseId];
-            if (!p) return 0;
-            let maxTime = 0;
-            for (const key in p) {
-                if (!key.startsWith('skippedBy_') && !key.endsWith('_postedBy') && p[key]) {
-                    if (p[key] === assignmentTodayStr) continue; 
-                    const t = new Date(p[key]).getTime();
-                    if (t > maxTime) maxTime = t;
-                }
-            }
-            return maxTime;
-        };
-
         let activePool = baseSheetData.filter(row => {
             const status = safeTrim(row['สถานะ']), website = safeTrim(row['Website']);
             if (status !== 'ว่าง' && status !== 'ยื่นซ้อน') return false;
@@ -1192,6 +1176,19 @@
             }
             return true;
         });
+
+        // 💡 1. ย้ายฟังก์ชัน Helpers ไว้ด้านบนสุด ป้องกัน Error จอขาว!
+        const getPostDataWithTelepathy = (house) => {
+            const proj = safeTrim(house['หมู่บ้าน']), hNo = safeTrim(house['บ้านเลขที่']), price = safeTrim(house['ราคา']);
+            let oldIdStr = proj + hNo + price; let oldHash = 0;
+            for (let i = 0; i < oldIdStr.length; i++) { oldHash = Math.imul(31, oldHash) + oldIdStr.charCodeAt(i) | 0; }
+            const oldDocId = `h_${Math.abs(oldHash)}`;
+
+            const oldData = postTracking[oldDocId] || {};
+            const newData = postTracking[house.id] || {};
+            const mergedData = { ...oldData, ...newData };
+            return { data: mergedData, targetId: house.id };
+        };
 
         const getExpScore = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']);
@@ -1209,13 +1206,11 @@
             return (d && !isNaN(d.getTime())) ? d.getTime() : -Infinity;
         };
 
-        // 💡 1. สมองกลแยกตะกร้า 100% (กฎเหล็ก: ข้ามบ้านแล้วห้ามกระทบคนอื่น)
         const isSkipped = (house, name) => {
             const { data } = getPostDataWithTelepathy(house);
             return (Date.now() - (data[`skippedBy_${name}`] || 0)) < 86400000;
         };
 
-        // สมองกลช่วยดูว่าบ้านนี้เซลล์คนไหนดูแล (เพื่อเอาไปโคลนให้ Admin)
         const getBaseCaretakerForBoard = (h) => {
             const prog = constructionProgress[h.id] || {};
             let ct = safeTrim(prog.caretaker || h['ผู้ดูแลบ้าน'] || '');
@@ -1226,12 +1221,10 @@
             return 'ยังไม่ระบุ';
         };
 
-        // 📦 สร้างตะกร้าส่วนตัวให้ทุกคน (ตัดขาดจากกันอย่างสมบูรณ์)
+        // 💡 2. จัดตะกร้าใหม่ แยกขาดจากกัน 100% (กฎเหล็กอมตะ)
         const workloads = { May: [], Boom: [], Boat: [], Nan: [], Ketar: [], Noey: [], Beau: [], 'เพจกลาง': [] };
-        
         activePool.forEach(h => {
-            workloads['เพจกลาง'].push(h); // 🌟 กฎพิเศษ: เพจกลางดึงได้ทุกหลัง
-
+            workloads['เพจกลาง'].push(h); // กฎพิเศษ: เพจกลางดึงได้ทุกหลัง
             const base = getBaseCaretakerForBoard(h);
             if (base === 'May') { workloads.May.push(h); workloads.Ketar.push(h); }
             else if (base === 'Boom') { workloads.Boom.push(h); workloads.Noey.push(h); }
@@ -1239,7 +1232,7 @@
             else if (base === 'Nan') { workloads.Nan.push(h); }
         });
 
-        // 🌟 กฎพิเศษ: กระจายบ้านของ Nan ให้ทีม Admin
+        // กระจายบ้านของ Nan ให้ทีม Admin ช่วยโพสต์ (หาร 3)
         const nanHousesStable = activePool.filter(h => getBaseCaretakerForBoard(h) === 'Nan');
         nanHousesStable.forEach((h, i) => {
             if (i % 3 === 0) workloads.Beau.push(h);
@@ -1247,7 +1240,6 @@
             else if (i % 3 === 2) workloads.Ketar.push(h);
         });
 
-        // 💡 2. สมองกลจัดไพ่ (ดึงเฉพาะจากตะกร้าตัวเอง ไม่กวนคนอื่น)
         const pickHousesForAssignee = (name) => {
             let myPool = workloads[name].filter(h => !isSkipped(h, name));
             const finalHouses = [];
@@ -1280,36 +1272,21 @@
         const generalSchedules = [
             { name: 'เพจกลาง', type: 'central', houses: pickHousesForAssignee('เพจกลาง') }
         ];
-
         const specificSchedules = [
             ...['May', 'Boom', 'Boat', 'Nan'].map(name => ({ name, type: 'sale', houses: pickHousesForAssignee(name) })),
             ...['Beau', 'Noey', 'Ketar'].map(name => ({ name, type: 'admin', houses: pickHousesForAssignee(name) }))
         ];
 
-        // 💡 3. ใช้ชื่อตัวแปร finalSchedule ตามโค้ดเดิมของพี่บิว จอจะได้ไม่ขาว!
+        // 💡 3. รวมร่างตัวแปรให้อ่านออก
         const finalSchedule = [...generalSchedules, ...specificSchedules];
+        // 💡 เพิ่มชื่อ Beau ในรายชื่อกดบันทึกโพสต์ (แก้บั๊กตกหล่น)
+        const postAssigneeNames = ['เพจกลาง', 'Ketar', 'Noey', 'Beau', 'May', 'Boom', 'Boat', 'Nan'];
 
         const getPriorityLabel = (row) => {
             const expStr = safeTrim(row['หมดสัญญา']) || safeTrim(row['วันหมดสัญญา']), startStr = safeTrim(row['เริ่มทำ']);
             if (expStr) return <span className="inline-block mt-1.5 text-[11px] font-bold bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100"><Icon name="Clock" size={10} className="inline-block mr-1 mb-0.5"/>ใกล้หมดสัญญา: {expStr}</span>;
             if (startStr) return <span className="inline-block mt-1.5 text-[11px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100"><Icon name="CalendarIcon" size={10} className="inline-block mr-1 mb-0.5"/>เริ่มทำ: {startStr}</span>;
             return null;
-        };
-
-        // 💡 โค้ดตาทิพย์ 1 (อัปเกรด): รวมร่างข้อมูลเก่าและใหม่เข้าด้วยกัน
-        const getPostDataWithTelepathy = (house) => {
-            const proj = safeTrim(house['หมู่บ้าน']), hNo = safeTrim(house['บ้านเลขที่']), price = safeTrim(house['ราคา']);
-            let oldIdStr = proj + hNo + price; let oldHash = 0;
-            for (let i = 0; i < oldIdStr.length; i++) { oldHash = Math.imul(31, oldHash) + oldIdStr.charCodeAt(i) | 0; }
-            const oldDocId = `h_${Math.abs(oldHash)}`;
-
-            // ดึงมาทั้งคู่ แล้วจับรวมร่างกัน (ถ้ามีประวัติเก่า จะไม่ถูกลบหายไป)
-            const oldData = postTracking[oldDocId] || {};
-            const newData = postTracking[house.id] || {};
-            const mergedData = { ...oldData, ...newData };
-
-            // เวลาบันทึกข้อมูลใหม่ ให้บันทึกลงรหัสปัจจุบันเสมอ
-            return { data: mergedData, targetId: house.id };
         };
 
         const renderPreviousPostInfo = (house, assigneeName) => {
@@ -1447,22 +1424,16 @@
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {finalSchedule.map((assignee, idx) => {
-                            // 💡 แยกบ้านเป็น 2 กองเพื่อวาด UI ให้ชัดเจน
                             const todayHouses = assignee.houses.filter(h => h.scheduleType === 'today');
                             const tomorrowHouses = assignee.houses.filter(h => h.scheduleType === 'tomorrow');
-                            
-                            // ใช้ตาทิพย์นับจำนวนโพสต์วันนี้
                             const completedTodayCount = todayHouses.filter(h => getPostDataWithTelepathy(h).data[assignee.name] === assignmentTodayStr).length;
                             const avatarClass = getAvatarColor(assignee.name);
                             const avatarLetter = getAvatarLetter(assignee.name);
 
-                            // 💡 ฟังก์ชันช่วยวาดรายการบ้าน
                             const renderHouseList = (houseList, maxCount, isTomorrow) => (
                                 <ul className="space-y-3">
                                     {houseList.map((house, hIdx) => {
                                         const combined = `${safeTrim(house['หมู่บ้าน'])} ${safeTrim(house['บ้านเลขที่'])} ${safeTrim(house['ซอย'])}`.trim();
-                                        
-                                        // 💡 โค้ดตาทิพย์ 2: ดึงข้อมูลการกดลงกระดานจ่ายงาน
                                         const { data: postData, targetId } = getPostDataWithTelepathy(house);
                                         const isPostedToday = postData[assignee.name] === assignmentTodayStr;
 
@@ -1485,7 +1456,6 @@
                                             </li>
                                         );
                                     })}
-                                    {/* 💡 วาดช่องว่างถ้าบ้านไม่ครบ */}
                                     {houseList.length < maxCount && Array.from({ length: maxCount - houseList.length }).map((_, emptyIdx) => (
                                         <div key={`empty-${emptyIdx}`} className="flex items-center p-3 rounded-xl border border-dashed border-gray-200 opacity-50">
                                             <span className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-[11px] font-bold text-gray-400 mr-3 shrink-0">{houseList.length + emptyIdx + 1}</span>
@@ -1496,29 +1466,34 @@
                             );
 
                             return (
-                                <div key={idx} className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
-                                    <div className="bg-gray-50/80 border-b border-gray-100 p-4 flex items-center justify-between">
-                                        <div className="flex items-center space-x-3">
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[18px] border shadow-sm ${avatarClass}`}>{avatarLetter}</div>
+                                <React.Fragment key={assignee.name}>
+                                    {assignee.name === 'เพจกลาง' && <div className="col-span-full mt-2"><h3 className="text-[16px] font-extrabold text-gray-700 flex items-center border-b pb-2"><Icon name="Globe" size={18} className="mr-2"/> ส่วนกลาง (โพสต์ได้ทุกหลัง)</h3></div>}
+                                    {assignee.name === 'May' && <div className="col-span-full mt-4"><h3 className="text-[16px] font-extrabold text-brand flex items-center border-b border-brand/20 pb-2"><Icon name="TrendingUp" size={18} className="mr-2"/> 💼 ทีม Sale</h3></div>}
+                                    {assignee.name === 'Beau' && <div className="col-span-full mt-4"><h3 className="text-[16px] font-extrabold text-blue-600 flex items-center border-b border-blue-200 pb-2"><Icon name="Shield" size={18} className="mr-2"/> 🛡️ ทีม Admin</h3></div>}
+                                    
+                                    <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                                        <div className="bg-gray-50/80 border-b border-gray-100 p-4 flex items-center justify-between">
+                                            <div className="flex items-center space-x-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[18px] border shadow-sm ${avatarClass}`}>{avatarLetter}</div>
+                                                <div>
+                                                    <h3 className="font-extrabold text-gray-800 text-[16px]">{assignee.name}</h3>
+                                                    <p className="text-[11px] text-gray-500 font-medium">{assignee.type === 'central' ? 'โพสต์บ้านทั่วไป' : 'โพสต์บ้านของตนเอง'}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`px-3 py-1 rounded-full text-[12px] font-bold shadow-sm border ${completedTodayCount === 2 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-white text-gray-600 border-gray-200'}`}>{completedTodayCount}/2 โพสต์วันนี้</span>
+                                        </div>
+                                        <div className="p-4 flex-1 space-y-4">
                                             <div>
-                                                <h3 className="font-extrabold text-gray-800 text-[16px]">{assignee.name}</h3>
-                                                <p className="text-[11px] text-gray-500 font-medium">{assignee.type === 'general' ? 'โพสต์บ้านทั่วไป' : 'โพสต์บ้านของตนเอง'}</p>
+                                                <h5 className="text-[13px] font-bold text-brand mb-2 flex items-center"><Icon name="CheckSquare" size={14} className="mr-1.5"/> แพลนโพสต์วันนี้</h5>
+                                                {renderHouseList(todayHouses, 2, false)}
+                                            </div>
+                                            <div className="border-t border-gray-100 pt-4">
+                                                <h5 className="text-[12px] font-bold text-gray-400 mb-2 flex items-center"><Icon name="Clock" size={14} className="mr-1.5"/> แพลนพรุ่งนี้ (เตรียมข้อมูล)</h5>
+                                                {renderHouseList(tomorrowHouses, 2, true)}
                                             </div>
                                         </div>
-                                        {/* 💡 นับความคืบหน้าเฉพาะของ "วันนี้" */}
-                                        <span className={`px-3 py-1 rounded-full text-[12px] font-bold shadow-sm border ${completedTodayCount === 2 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-white text-gray-600 border-gray-200'}`}>{completedTodayCount}/2 โพสต์วันนี้</span>
                                     </div>
-                                    <div className="p-4 flex-1 space-y-4">
-                                        <div>
-                                            <h5 className="text-[13px] font-bold text-brand mb-2 flex items-center"><Icon name="CheckSquare" size={14} className="mr-1.5"/> แพลนโพสต์วันนี้</h5>
-                                            {renderHouseList(todayHouses, 2, false)}
-                                        </div>
-                                        <div className="border-t border-gray-100 pt-4">
-                                            <h5 className="text-[12px] font-bold text-gray-400 mb-2 flex items-center"><Icon name="Clock" size={14} className="mr-1.5"/> แพลนพรุ่งนี้ (เตรียมข้อมูล)</h5>
-                                            {renderHouseList(tomorrowHouses, 2, true)}
-                                        </div>
-                                    </div>
-                                </div>
+                                </React.Fragment>
                             );
                         })}
                      </div>
@@ -1554,7 +1529,6 @@
                                                   content = <span className={`px-3 py-1 rounded-full text-[12px] font-bold ${style.badge}`}>{statusVal || '-'}</span>;
                                               }
                                               else if (col === 'ประวัติการโพสต์') {
-                                                  // 💡 โค้ดตาทิพย์: สร้างรหัสเก่า (แบบมีราคา) มารอตรวจเช็กด้วย
                                                   const proj = safeTrim(row['หมู่บ้าน']);
                                                   const hNo = safeTrim(row['บ้านเลขที่']);
                                                   const price = safeTrim(row['ราคา']);
@@ -1566,13 +1540,11 @@
                                                   }
                                                   const oldDocId = `h_${Math.abs(oldHash)}`;
 
-                                                  // 💡 ระบบรวมร่างข้อมูลเก่าและใหม่
                                                   const oldData = postTracking[oldDocId] || {};
                                                   const newData = postTracking[row.id] || {};
                                                   const postData = { ...oldData, ...newData };
                                                   const targetId = row.id; 
                                                   
-                                                  const postAssigneeNames = ['เพจกลาง','Beau','Ketar', 'Noey', 'May', 'Boom', 'Boat', 'Nan'];
                                                   const records = Object.entries(postData).filter(([k,v]) => v && postAssigneeNames.includes(k));
                                                   let combined = `${proj} ${hNo}`.trim();
                                                   
@@ -1631,7 +1603,6 @@
                    </div>
                )}
 
-               {/* Delete Skip Confirm Modal */}
                {isSkipModalOpen && (
                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
@@ -1646,7 +1617,6 @@
                  </div>
                )}
 
-               {/* Delete History Confirm Modal */}
                {isDeleteHistoryModalOpen && (
                  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8 text-center border border-gray-100">
@@ -2525,7 +2495,8 @@ ${promptAction}`;
             groupedData = [
                 { caretaker: 'May', houses: workloads.May },
                 { caretaker: 'Boom', houses: workloads.Boom },
-                { caretaker: 'Boat', houses: workloads.Boat }
+                { caretaker: 'Boat', houses: workloads.Boat },
+                { caretaker: 'Nan', houses: workloads.Nan }
             ].filter(g => g.houses.length > 0 && (activeSubTab === 'All' || g.caretaker === activeSubTab));
         } else if (activeCaretakerTab === 'Admin') {
             groupedData = [
@@ -2579,10 +2550,9 @@ ${promptAction}`;
                     ))}
                </div>
 
-               {/* 💡 3. วาดปุ่มเมนูย่อย สำหรับทีม Sale */}
                {activeCaretakerTab === 'Sale' && (
                    <div className="flex gap-2.5 mb-4 md:mb-6 overflow-x-auto horizontal-scrollbar shrink-0 px-1 py-1">
-                       {['All', 'May', 'Boom', 'Boat'].map(sub => (
+                       {['All', 'May', 'Boom', 'Boat', 'Nan'].map(sub => ( // 💡 เติมชื่อ 'Nan' ในวงเล็บนี้
                            <button key={sub} onClick={() => setActiveSubTab(sub)} className={`px-4 py-1.5 rounded-full text-[13px] font-bold border transition-colors whitespace-nowrap ${activeSubTab === sub ? 'bg-brand text-white border-brand shadow-md scale-105' : 'bg-white text-gray-500 border-gray-200 shadow-sm hover:border-brand/40 hover:text-brand'}`}>
                                {sub === 'All' ? 'รวมทุกคน (Sale)' : `เซลล์ ${sub}`}
                            </button>
