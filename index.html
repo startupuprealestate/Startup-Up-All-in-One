@@ -1209,78 +1209,84 @@
             return (d && !isNaN(d.getTime())) ? d.getTime() : -Infinity;
         };
 
-        const generalAssignees = ['เพจกลาง', 'Ketar', 'Noey'];
-        const specificAssignees = ['May', 'Boom', 'Boat', 'Nan'];
-        const allAssigneesList = [...generalAssignees, ...specificAssignees]; // 💡 เติมบรรทัดนี้เพื่อแก้บั๊กจอขาวค่ะ!
-        const assignedToday = new Set();
-        
-        const isSkipped = (houseId, name) => {
-            const skipTime = postTracking[houseId]?.[`skippedBy_${name}`] || 0;
-            return (Date.now() - skipTime) < 86400000;
+        // 💡 1. สมองกลแยกตะกร้า 100% (กฎเหล็ก: ข้ามบ้านแล้วห้ามกระทบคนอื่น)
+        const isSkipped = (house, name) => {
+            const { data } = getPostDataWithTelepathy(house);
+            return (Date.now() - (data[`skippedBy_${name}`] || 0)) < 86400000;
         };
 
-        // 💡 ฟังก์ชันช่วยจัดคิวบ้าน: ดึง 4 หลัง (วันนี้ 2, พรุ่งนี้ 2) พร้อมระบบล็อคตำแหน่งป้องกันบ้านสลับที่
-        const pickHousesForAssignee = (myPool) => {
+        // สมองกลช่วยดูว่าบ้านนี้เซลล์คนไหนดูแล (เพื่อเอาไปโคลนให้ Admin)
+        const getBaseCaretakerForBoard = (h) => {
+            const prog = constructionProgress[h.id] || {};
+            let ct = safeTrim(prog.caretaker || h['ผู้ดูแลบ้าน'] || '');
+            if (['May', 'Ketar'].includes(ct)) return 'May';
+            if (['Boom', 'Noey'].includes(ct)) return 'Boom';
+            if (['Boat', 'Beau'].includes(ct)) return 'Boat';
+            if (ct === 'Nan') return 'Nan';
+            return 'ยังไม่ระบุ';
+        };
+
+        // 📦 สร้างตะกร้าส่วนตัวให้ทุกคน (ตัดขาดจากกันอย่างสมบูรณ์)
+        const workloads = { May: [], Boom: [], Boat: [], Nan: [], Ketar: [], Noey: [], Beau: [], 'เพจกลาง': [] };
+        
+        activePool.forEach(h => {
+            workloads['เพจกลาง'].push(h); // 🌟 กฎพิเศษ: เพจกลางดึงได้ทุกหลัง
+
+            const base = getBaseCaretakerForBoard(h);
+            if (base === 'May') { workloads.May.push(h); workloads.Ketar.push(h); }
+            else if (base === 'Boom') { workloads.Boom.push(h); workloads.Noey.push(h); }
+            else if (base === 'Boat') { workloads.Boat.push(h); workloads.Beau.push(h); }
+            else if (base === 'Nan') { workloads.Nan.push(h); }
+        });
+
+        // 🌟 กฎพิเศษ: กระจายบ้านของ Nan ให้ทีม Admin
+        const nanHousesStable = activePool.filter(h => getBaseCaretakerForBoard(h) === 'Nan');
+        nanHousesStable.forEach((h, i) => {
+            if (i % 3 === 0) workloads.Beau.push(h);
+            else if (i % 3 === 1) workloads.Noey.push(h);
+            else if (i % 3 === 2) workloads.Ketar.push(h);
+        });
+
+        // 💡 2. สมองกลจัดไพ่ (ดึงเฉพาะจากตะกร้าตัวเอง ไม่กวนคนอื่น)
+        const pickHousesForAssignee = (name) => {
+            let myPool = workloads[name].filter(h => !isSkipped(h, name));
             const finalHouses = [];
             
-            // 🔒 สร้างกฎการเรียงลำดับแบบล็อคเป้าหมาย (ป้องกันบ้านเด้งเปลี่ยนหลัง)
             const sortOldest = (a, b) => {
                 const expA = getExpScore(a), expB = getExpScore(b);
                 if (expA !== expB) return expA - expB;
                 const startA = getStartScore(a), startB = getStartScore(b);
                 if (startA !== startB) return startA - startB;
-                return String(a.id).localeCompare(String(b.id)); // 💡 ท่าไม้ตาย: คะแนนเท่ากัน ให้ยึดรหัส ID เป็นหลัก
+                return String(a.id).localeCompare(String(b.id)); 
             };
 
             const sortNewest = (a, b) => {
                 const startA = getStartScoreDesc(a), startB = getStartScoreDesc(b);
                 if (startA !== startB) return startB - startA;
-                return String(a.id).localeCompare(String(b.id)); // 💡 ท่าไม้ตายล็อคตำแหน่ง
+                return String(a.id).localeCompare(String(b.id)); 
             };
 
-            // 🏠 วันนี้ - หลังที่ 1: ใกล้หมดสัญญา หรือ เก่าสุด
-            if (myPool.length > 0) {
-                myPool.sort(sortOldest);
-                const h = myPool.shift(); h.scheduleType = 'today';
-                finalHouses.push(h); assignedToday.add(h.id);
-            }
-            // 🏠 วันนี้ - หลังที่ 2: มาใหม่ล่าสุด
-            if (myPool.length > 0) {
-                myPool.sort(sortNewest);
-                const h = myPool.shift(); h.scheduleType = 'today';
-                finalHouses.push(h); assignedToday.add(h.id);
-            }
+            let poolOld = [...myPool];
+            let poolNew = [...myPool];
+
+            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); h.scheduleType = 'today'; finalHouses.push(h); poolNew = poolNew.filter(x => x.id !== h.id); }
+            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); h.scheduleType = 'today'; finalHouses.push(h); poolOld = poolOld.filter(x => x.id !== h.id); }
+            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); h.scheduleType = 'tomorrow'; finalHouses.push(h); poolNew = poolNew.filter(x => x.id !== h.id); }
+            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); h.scheduleType = 'tomorrow'; finalHouses.push(h); }
             
-            // 🏠 พรุ่งนี้ - หลังที่ 1 (คิวถัดไป): ใกล้หมดสัญญา หรือ เก่าสุด
-            if (myPool.length > 0) {
-                myPool.sort(sortOldest);
-                const h = myPool.shift(); h.scheduleType = 'tomorrow';
-                finalHouses.push(h); assignedToday.add(h.id);
-            }
-            // 🏠 พรุ่งนี้ - หลังที่ 2 (คิวถัดไป): มาใหม่ล่าสุด
-            if (myPool.length > 0) {
-                myPool.sort(sortNewest);
-                const h = myPool.shift(); h.scheduleType = 'tomorrow';
-                finalHouses.push(h); assignedToday.add(h.id);
-            }
             return finalHouses;
         };
 
-        const specificSchedules = [];
-        specificAssignees.forEach(name => {
-            let myPool = activePool.filter(row => {
-                const caretaker = constructionProgress?.[row.id]?.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || '';
-                return caretaker.toLowerCase() === name.toLowerCase() && !assignedToday.has(row.id) && !isSkipped(row.id, name);
-            });
-            specificSchedules.push({ name, type: 'specific', houses: pickHousesForAssignee(myPool) });
-        });
+        const generalSchedules = [
+            { name: 'เพจกลาง', type: 'central', houses: pickHousesForAssignee('เพจกลาง') }
+        ];
 
-        const generalSchedules = [];
-        generalAssignees.forEach(name => {
-            let myPool = activePool.filter(row => !assignedToday.has(row.id) && !isSkipped(row.id, name));
-            generalSchedules.push({ name, type: 'general', houses: pickHousesForAssignee(myPool) });
-        });
+        const specificSchedules = [
+            ...['May', 'Boom', 'Boat', 'Nan'].map(name => ({ name, type: 'sale', houses: pickHousesForAssignee(name) })),
+            ...['Beau', 'Noey', 'Ketar'].map(name => ({ name, type: 'admin', houses: pickHousesForAssignee(name) }))
+        ];
 
+        // 💡 3. ใช้ชื่อตัวแปร finalSchedule ตามโค้ดเดิมของพี่บิว จอจะได้ไม่ขาว!
         const finalSchedule = [...generalSchedules, ...specificSchedules];
 
         const getPriorityLabel = (row) => {
@@ -1566,7 +1572,7 @@
                                                   const postData = { ...oldData, ...newData };
                                                   const targetId = row.id; 
                                                   
-                                                  const postAssigneeNames = ['เพจกลาง', 'Ketar', 'Noey', 'May', 'Boom', 'Boat', 'Nan'];
+                                                  const postAssigneeNames = ['เพจกลาง','Beau','Ketar', 'Noey', 'May', 'Boom', 'Boat', 'Nan'];
                                                   const records = Object.entries(postData).filter(([k,v]) => v && postAssigneeNames.includes(k));
                                                   let combined = `${proj} ${hNo}`.trim();
                                                   
