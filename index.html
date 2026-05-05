@@ -781,7 +781,7 @@
             try { 
                 await window.firebaseAPI.setDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", rowId), data, { merge: true }); 
                 
-                // 🔔 1. โค้ดเดิม: ระบบแจ้งเตือนเมื่อบ้านทำเสร็จ
+                // 🔔 1. ระบบแจ้งเตือนเมื่อบ้านทำเสร็จ
                 if (data.finishedDate) {
                     const rowInfo = validSheetData.find(r => r.id === rowId);
                     if (rowInfo) {
@@ -794,11 +794,13 @@
                     }
                 }
 
-                // 🚀 2. โค้ดใหม่: อัปเดตข้อมูลไปที่หน้า Sheet "Zoneบ้าน" แบบ Real-time
+                // 🚀 2. อัปเดตข้อมูลไปที่หน้า Sheet "Zoneบ้าน" แบบ Real-time
                 const rowInfoSync = validSheetData.find(r => r.id === rowId);
                 const currentProg = { ...constructionProgress[rowId], ...data };
                 if (window.syncToZoneSheet) {
-                    window.syncToZoneSheet('edit', rowId, rowInfoSync, currentProg);
+                    // 💡 แก้บั๊กสร้างบรรทัดใหม่
+                    const targetSyncId = rowInfoSync?._originalRowId || rowId;
+                    window.syncToZoneSheet('edit', targetSyncId, rowInfoSync, currentProg);
                 }
                 
             } catch(err) {}
@@ -2569,7 +2571,9 @@ ${promptAction}`;
                 const rowInfoSync = validSheetData.find(r => r.id === rowId);
                 const currentProg = { ...constructionProgress[rowId], ...data };
                 if (window.syncToZoneSheet) {
-                    window.syncToZoneSheet('edit', rowId, rowInfoSync, currentProg);
+                    // 💡 แก้บั๊กสร้างบรรทัดใหม่: ส่งรหัสเดิม (_originalRowId) กลับไปให้ Sheet ค้นหาบรรทัดเก่าเจอ!
+                    const targetSyncId = rowInfoSync?._originalRowId || rowId;
+                    window.syncToZoneSheet('edit', targetSyncId, rowInfoSync, currentProg);
                 }
             } catch(err) {}
         };
