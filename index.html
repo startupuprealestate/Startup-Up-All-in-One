@@ -1020,7 +1020,29 @@
                                                     {completedList.map((item, idx) => {
                                                         return (
                                                             <tr key={item.progressId} className={`hover:bg-gray-50 transition-colors ${idx !== completedList.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                                                                <td className={`p-3 text-[14px] font-bold ${item.projectName.includes('⚠️') ? 'text-orange-500' : 'text-gray-800'}`}>{item.projectName}</td>
+                                                                <td className={`p-3 text-[14px] font-bold ${item.projectName.includes('⚠️') ? 'text-orange-500' : 'text-gray-800'}`}>
+                                                            <div className="flex items-center justify-between">
+                                                                <span>{item.projectName}</span>
+                                                                {item.projectName.includes('⚠️') && (
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            if(window.confirm('ลบประวัติข้อมูลตกค้างนี้ทิ้งใช่ไหมคะ?')) {
+                                                                                try {
+                                                                                    await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "construction_progress", item.progressId));
+                                                                                    alert('ลบทิ้งเรียบร้อยค่ะ! (รบกวนรีเฟรชแอป 1 รอบนะคะ)');
+                                                                                } catch(e) {
+                                                                                    alert('เกิดข้อผิดพลาดในการลบค่ะ');
+                                                                                }
+                                                                            }
+                                                                        }} 
+                                                                        className="ml-3 flex items-center px-2.5 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-600 hover:text-white transition-all text-[11px] font-bold shadow-sm"
+                                                                        title="ลบข้อมูลตกค้าง"
+                                                                    >
+                                                                        <Icon name="Trash" size={12} className="mr-1" /> ลบทิ้ง
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
                                                                 <td className="p-3 text-[14px] text-gray-600">{item.houseNo}</td>
                                                                 
                                                                 {/* 💡 เพิ่มปุ่ม เพิ่ม-ลด จำนวนตรวจงาน */}
