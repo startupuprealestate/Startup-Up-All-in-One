@@ -1290,13 +1290,20 @@
             return null;
         };
 
-        // 💡 โค้ดตาทิพย์ 1: ค้นหาข้อมูลทั้งรหัสเก่าและใหม่
+        // 💡 โค้ดตาทิพย์ 1 (อัปเกรด): รวมร่างข้อมูลเก่าและใหม่เข้าด้วยกัน
         const getPostDataWithTelepathy = (house) => {
             const proj = safeTrim(house['หมู่บ้าน']), hNo = safeTrim(house['บ้านเลขที่']), price = safeTrim(house['ราคา']);
             let oldIdStr = proj + hNo + price; let oldHash = 0;
             for (let i = 0; i < oldIdStr.length; i++) { oldHash = Math.imul(31, oldHash) + oldIdStr.charCodeAt(i) | 0; }
             const oldDocId = `h_${Math.abs(oldHash)}`;
-            return { data: postTracking[house.id] || postTracking[oldDocId] || {}, targetId: postTracking[house.id] ? house.id : (postTracking[oldDocId] ? oldDocId : house.id) };
+
+            // ดึงมาทั้งคู่ แล้วจับรวมร่างกัน (ถ้ามีประวัติเก่า จะไม่ถูกลบหายไป)
+            const oldData = postTracking[oldDocId] || {};
+            const newData = postTracking[house.id] || {};
+            const mergedData = { ...oldData, ...newData };
+
+            // เวลาบันทึกข้อมูลใหม่ ให้บันทึกลงรหัสปัจจุบันเสมอ
+            return { data: mergedData, targetId: house.id };
         };
 
         const renderPreviousPostInfo = (house, assigneeName) => {
@@ -1460,7 +1467,7 @@
                                                     <h4 className={`text-[14px] font-bold leading-tight ${isPostedToday ? 'text-[#065f46]' : (isTomorrow ? 'text-gray-600' : 'text-gray-800')}`}>{combined || '-'}</h4>
                                                     <div className="flex flex-wrap items-center mt-1 gap-1">
                                                         {!isPostedToday && getPriorityLabel(house)}
-                                                        {!isPostedToday && !isTomorrow && renderPreviousPostInfo(house, assignee.name)}
+                                                        {!isPostedToday && renderPreviousPostInfo(house, assignee.name)}
                                                     </div>
                                                     {isPostedToday && (
                                                         <span className="inline-block mt-1 text-[11px] font-bold text-[#059669]">
@@ -1553,9 +1560,11 @@
                                                   }
                                                   const oldDocId = `h_${Math.abs(oldHash)}`;
 
-                                                  // 💡 ให้แอปหารหัสใหม่ก่อน ถ้าไม่เจอให้ไปดึงข้อมูลจากรหัสเก่ามาโชว์
-                                                  const postData = postTracking[row.id] || postTracking[oldDocId] || {};
-                                                  const targetId = postTracking[row.id] ? row.id : (postTracking[oldDocId] ? oldDocId : row.id); 
+                                                  // 💡 ระบบรวมร่างข้อมูลเก่าและใหม่
+                                                  const oldData = postTracking[oldDocId] || {};
+                                                  const newData = postTracking[row.id] || {};
+                                                  const postData = { ...oldData, ...newData };
+                                                  const targetId = row.id; 
                                                   
                                                   const postAssigneeNames = ['เพจกลาง', 'Ketar', 'Noey', 'May', 'Boom', 'Boat', 'Nan'];
                                                   const records = Object.entries(postData).filter(([k,v]) => v && postAssigneeNames.includes(k));
