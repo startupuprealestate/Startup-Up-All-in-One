@@ -2418,8 +2418,9 @@ ${promptAction}`;
         );
     };
     const HouseZoneTable = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
-        // 💡 แท็บใหม่ตามระบบทีม
         const [activeCaretakerTab, setActiveCaretakerTab] = useState('All');
+        // 💡 1. เพิ่ม State สำหรับปุ่มเมนูย่อยรายบุคคล
+        const [activeSubTab, setActiveSubTab] = useState('All');
 
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
         const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
@@ -2459,7 +2460,6 @@ ${promptAction}`;
         });
         const resetHideValue = (col) => setHiddenValues(prev => ({...prev, [col]: []}));
 
-        // 💡 ฟังก์ชันสมองกล: แปลงชื่อเซลล์ ให้เป็นตัวแทนของคู่หู
         const getBaseCaretaker = (h) => {
             const prog = constructionProgress[h.id] || {};
             let ct = safeTrim(prog.caretaker || h['ผู้ดูแลบ้าน'] || '');
@@ -2487,7 +2487,6 @@ ${promptAction}`;
 
         const sortedData = [...filteredData].sort((a, b) => safeTrim(a['ทำเล']).localeCompare(safeTrim(b['ทำเล']), 'th'));
 
-        // 💡 สร้างคลังข้อมูลแจกจ่ายงานตามกฎ Pairing
         const workloads = { May: [], Boom: [], Boat: [], Ketar: [], Noey: [], Beau: [], Nan: [], Unassigned: [] };
         
         sortedData.forEach(h => {
@@ -2499,7 +2498,6 @@ ${promptAction}`;
             else { workloads.Unassigned.push(h); }
         });
 
-        // 💡 สมองกลแจกไพ่: นำบ้านของ Nan แจกให้ Admin โดยอิงลำดับจาก Google Sheet จะได้คิวที่เสถียร
         const nanHousesStable = validSheetData.filter(h => getBaseCaretaker(h) === 'Nan' && workloads.Nan.includes(h));
         nanHousesStable.forEach((h, i) => {
             if (i % 3 === 0) workloads.Beau.push(h);
@@ -2507,7 +2505,7 @@ ${promptAction}`;
             else if (i % 3 === 2) workloads.Ketar.push(h);
         });
 
-        // 💡 จัดกลุ่มแสดงผลตาม Tab ที่กด
+        // 💡 2. เพิ่มเงื่อนไขให้กรองข้อมูลตามปุ่มเมนูย่อย (activeSubTab)
         let groupedData = [];
         if (activeCaretakerTab === 'All') {
             groupedData = [
@@ -2522,13 +2520,13 @@ ${promptAction}`;
                 { caretaker: 'May', houses: workloads.May },
                 { caretaker: 'Boom', houses: workloads.Boom },
                 { caretaker: 'Boat', houses: workloads.Boat }
-            ].filter(g => g.houses.length > 0);
+            ].filter(g => g.houses.length > 0 && (activeSubTab === 'All' || g.caretaker === activeSubTab));
         } else if (activeCaretakerTab === 'Admin') {
             groupedData = [
                 { caretaker: 'Beau', houses: workloads.Beau },
                 { caretaker: 'Noey', houses: workloads.Noey },
                 { caretaker: 'Ketar', houses: workloads.Ketar }
-            ].filter(g => g.houses.length > 0);
+            ].filter(g => g.houses.length > 0 && (activeSubTab === 'All' || g.caretaker === activeSubTab));
         } else if (activeCaretakerTab === 'ยังไม่ระบุ') {
             groupedData = [
                 { caretaker: 'ยังไม่ระบุ', houses: workloads.Unassigned }
@@ -2563,17 +2561,39 @@ ${promptAction}`;
                     </div>
                </div>
 
-               <div className="flex bg-gray-100 p-1.5 rounded-xl w-full md:w-fit mb-4 md:mb-6 shrink-0 shadow-sm border border-gray-200 overflow-x-auto horizontal-scrollbar">
+               <div className={`flex bg-gray-100 p-1.5 rounded-xl w-full md:w-fit shrink-0 shadow-sm border border-gray-200 overflow-x-auto horizontal-scrollbar ${activeCaretakerTab === 'Sale' || activeCaretakerTab === 'Admin' ? 'mb-3' : 'mb-4 md:mb-6'}`}>
                     {caretakerTabs.map(tab => (
                         <button 
                             key={tab.id}
-                            onClick={() => setActiveCaretakerTab(tab.id)} 
+                            onClick={() => { setActiveCaretakerTab(tab.id); setActiveSubTab('All'); }} // 💡 รีเซ็ตปุ่มย่อยเวลากดเปลี่ยนทีม
                             className={`flex items-center px-4 md:px-6 py-2.5 rounded-lg text-[13px] md:text-[14px] font-bold transition-all whitespace-nowrap ${activeCaretakerTab === tab.id ? 'bg-white text-brand shadow-sm border border-gray-200/50' : 'text-gray-500 hover:text-gray-800'}`}
                         >
                             <Icon name={tab.icon} size={16} className="mr-2" /> {tab.label}
                         </button>
                     ))}
                </div>
+
+               {/* 💡 3. วาดปุ่มเมนูย่อย สำหรับทีม Sale */}
+               {activeCaretakerTab === 'Sale' && (
+                   <div className="flex gap-2.5 mb-4 md:mb-6 overflow-x-auto horizontal-scrollbar shrink-0 px-1 py-1">
+                       {['All', 'May', 'Boom', 'Boat'].map(sub => (
+                           <button key={sub} onClick={() => setActiveSubTab(sub)} className={`px-4 py-1.5 rounded-full text-[13px] font-bold border transition-colors whitespace-nowrap ${activeSubTab === sub ? 'bg-brand text-white border-brand shadow-md scale-105' : 'bg-white text-gray-500 border-gray-200 shadow-sm hover:border-brand/40 hover:text-brand'}`}>
+                               {sub === 'All' ? 'รวมทุกคน (Sale)' : `เซลล์ ${sub}`}
+                           </button>
+                       ))}
+                   </div>
+               )}
+
+               {/* 💡 4. วาดปุ่มเมนูย่อย สำหรับทีม Admin */}
+               {activeCaretakerTab === 'Admin' && (
+                   <div className="flex gap-2.5 mb-4 md:mb-6 overflow-x-auto horizontal-scrollbar shrink-0 px-1 py-1">
+                       {['All', 'Beau', 'Noey', 'Ketar'].map(sub => (
+                           <button key={sub} onClick={() => setActiveSubTab(sub)} className={`px-4 py-1.5 rounded-full text-[13px] font-bold border transition-colors whitespace-nowrap ${activeSubTab === sub ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-white text-gray-500 border-gray-200 shadow-sm hover:border-blue-400 hover:text-blue-600'}`}>
+                               {sub === 'All' ? 'รวมทุกคน (Admin)' : `แอดมิน ${sub}`}
+                           </button>
+                       ))}
+                   </div>
+               )}
 
                <div className="bg-white p-4 rounded-[20px] shadow-sm mb-4 md:mb-6 shrink-0 relative z-20">
                     <div className="flex justify-between items-center xl:hidden cursor-pointer" onClick={() => setShowFilters(!showFilters)}>
@@ -2696,7 +2716,6 @@ ${promptAction}`;
                                                         : <span className="text-[13px] text-gray-400">-</span>;
                                                 }
                                                 else if (col === 'ผู้ดูแลบ้าน') {
-                                                    // 💡 อัปเกรด Dropdown: เลือก 1 ได้ถึง 2 (จับคู่ให้เห็นชัดๆ)
                                                     const baseCaretaker = getBaseCaretaker(row);
                                                     content = (
                                                         <select 
@@ -2738,7 +2757,6 @@ ${promptAction}`;
                                                 
                                                 return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
                                             })}
-                                            {/* ปุ่มลบปลดล็อคตามสั่งค่ะ! */}
                                             <td className="py-4 px-3 align-middle text-center border border-gray-200 border-l-2">
                                                 <button onClick={() => { setHouseToDelete(row); setIsDeleteHouseModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="ลบข้อมูลบ้าน">
                                                     <Icon name="Trash" size={16} />
