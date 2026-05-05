@@ -1273,8 +1273,10 @@
             { name: 'เพจกลาง', type: 'central', houses: pickHousesForAssignee('เพจกลาง') }
         ];
         const specificSchedules = [
-            ...['May', 'Boom', 'Boat', 'Nan'].map(name => ({ name, type: 'sale', houses: pickHousesForAssignee(name) })),
-            ...['Beau', 'Noey', 'Ketar'].map(name => ({ name, type: 'admin', houses: pickHousesForAssignee(name) }))
+            // 🌟 ทีม Admin: ย้ายคิวขึ้นมาดึงข้อมูลก่อน
+            ...['Beau', 'Noey', 'Ketar'].map(name => ({ name, type: 'admin', houses: pickHousesForAssignee(name) })),
+            // 🌟 ทีม Sale: ตามมาทีหลัง
+            ...['May', 'Boom', 'Boat', 'Nan'].map(name => ({ name, type: 'sale', houses: pickHousesForAssignee(name) }))
         ];
 
         // 💡 3. รวมร่างตัวแปรให้อ่านออก
@@ -1468,8 +1470,12 @@
                             return (
                                 <React.Fragment key={assignee.name}>
                                     {assignee.name === 'เพจกลาง' && <div className="col-span-full mt-2"><h3 className="text-[16px] font-extrabold text-gray-700 flex items-center border-b pb-2"><Icon name="Globe" size={18} className="mr-2"/> ส่วนกลาง (โพสต์ได้ทุกหลัง)</h3></div>}
-                                    {assignee.name === 'May' && <div className="col-span-full mt-4"><h3 className="text-[16px] font-extrabold text-brand flex items-center border-b border-brand/20 pb-2"><Icon name="TrendingUp" size={18} className="mr-2"/> 💼 ทีม Sale</h3></div>}
+                                    
+                                    {/* 💡 ย้ายป้ายทีม Admin มาโชว์ก่อน */}
                                     {assignee.name === 'Beau' && <div className="col-span-full mt-4"><h3 className="text-[16px] font-extrabold text-blue-600 flex items-center border-b border-blue-200 pb-2"><Icon name="Shield" size={18} className="mr-2"/> 🛡️ ทีม Admin</h3></div>}
+                                    
+                                    {/* 💡 ป้ายทีม Sale โชว์ตามหลัง */}
+                                    {assignee.name === 'May' && <div className="col-span-full mt-4"><h3 className="text-[16px] font-extrabold text-brand flex items-center border-b border-brand/20 pb-2"><Icon name="TrendingUp" size={18} className="mr-2"/> 💼 ทีม Sale</h3></div>}
                                     
                                     <div className="bg-white rounded-[20px] shadow-sm border border-gray-100 overflow-hidden flex flex-col">
                                         <div className="bg-gray-50/80 border-b border-gray-100 p-4 flex items-center justify-between">
