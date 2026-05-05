@@ -2418,6 +2418,7 @@ ${promptAction}`;
         );
     };
     const HouseZoneTable = ({ sheetData, constructionProgress, isFirebaseLoaded, setManualRefreshKey }) => {
+        // 💡 แท็บใหม่ตามระบบทีม
         const [activeCaretakerTab, setActiveCaretakerTab] = useState('All');
 
         const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -2430,16 +2431,16 @@ ${promptAction}`;
         const [houseToDelete, setHouseToDelete] = useState(null);
 
         const [hiddenValues, setHiddenValues] = useState(() => {
-            const saved = localStorage.getItem('s_h_val_zone_v5');
+            const saved = localStorage.getItem('s_h_val_zone_v6');
             return saved ? JSON.parse(saved) : { 'สถานะ': ['ขายแล้ว', 'โอนแล้ว'], 'Website': [] };
         }); 
         const [visibleColumns, setVisibleColumns] = useState(() => {
-            const saved = localStorage.getItem('s_v_col_zone_v5');
-            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
+            const saved = localStorage.getItem('s_v_col_zone_v6');
+            return saved ? JSON.parse(saved) : ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ราคา', 'สถานะ', 'ทำเล', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
         });
 
-        useEffect(() => { localStorage.setItem('s_h_val_zone_v5', JSON.stringify(hiddenValues)); }, [hiddenValues]);
-        useEffect(() => { localStorage.setItem('s_v_col_zone_v5', JSON.stringify(visibleColumns)); }, [visibleColumns]);
+        useEffect(() => { localStorage.setItem('s_h_val_zone_v6', JSON.stringify(hiddenValues)); }, [hiddenValues]);
+        useEffect(() => { localStorage.setItem('s_v_col_zone_v6', JSON.stringify(visibleColumns)); }, [visibleColumns]);
 
         const validSheetData = getValidSheetData(sheetData);
         const allColumns = ['หมู่บ้าน', 'บ้านเลขที่', 'ซอย', 'พื้นที่', 'ห้องนอน', 'ห้องน้ำ', 'ราคา', 'สถานะ', 'ทำเล', 'รูปแบบ', 'เริ่มทำ', 'ทำเสร็จเมื่อ', 'ระดับการขาย', 'ผู้ดูแลบ้าน', 'สถานะการถ่ายคลิป'];
@@ -2449,7 +2450,6 @@ ${promptAction}`;
         const uniqueWebsites = [...new Set(validSheetData.map(item => safeTrim(item['Website'])).filter(Boolean))];
         
         const uniqueSalesLevels = ['รายการขายง่าย', 'รายการขายยาก', 'ไม่ระบุ'];
-        const uniqueCaretakers = ['May', 'Boom', 'Boat', 'Nan', 'ยังไม่ระบุ'];
         const uniqueVideoStatuses = ['ถ่ายแล้ว', 'ยังไม่ถ่าย'];
 
         const toggleColumn = (col) => setVisibleColumns(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
@@ -2458,6 +2458,17 @@ ${promptAction}`;
             return { ...prev, [col]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
         });
         const resetHideValue = (col) => setHiddenValues(prev => ({...prev, [col]: []}));
+
+        // 💡 ฟังก์ชันสมองกล: แปลงชื่อเซลล์ ให้เป็นตัวแทนของคู่หู
+        const getBaseCaretaker = (h) => {
+            const prog = constructionProgress[h.id] || {};
+            let ct = safeTrim(prog.caretaker || h['ผู้ดูแลบ้าน'] || '');
+            if (['May', 'Ketar'].includes(ct)) return 'May';
+            if (['Boom', 'Noey'].includes(ct)) return 'Boom';
+            if (['Boat', 'Beau'].includes(ct)) return 'Boat';
+            if (ct === 'Nan') return 'Nan';
+            return 'ยังไม่ระบุ';
+        };
 
         const filteredData = validSheetData.filter(row => {
             const prog = constructionProgress[row.id] || {};
@@ -2476,14 +2487,60 @@ ${promptAction}`;
 
         const sortedData = [...filteredData].sort((a, b) => safeTrim(a['ทำเล']).localeCompare(safeTrim(b['ทำเล']), 'th'));
 
-        const groupedData = uniqueCaretakers.map(ct => ({
-            caretaker: ct,
-            houses: sortedData.filter(row => {
-                const prog = constructionProgress[row.id] || {};
-                const currentCt = prog.caretaker || safeTrim(row['ผู้ดูแลบ้าน']) || 'ยังไม่ระบุ';
-                return currentCt === ct || (ct === 'ยังไม่ระบุ' && !['May', 'Boom', 'Boat', 'Nan'].includes(currentCt));
-            })
-        })).filter(g => g.houses.length > 0 && (activeCaretakerTab === 'All' || g.caretaker === activeCaretakerTab));
+        // 💡 สร้างคลังข้อมูลแจกจ่ายงานตามกฎ Pairing
+        const workloads = { May: [], Boom: [], Boat: [], Ketar: [], Noey: [], Beau: [], Nan: [], Unassigned: [] };
+        
+        sortedData.forEach(h => {
+            const base = getBaseCaretaker(h);
+            if (base === 'May') { workloads.May.push(h); workloads.Ketar.push(h); }
+            else if (base === 'Boom') { workloads.Boom.push(h); workloads.Noey.push(h); }
+            else if (base === 'Boat') { workloads.Boat.push(h); workloads.Beau.push(h); }
+            else if (base === 'Nan') { workloads.Nan.push(h); }
+            else { workloads.Unassigned.push(h); }
+        });
+
+        // 💡 สมองกลแจกไพ่: นำบ้านของ Nan แจกให้ Admin โดยอิงลำดับจาก Google Sheet จะได้คิวที่เสถียร
+        const nanHousesStable = validSheetData.filter(h => getBaseCaretaker(h) === 'Nan' && workloads.Nan.includes(h));
+        nanHousesStable.forEach((h, i) => {
+            if (i % 3 === 0) workloads.Beau.push(h);
+            else if (i % 3 === 1) workloads.Noey.push(h);
+            else if (i % 3 === 2) workloads.Ketar.push(h);
+        });
+
+        // 💡 จัดกลุ่มแสดงผลตาม Tab ที่กด
+        let groupedData = [];
+        if (activeCaretakerTab === 'All') {
+            groupedData = [
+                { caretaker: 'May (เซลล์) คู่ Ketar (แอดมิน)', houses: workloads.May },
+                { caretaker: 'Boom (เซลล์) คู่ Noey (แอดมิน)', houses: workloads.Boom },
+                { caretaker: 'Boat (เซลล์) คู่ Beau (แอดมิน)', houses: workloads.Boat },
+                { caretaker: 'Nan (รอระบบกระจายให้ทีม Admin)', houses: workloads.Nan },
+                { caretaker: 'ยังไม่ระบุ', houses: workloads.Unassigned }
+            ].filter(g => g.houses.length > 0);
+        } else if (activeCaretakerTab === 'Sale') {
+            groupedData = [
+                { caretaker: 'May', houses: workloads.May },
+                { caretaker: 'Boom', houses: workloads.Boom },
+                { caretaker: 'Boat', houses: workloads.Boat }
+            ].filter(g => g.houses.length > 0);
+        } else if (activeCaretakerTab === 'Admin') {
+            groupedData = [
+                { caretaker: 'Beau', houses: workloads.Beau },
+                { caretaker: 'Noey', houses: workloads.Noey },
+                { caretaker: 'Ketar', houses: workloads.Ketar }
+            ].filter(g => g.houses.length > 0);
+        } else if (activeCaretakerTab === 'ยังไม่ระบุ') {
+            groupedData = [
+                { caretaker: 'ยังไม่ระบุ', houses: workloads.Unassigned }
+            ].filter(g => g.houses.length > 0);
+        }
+
+        const caretakerTabs = [
+            { id: 'All', label: `ทุกคน (${filteredData.length} หลัง)`, icon: 'Users' },
+            { id: 'Sale', label: 'ทีม Sale', icon: 'TrendingUp' },
+            { id: 'Admin', label: 'ทีม Admin', icon: 'Shield' },
+            { id: 'ยังไม่ระบุ', label: `ยังไม่ระบุ (${workloads.Unassigned.length})`, icon: 'HelpCircle' }
+        ];
 
         const handleUpdateProgress = async (rowId, data) => {
             if (!isFirebaseLoaded) return;
@@ -2495,24 +2552,14 @@ ${promptAction}`;
                 if (window.syncToZoneSheet) {
                     window.syncToZoneSheet('edit', rowId, rowInfoSync, currentProg);
                 }
-                
             } catch(err) {}
         };
-
-        const caretakerTabs = [
-            { id: 'All', label: 'ทุกคน', icon: 'Users' },
-            { id: 'May', label: 'May', icon: 'User' },
-            { id: 'Boom', label: 'Boom', icon: 'User' },
-            { id: 'Boat', label: 'Boat', icon: 'User' },
-            { id: 'Nan', label: 'Nan', icon: 'User' },
-            { id: 'ยังไม่ระบุ', label: 'ยังไม่ระบุ', icon: 'HelpCircle' }
-        ];
 
         return (
             <div className="flex-1 p-3 md:p-6 overflow-hidden bg-background flex flex-col h-full">
                <div className="flex justify-between items-center mb-4 md:mb-6 shrink-0">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="MapPin" className="mr-2 md:mr-3 text-brand" size={24}/> แยกบ้านตามโซน (รายบุคคล)</h2>
+                        <h2 className="text-[20px] md:text-[22px] font-bold text-gray-800 flex items-center"><Icon name="MapPin" className="mr-2 md:mr-3 text-brand" size={24}/> แยกบ้านตามโซน (ทีมงาน)</h2>
                     </div>
                </div>
 
@@ -2601,7 +2648,7 @@ ${promptAction}`;
                         <tr>
                           <th className="py-4 px-2 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-r-2 border-gray-200 sticky left-0 z-30 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[40px] max-w-[40px] w-[40px]">ลำดับ</th>
                           {visibleColumns.map(col => <th key={col} className="py-4 px-5 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider border border-gray-200">{col}</th>)}
-                          <th className="py-4 px-3 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-l-2 border-gray-200 sticky right-0 z-30 bg-gray-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] w-[50px]">ลบ</th>
+                          <th className="py-4 px-3 text-[12px] font-extrabold text-gray-400 uppercase tracking-wider text-center border-l-2 border-gray-200 w-[50px]">ลบ</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2649,14 +2696,19 @@ ${promptAction}`;
                                                         : <span className="text-[13px] text-gray-400">-</span>;
                                                 }
                                                 else if (col === 'ผู้ดูแลบ้าน') {
-                                                    const caretaker = prog.caretaker || val || '';
+                                                    // 💡 อัปเกรด Dropdown: เลือก 1 ได้ถึง 2 (จับคู่ให้เห็นชัดๆ)
+                                                    const baseCaretaker = getBaseCaretaker(row);
                                                     content = (
-                                                        <select value={['May', 'Boom', 'Boat', 'Nan'].includes(caretaker) ? caretaker : ''} onChange={(e) => handleUpdateProgress(row.id, { caretaker: e.target.value })} className="px-2 py-1.5 text-[13px] font-bold text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand w-[90px] shadow-sm">
-                                                            <option value="">- เลือก -</option>
-                                                            <option value="May">May</option>
-                                                            <option value="Boom">Boom</option>
-                                                            <option value="Boat">Boat</option>
-                                                            <option value="Nan">Nan</option>
+                                                        <select 
+                                                            value={['May', 'Boom', 'Boat', 'Nan'].includes(baseCaretaker) ? baseCaretaker : ''} 
+                                                            onChange={(e) => handleUpdateProgress(row.id, { caretaker: e.target.value })} 
+                                                            className="px-2 py-1.5 text-[12px] font-bold text-gray-700 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand w-[150px] shadow-sm"
+                                                        >
+                                                            <option value="">- เลือกระบุคู่หู -</option>
+                                                            <option value="May">May (คู่ Ketar)</option>
+                                                            <option value="Boom">Boom (คู่ Noey)</option>
+                                                            <option value="Boat">Boat (คู่ Beau)</option>
+                                                            <option value="Nan">Nan (แจกแอดมิน)</option>
                                                         </select>
                                                     );
                                                 }
@@ -2686,7 +2738,8 @@ ${promptAction}`;
                                                 
                                                 return <td key={col} className="py-4 px-5 align-middle border border-gray-200">{content}</td>;
                                             })}
-                                            <td className="py-4 px-3 align-middle text-center border border-gray-200 border-l-2 sticky right-0 z-10 bg-white group-hover:bg-gray-50 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                            {/* ปุ่มลบปลดล็อคตามสั่งค่ะ! */}
+                                            <td className="py-4 px-3 align-middle text-center border border-gray-200 border-l-2">
                                                 <button onClick={() => { setHouseToDelete(row); setIsDeleteHouseModalOpen(true); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="ลบข้อมูลบ้าน">
                                                     <Icon name="Trash" size={16} />
                                                 </button>
