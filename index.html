@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.5: ระบบแฟ้มอัจฉริยะ + ไอคอนอัตโนมัติ + ระบบค้นหาข้อมูล)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.6: แก้บั๊กปุ่มแก้ไข + แสดงชื่อเต็ม + ย้ายปุ่มไปมุมขวา)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -2237,23 +2237,19 @@ ${promptAction}`;
 
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
-                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-2 overflow-x-auto horizontal-scrollbar">
-                        <div className="flex items-center gap-3 shrink-0">
-                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
+                    {/* Header: แสดงชื่อเต็มๆ และย้ายปุ่มแก้ไขไปด้านขวา */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-4">
+                        <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto min-w-0">
+                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0 mt-1 sm:mt-0">
                                 <Icon name="ChevronLeft" size={20} />
                             </button>
-                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 truncate flex items-center max-w-[150px] sm:max-w-[250px]">
-                                <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block" /> 
+                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 flex items-center flex-wrap leading-snug">
+                                <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block shrink-0" /> 
                                 {activeCategory.title}
                             </h2>
-                            {!isSelectingItems && !isReorderingItems && !searchQuery && (
-                                <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors shrink-0">
-                                    <Icon name="Edit" size={14} />
-                                </button>
-                            )}
                         </div>
                         
-                        <div className="flex gap-2 shrink-0 ml-auto">
+                        <div className="flex flex-wrap gap-2 shrink-0 sm:ml-auto w-full sm:w-auto justify-end border-t sm:border-0 border-gray-100 pt-3 sm:pt-0">
                             {isReorderingItems ? (
                                 <>
                                     <button onClick={() => setIsReorderingItems(false)} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
@@ -2275,11 +2271,19 @@ ${promptAction}`;
                                             <button onClick={() => setIsReorderingItems(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm hidden sm:flex items-center">
                                                 <Icon name="Menu" size={14} className="mr-1.5" /> จัดเรียง
                                             </button>
-                                            <button onClick={() => setIsSelectingItems(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                            <button onClick={() => setIsSelectingItems(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm flex items-center">
+                                                <Icon name="CheckSquare" size={14} className="mr-1.5 sm:hidden" /> <span className="hidden sm:inline">เลือก</span>
+                                            </button>
                                         </>
                                     )}
+                                    {/* 💡 ย้ายปุ่ม "แก้ไขหัวข้อ" มาอยู่รวมกลุ่มด้านขวาแล้วค่ะ */}
+                                    {!searchQuery && (
+                                        <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm flex items-center">
+                                            <Icon name="Edit" size={14} className="mr-1.5" /> <span className="hidden sm:inline">แก้ไขหัวข้อ</span><span className="sm:hidden">แก้ไข</span>
+                                        </button>
+                                    )}
                                     <button onClick={() => { setItemForm(initialItemForm); setItemTab('text'); setIsItemModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
-                                        <Icon name="Plus" size={16} className="mr-1 sm:mr-1.5" /> <span className="hidden sm:inline">เพิ่ม</span>
+                                        <Icon name="Plus" size={16} className="mr-1 sm:mr-1.5" /> <span className="hidden sm:inline">เพิ่มข้อมูล</span>
                                     </button>
                                 </>
                             )}
@@ -2414,7 +2418,7 @@ ${promptAction}`;
                         </div>
                     )}
 
-                    {/* Modal เพิ่มข้อมูล */}
+                    {/* Modal เพิ่มข้อมูล (ข้อความ/รูปภาพ) */}
                     {isItemModalOpen && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                             <div className="bg-surface rounded-[24px] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
@@ -2483,6 +2487,44 @@ ${promptAction}`;
                             </div>
                         </div>
                     )}
+
+                    {/* 💡 วางกล่องแก้ไขหมวดหมู่ (Category Edit Modal) ให้แสดงผลในหน้ารายการย่อยด้วย! */}
+                    {isCatModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
+                            <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
+                                <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                        <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มข้อมูล' : 'แก้ไขแฟ้มข้อมูล'}
+                                    </h3>
+                                    <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
+                                </div>
+                                
+                                <form id="catFormObj2" onSubmit={handleSaveCategory} className="p-5 space-y-5">
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล (ระบบจะเลือกหน้าปกให้อัตโนมัติ)</label>
+                                        <div className="relative flex items-center">
+                                            <div className="absolute left-3 w-8 h-8 bg-brand/10 text-brand rounded-lg flex items-center justify-center shadow-sm">
+                                                <Icon name={catForm.icon || 'FileSignature'} size={16} />
+                                            </div>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                value={catForm.title} 
+                                                onChange={e => setCatForm({...catForm, title: e.target.value, icon: getAutoIcon(e.target.value)})} 
+                                                placeholder="เช่น โครงสร้างเงินเดือน, ระเบียบการลา..." 
+                                                className="w-full pl-14 pr-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800 transition-all" 
+                                            />
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+                                    <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
+                                    <button form="catFormObj2" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -2494,7 +2536,7 @@ ${promptAction}`;
 
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                <div className="flex justify-between items-center mb-6 shrink-0 gap-2 overflow-x-auto horizontal-scrollbar">
+                <div className="flex justify-between items-center mb-6 md:mb-8 shrink-0 gap-2 overflow-x-auto horizontal-scrollbar">
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center shrink-0">
                         <Icon name="Building" className="mr-2 md:mr-3 text-brand" size={26}/> ข้อมูลบริษัท
                     </h2>
@@ -2615,8 +2657,8 @@ ${promptAction}`;
                                     </div>
                                     
                                     <div className="mt-auto pt-3 border-t border-gray-100 flex gap-3 opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <span className="text-[11px] font-bold text-gray-500 flex items-center"><Icon name="FileSignature" size={12} className="mr-1"/> {itemStats.texts} ข้อความ</span>
-                                        <span className="text-[11px] font-bold text-gray-500 flex items-center"><Icon name="Image" size={12} className="mr-1"/> {itemStats.imgs} รูปภาพ</span>
+                                        <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="FileSignature" size={12} className="mr-1"/> {itemStats.texts} ข้อความ</span>
+                                        <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="Image" size={12} className="mr-1"/> {itemStats.imgs} รูปภาพ</span>
                                     </div>
                                 </div>
                             );
