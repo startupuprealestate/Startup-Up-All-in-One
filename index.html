@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.7: ย้ายปุ่มดินสอ + เพิ่มระบบแก้ไขรูปลิสต์/ข้อความ)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.8: ปลดล็อกภาพต้นฉบับ ไม่บีบอัด + ปรับการโชว์รูปไม่ให้แหว่ง)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -2032,6 +2032,14 @@ ${promptAction}`;
             if (t.includes('งาน') || t.includes('หน้าที่') || t.includes('โปรเจกต์')) return 'ListTodo';
             return 'FileSignature';
         };
+
+        // 🌟 สมองกลตัวใหม่: อ่านรูปภาพขนาดต้นฉบับ 100% (ไม่บีบอัด)
+        const getOriginalBase64 = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
 
         useEffect(() => {
             if (!window.firebaseAPI || !window.firebaseDB) return;
@@ -2145,8 +2153,9 @@ ${promptAction}`;
             setIsUploading(true);
             try {
                 const newImagesData = await Promise.all(files.map(async (file) => {
-                    const compressed = await compressImage(file);
-                    const url = await uploadToCloudinary(compressed);
+                    // 🌟 ใช้ภาพต้นฉบับ ไม่บีบอัด
+                    const originalBase64 = await getOriginalBase64(file);
+                    const url = await uploadToCloudinary(originalBase64);
                     return { url: url, note: '' }; 
                 }));
                 setItemForm(prev => ({ ...prev, images: [...prev.images, ...newImagesData].slice(0, 20) }));
@@ -2257,14 +2266,13 @@ ${promptAction}`;
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-4">
-                        <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
-                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
+                        <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto min-w-0">
+                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0 mt-1 sm:mt-0">
                                 <Icon name="ChevronLeft" size={20} />
                             </button>
                             <h2 className="text-[18px] md:text-xl font-bold text-gray-800 flex items-center flex-wrap leading-snug break-words">
                                 <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block shrink-0" /> 
                                 {activeCategory.title}
-                                {/* ✏️ ปุ่มแก้ไขหัวข้อย้ายมาตรงนี้ */}
                                 {!isSelectingItems && !isReorderingItems && !searchQuery && (
                                     <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="ml-2.5 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-brand rounded-full transition-colors shrink-0" title="แก้ไขชื่อแฟ้ม">
                                         <Icon name="Edit" size={16} />
@@ -2308,7 +2316,6 @@ ${promptAction}`;
                         </div>
                     </div>
 
-                    {/* 🔍 แถบค้นหา */}
                     <div className="px-4 pt-4 shrink-0">
                         <div className="relative">
                             <Icon name="Search" size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -2384,8 +2391,9 @@ ${promptAction}`;
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col h-full pointer-events-none">
-                                                    <div className="flex-1 bg-gray-100 relative overflow-hidden">
-                                                        <img src={item.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="อ้างอิง" />
+                                                    <div className="flex-1 bg-white relative overflow-hidden flex items-center justify-center p-2">
+                                                        {/* 🌟 แสดงรูปแบบ Object-contain เพื่อไม่ให้เอกสารแหว่ง */}
+                                                        <img src={item.url} className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500" alt="อ้างอิง" />
                                                     </div>
                                                     {item.note && (
                                                         <div className="p-2.5 bg-gray-50 border-t border-gray-100 shrink-0">
@@ -2401,7 +2409,7 @@ ${promptAction}`;
                         )}
                     </div>
 
-                    {/* ✏️ Pop-up อ่านข้อความ (เพิ่มปุ่มแก้ไขแล้ว) */}
+                    {/* Pop-up อ่านข้อความ */}
                     {viewingTextItem && (
                         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewingTextItem(null)}>
                             <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 animate-[slideUp_0.3s_ease-out]" onClick={e => e.stopPropagation()}>
@@ -2427,7 +2435,7 @@ ${promptAction}`;
                         </div>
                     )}
 
-                    {/* ✏️ Pop-up ดูรูปภาพเต็มจอ (เพิ่มปุ่มแก้ไขแล้ว) */}
+                    {/* Pop-up ดูรูปภาพเต็มจอ */}
                     {viewingImageItem && (
                         <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setViewingImageItem(null)}>
                             <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex gap-3 z-10">
@@ -2492,8 +2500,9 @@ ${promptAction}`;
                                                         if (!files.length) return;
                                                         setIsUploading(true);
                                                         try {
-                                                            const compressed = await compressImage(files[0]);
-                                                            const url = await uploadToCloudinary(compressed);
+                                                            // 🌟 ใช้ไฟล์เต็มไม่บีบอัด สำหรับรูปเอกสาร
+                                                            const originalBase64 = await getOriginalBase64(files[0]);
+                                                            const url = await uploadToCloudinary(originalBase64);
                                                             const updated = [...itemForm.images];
                                                             updated[0].url = url;
                                                             setItemForm({...itemForm, images: updated});
@@ -2504,7 +2513,7 @@ ${promptAction}`;
                                             </div>
                                             <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 border border-gray-200 rounded-xl items-start">
                                                 <div className="w-32 h-32 shrink-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm mx-auto sm:mx-0">
-                                                    <img src={itemForm.images[0]?.url} className="w-full h-full object-cover" alt="preview" />
+                                                    <img src={itemForm.images[0]?.url} className="w-full h-full object-contain" alt="preview" />
                                                 </div>
                                                 <div className="flex-1 w-full mt-2 sm:mt-0">
                                                     <label className="block text-[12px] font-bold text-gray-500 mb-1.5">แก้ไขคำอธิบายใต้รูป</label>
@@ -2636,6 +2645,7 @@ ${promptAction}`;
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                         {filteredCats.map((cat, idx) => {
                             const isSelected = selectedCats.includes(cat.id);
+                            // หา index จาก array ต้นฉบับ
                             const realIdx = categories.findIndex(c => c.id === cat.id);
                             
                             const itemStats = (cat.items || []).reduce((acc, curr) => {
@@ -2656,7 +2666,7 @@ ${promptAction}`;
                                         if (isSelectingCats) toggleSelectCat(cat.id);
                                         else {
                                             setActiveCategory(cat);
-                                            setSearchQuery('');
+                                            setSearchQuery(''); // ล้างคำค้นหาก่อนเข้าแฟ้มย่อย
                                         }
                                     }} 
                                     className={`bg-surface p-5 rounded-[20px] border-2 transition-all relative overflow-hidden flex flex-col select-none h-[150px]
