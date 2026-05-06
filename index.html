@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.10: แก้บั๊กหน้าต่างแก้ไขชื่อแฟ้มในหน้ารายการย่อย)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.10: เพิ่มระบบ Backup & Restore กันข้อมูลหาย)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -2016,6 +2016,9 @@ ${promptAction}`;
 
         const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin', 'TrendingUp'];
         const generateId = () => Math.random().toString(36).substring(2, 10);
+
+        // 🛡️ ตัวแปรสำหรับ Restore
+        const restoreFileRef = useRef(null);
 
         const formatTextWithLinks = (text) => {
             if (!text) return '';
@@ -2081,6 +2084,75 @@ ${promptAction}`;
             }
         }, [categories]);
 
+        // -----------------------------------------------------------------
+        // 🛡️ ระบบสำรองและกู้คืนข้อมูล (Backup & Restore)
+        // -----------------------------------------------------------------
+        const handleBackup = () => {
+            if (categories.length === 0) {
+                alert('ยังไม่มีข้อมูลให้สำรองค่ะ');
+                return;
+            }
+            const dataStr = JSON.stringify(categories, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const d = new Date();
+            const dateString = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+            link.download = `StartupUp_CompanyInfo_Backup_${dateString}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        };
+
+        const handleRestoreClick = () => {
+            if(window.confirm('🚨 คำเตือน: การกู้คืนจะ "ลบและเขียนทับ" แฟ้มข้อมูลทั้งหมดของบริษัทด้วยไฟล์สำรอง\n\nต้องการดำเนินการกู้คืนใช่หรือไม่?')) {
+                if (restoreFileRef.current) restoreFileRef.current.click();
+            }
+        };
+
+        const handleFileChange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            setIsUploading(true);
+            try {
+                const text = await file.text();
+                const backupData = JSON.parse(text);
+                
+                if (!Array.isArray(backupData)) throw new Error("รูปแบบไฟล์ไม่ถูกต้อง");
+
+                const { collection, getDocs, deleteDoc, doc, setDoc } = window.firebaseAPI;
+                
+                // 1. ลบข้อมูลเดิมทิ้งให้เกลี้ยง
+                const snapshot = await getDocs(collection(window.firebaseDB, "company_info"));
+                const deletePromises = [];
+                snapshot.forEach(docSnap => {
+                    deletePromises.push(deleteDoc(doc(window.firebaseDB, "company_info", docSnap.id)));
+                });
+                await Promise.all(deletePromises);
+
+                // 2. ยัดข้อมูลจากไฟล์สำรองกลับเข้าไป
+                const restorePromises = [];
+                backupData.forEach(cat => {
+                    const { id, ...dataToSave } = cat; 
+                    restorePromises.push(setDoc(doc(window.firebaseDB, "company_info", id), dataToSave));
+                });
+                await Promise.all(restorePromises);
+
+                alert('✅ กู้คืนแฟ้มข้อมูลเสร็จสมบูรณ์เรียบร้อยแล้วค่ะ!');
+            } catch (err) {
+                console.error("Restore failed", err);
+                alert('❌ เกิดข้อผิดพลาด! ไฟล์ที่ใช้อาจไม่ใช่ไฟล์สำรองของระบบ หรือไฟล์เสียหายค่ะ');
+            }
+            setIsUploading(false);
+            e.target.value = ''; // รีเซ็ต input ไฟล์
+        };
+
+        // -----------------------------------------------------------------
+        // ฟังก์ชันจัดการหมวดหมู่และไอเทมต่างๆ
+        // -----------------------------------------------------------------
         const toggleStarCategory = async (e, cat) => {
             e.stopPropagation();
             try { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", cat.id), { isStarred: !cat.isStarred }); } 
@@ -2261,7 +2333,6 @@ ${promptAction}`;
         if (activeCategory) {
             const rawItems = activeCategory.items || [];
             
-            // 🔍 กรองข้อมูล (ตามคำค้นหา และ โหมดติดดาว)
             const filteredItems = rawItems.filter(item => {
                 if (filterItemStar && !item.isStarred) return false;
                 if (!searchQuery) return true;
@@ -2328,13 +2399,11 @@ ${promptAction}`;
                     </div>
 
                     <div className="px-4 pt-4 shrink-0">
-                        {/* ⭐ ปุ่มสลับโหมด ติดดาว/ทั้งหมด */}
                         <div className="flex bg-gray-100 p-1.5 rounded-xl w-full sm:w-max mb-4 shrink-0 shadow-sm border border-gray-200">
                             <button onClick={() => setFilterItemStar(false)} className={`flex-1 px-5 py-2.5 rounded-lg text-[13px] font-bold transition-all ${!filterItemStar ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>เนื้อหาทั้งหมด</button>
                             <button onClick={() => setFilterItemStar(true)} className={`flex-1 px-5 py-2.5 rounded-lg text-[13px] font-bold transition-all ${filterItemStar ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>⭐ ติดดาว</button>
                         </div>
 
-                        {/* 🔍 แถบค้นหา */}
                         <div className="relative">
                             <Icon name="Search" size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
                             <input 
@@ -2386,7 +2455,6 @@ ${promptAction}`;
                                                 ${draggedItemIdx === realIdx ? 'opacity-40 scale-95 border-emerald-500' : ''}
                                             `}
                                         >
-                                            {/* ⭐ ปุ่มติดดาวมุมขวาบนของการ์ด */}
                                             {!isSelectingItems && !isReorderingItems && (
                                                 <button 
                                                     onClick={(e) => toggleStarItem(e, item)} 
@@ -2597,44 +2665,6 @@ ${promptAction}`;
                             </div>
                         </div>
                     )}
-
-                    {/* 💡 กล่องแก้ไขแฟ้มหมวดหมู่ (เด้งขึ้นมาในหน้ารายการย่อยได้เลย) */}
-                    {isCatModalOpen && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
-                            <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
-                                <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
-                                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                                        <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มข้อมูล' : 'แก้ไขแฟ้มข้อมูล'}
-                                    </h3>
-                                    <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
-                                </div>
-                                
-                                <form id="catFormObj2" onSubmit={handleSaveCategory} className="p-5 space-y-5">
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล (ระบบจะเลือกหน้าปกให้อัตโนมัติ)</label>
-                                        <div className="relative flex items-center">
-                                            <div className="absolute left-3 w-8 h-8 bg-brand/10 text-brand rounded-lg flex items-center justify-center shadow-sm">
-                                                <Icon name={catForm.icon || 'FileSignature'} size={16} />
-                                            </div>
-                                            <input 
-                                                type="text" 
-                                                required 
-                                                value={catForm.title} 
-                                                onChange={e => setCatForm({...catForm, title: e.target.value, icon: getAutoIcon(e.target.value)})} 
-                                                placeholder="เช่น โครงสร้างเงินเดือน, ระเบียบการลา..." 
-                                                className="w-full pl-14 pr-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800 transition-all" 
-                                            />
-                                        </div>
-                                    </div>
-                                </form>
-
-                                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-                                    <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
-                                    <button form="catFormObj2" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
@@ -2655,6 +2685,14 @@ ${promptAction}`;
                     </h2>
                     
                     <div className="flex gap-2 shrink-0 ml-auto">
+                        <input type="file" accept=".json" ref={restoreFileRef} style={{display:'none'}} onChange={handleFileChange} />
+                        <button onClick={handleBackup} className="p-2 text-gray-500 hover:text-brand bg-gray-100 hover:bg-brand/10 rounded-xl transition-colors hidden md:flex items-center" title="สำรองแฟ้มข้อมูล (Backup)">
+                            <Icon name="Download" size={16} />
+                        </button>
+                        <button onClick={handleRestoreClick} className="p-2 text-gray-500 hover:text-red-500 bg-gray-100 hover:bg-red-50 rounded-xl transition-colors hidden md:flex items-center mr-2" title="กู้คืนแฟ้มข้อมูล (Restore)">
+                            <Icon name="Upload" size={16} />
+                        </button>
+
                         {isReorderingCats ? (
                             <>
                                 <button onClick={() => setIsReorderingCats(false)} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
@@ -2688,7 +2726,6 @@ ${promptAction}`;
                 </div>
 
                 <div className="mb-6 relative shrink-0">
-                    {/* ⭐ ปุ่มสลับโหมด ติดดาว/ทั้งหมด */}
                     <div className="flex bg-gray-100 p-1.5 rounded-xl w-full sm:w-max mb-4 shrink-0 shadow-sm border border-gray-200">
                         <button onClick={() => setFilterCatStar(false)} className={`flex-1 px-5 py-2.5 rounded-lg text-[13px] font-bold transition-all ${!filterCatStar ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>แฟ้มทั้งหมด</button>
                         <button onClick={() => setFilterCatStar(true)} className={`flex-1 px-5 py-2.5 rounded-lg text-[13px] font-bold transition-all ${filterCatStar ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>⭐ ติดดาว</button>
@@ -2744,7 +2781,7 @@ ${promptAction}`;
                                         if (isSelectingCats) toggleSelectCat(cat.id);
                                         else {
                                             setActiveCategory(cat);
-                                            setSearchQuery(''); // ล้างคำค้นหาก่อนเข้าแฟ้มย่อย
+                                            setSearchQuery(''); 
                                         }
                                     }} 
                                     className={`bg-surface p-5 rounded-[20px] border-2 transition-all relative overflow-hidden flex flex-col select-none h-[150px]
@@ -2753,7 +2790,6 @@ ${promptAction}`;
                                         ${draggedCatIdx === realIdx ? 'opacity-40 scale-95 border-emerald-500' : ''}
                                     `}
                                 >
-                                    {/* ⭐ ปุ่มติดดาวมุมขวาบนของการ์ด */}
                                     {!isSelectingCats && !isReorderingCats && (
                                         <button 
                                             onClick={(e) => toggleStarCategory(e, cat)} 
