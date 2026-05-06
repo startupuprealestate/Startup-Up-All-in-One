@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.9: เพิ่มระบบติดดาว ⭐ ทั้งหมวดใหญ่และหมวดรอง)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.10: แก้บั๊กหน้าต่างแก้ไขชื่อแฟ้มในหน้ารายการย่อย)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -2081,22 +2081,18 @@ ${promptAction}`;
             }
         }, [categories]);
 
-        // 🌟 ฟังก์ชัน สลับการติดดาวหมวดหมู่หลัก (Category Star)
         const toggleStarCategory = async (e, cat) => {
             e.stopPropagation();
-            try {
-                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", cat.id), { isStarred: !cat.isStarred });
-            } catch (err) { alert("อัปเดตดาวล้มเหลว"); }
+            try { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", cat.id), { isStarred: !cat.isStarred }); } 
+            catch (err) { alert("อัปเดตดาวล้มเหลว"); }
         };
 
-        // 🌟 ฟังก์ชัน สลับการติดดาวรายการย่อย (Item Star)
         const toggleStarItem = async (e, item) => {
             e.stopPropagation();
             if (!activeCategory) return;
             const updatedItems = activeCategory.items.map(i => i.id === item.id ? { ...i, isStarred: !i.isStarred } : i);
-            try {
-                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: updatedItems });
-            } catch (err) { alert("อัปเดตดาวล้มเหลว"); }
+            try { await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: updatedItems }); } 
+            catch (err) { alert("อัปเดตดาวล้มเหลว"); }
         };
 
         const handleSaveCategory = async (e) => {
@@ -2420,7 +2416,7 @@ ${promptAction}`;
                                                         <Icon name="FileSignature" size={20} />
                                                     </div>
                                                     <h4 className="font-extrabold text-[14px] text-gray-800 line-clamp-2 mb-1 pr-6">{item.title}</h4>
-                                                    <p className="text-[11px] text-gray-500 line-clamp-3 leading-relaxed mt-auto break-words">{item.content}</p>
+                                                    <p className="text-[11px] text-gray-500 line-clamp-3 leading-relaxed mt-auto break-words">{formatTextWithLinks(item.content)}</p>
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col h-full pointer-events-none">
@@ -2601,6 +2597,44 @@ ${promptAction}`;
                             </div>
                         </div>
                     )}
+
+                    {/* 💡 กล่องแก้ไขแฟ้มหมวดหมู่ (เด้งขึ้นมาในหน้ารายการย่อยได้เลย) */}
+                    {isCatModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
+                            <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
+                                <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                        <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มข้อมูล' : 'แก้ไขแฟ้มข้อมูล'}
+                                    </h3>
+                                    <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
+                                </div>
+                                
+                                <form id="catFormObj2" onSubmit={handleSaveCategory} className="p-5 space-y-5">
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล (ระบบจะเลือกหน้าปกให้อัตโนมัติ)</label>
+                                        <div className="relative flex items-center">
+                                            <div className="absolute left-3 w-8 h-8 bg-brand/10 text-brand rounded-lg flex items-center justify-center shadow-sm">
+                                                <Icon name={catForm.icon || 'FileSignature'} size={16} />
+                                            </div>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                value={catForm.title} 
+                                                onChange={e => setCatForm({...catForm, title: e.target.value, icon: getAutoIcon(e.target.value)})} 
+                                                placeholder="เช่น โครงสร้างเงินเดือน, ระเบียบการลา..." 
+                                                className="w-full pl-14 pr-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800 transition-all" 
+                                            />
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+                                    <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
+                                    <button form="catFormObj2" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -2608,7 +2642,6 @@ ${promptAction}`;
         // -----------------------------------------------------
         // 2. หน้าหลัก (Category List View Mode)
         // -----------------------------------------------------
-        // 🔍 กรองข้อมูลแฟ้มหลัก (ตามคำค้นหา และ โหมดติดดาว)
         const filteredCats = categories.filter(cat => {
             if (filterCatStar && !cat.isStarred) return false;
             return cat.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -2691,7 +2724,6 @@ ${promptAction}`;
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                         {filteredCats.map((cat, idx) => {
                             const isSelected = selectedCats.includes(cat.id);
-                            // หา index จาก array ต้นฉบับ
                             const realIdx = categories.findIndex(c => c.id === cat.id);
                             
                             const itemStats = (cat.items || []).reduce((acc, curr) => {
