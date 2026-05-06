@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.2: ระบบแฟ้มอัจฉริยะสไตล์ iOS)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.3: ระบบแฟ้มอัจฉริยะ + กดค้างลากจัดตำแหน่งได้สไตล์ iOS)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -1986,25 +1986,30 @@ ${promptAction}`;
         // ระบบ Modal
         const [isCatModalOpen, setIsCatModalOpen] = useState(false);
         const [isItemModalOpen, setIsItemModalOpen] = useState(false);
-        const [modalMode, setModalMode] = useState('add'); // 'add' หรือ 'edit'
+        const [modalMode, setModalMode] = useState('add');
 
-        // ระบบเลือก (Select Mode แบบ iOS)
+        // ระบบเลือก (Select Mode)
         const [isSelectingCats, setIsSelectingCats] = useState(false);
         const [selectedCats, setSelectedCats] = useState([]);
         const [isSelectingItems, setIsSelectingItems] = useState(false);
         const [selectedItems, setSelectedItems] = useState([]);
 
+        // 🌟 ระบบจัดเรียง (Drag & Drop Mode)
+        const [isReorderingCats, setIsReorderingCats] = useState(false);
+        const [draggedCatIdx, setDraggedCatIdx] = useState(null);
+        const [isReorderingItems, setIsReorderingItems] = useState(false);
+        const [draggedItemIdx, setDraggedItemIdx] = useState(null);
+
         // โครงสร้างฟอร์ม
         const initialCatForm = { id: '', title: '', icon: 'FileSignature' };
         const [catForm, setCatForm] = useState(initialCatForm);
         
-        const [itemTab, setItemTab] = useState('text'); // 'text' หรือ 'image'
+        const [itemTab, setItemTab] = useState('text');
         const initialItemForm = { title: '', content: '', images: [] };
         const [itemForm, setItemForm] = useState(initialItemForm);
 
         const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin', 'TrendingUp'];
 
-        // สร้าง ID อัตโนมัติ
         const generateId = () => Math.random().toString(36).substring(2, 10);
 
         useEffect(() => {
@@ -2017,7 +2022,7 @@ ${promptAction}`;
                     let items = data.items || [];
                     let needsMigration = false;
 
-                    // 💡 ระบบแปลงข้อมูลเก่า (Legacy Migration) ให้กลายเป็นกล่องการ์ด
+                    // แปลงข้อมูลเก่าให้เป็นการ์ด
                     if (data.description) {
                         items.unshift({ id: 'text_' + Date.now(), type: 'text', title: 'รายละเอียด (เก่า)', content: data.description, createdAt: Date.now() });
                         needsMigration = true;
@@ -2030,10 +2035,7 @@ ${promptAction}`;
                     }
 
                     loaded.push({ id: document.id, ...data, items });
-
-                    if (needsMigration) {
-                        updateDoc(doc(window.firebaseDB, "company_info", document.id), { items: items, description: null, images: null }).catch(()=>{});
-                    }
+                    if (needsMigration) updateDoc(doc(window.firebaseDB, "company_info", document.id), { items: items, description: null, images: null }).catch(()=>{});
                 });
                 
                 loaded.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -2043,7 +2045,6 @@ ${promptAction}`;
             return () => unsubscribe();
         }, []);
 
-        // อัปเดตข้อมูลหมวดที่กำลังเปิดดูอยู่ให้เรียลไทม์
         useEffect(() => {
             if (activeCategory) {
                 const updated = categories.find(c => c.id === activeCategory.id);
@@ -2068,9 +2069,7 @@ ${promptAction}`;
             } catch (err) { alert("บันทึกข้อมูลไม่สำเร็จค่ะ"); }
         };
 
-        const toggleSelectCat = (id) => {
-            setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
-        };
+        const toggleSelectCat = (id) => setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
 
         const handleDeleteSelectedCats = async () => {
             if (selectedCats.length === 0) return;
@@ -2080,6 +2079,35 @@ ${promptAction}`;
                 setSelectedCats([]);
                 setIsSelectingCats(false);
             } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
+        };
+
+        // 🌟 ฟังก์ชัน Drag & Drop หน้าหมวดหมู่หลัก
+        const handleDragStartCat = (e, index) => {
+            setDraggedCatIdx(index);
+            e.dataTransfer.effectAllowed = "move";
+            setTimeout(() => { if(e.target) e.target.style.opacity = '0.4'; }, 0);
+        };
+        const handleDragEnterCat = (e, index) => {
+            e.preventDefault();
+            if (draggedCatIdx === null || draggedCatIdx === index) return;
+            const newCats = [...categories];
+            const draggedItem = newCats[draggedCatIdx];
+            newCats.splice(draggedCatIdx, 1);
+            newCats.splice(index, 0, draggedItem);
+            setDraggedCatIdx(index);
+            setCategories(newCats);
+        };
+        const handleDragEndCat = (e) => {
+            if(e.target) e.target.style.opacity = '1';
+            setDraggedCatIdx(null);
+        };
+        const handleSaveOrderCats = async () => {
+            setIsUploading(true);
+            try {
+                await Promise.all(categories.map((cat, index) => window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", cat.id), { order: index + 1 })));
+                setIsReorderingCats(false);
+            } catch (err) { alert("บันทึกตำแหน่งล้มเหลว"); }
+            setIsUploading(false);
         };
 
         // -----------------------------------------------------------------
@@ -2111,9 +2139,7 @@ ${promptAction}`;
                     newItems.push({ id: 'txt_' + generateId(), type: 'text', title: itemForm.title, content: itemForm.content, createdAt: Date.now() });
                 } else if (itemTab === 'image') {
                     if (itemForm.images.length === 0) { setIsUploading(false); return; }
-                    itemForm.images.forEach(img => {
-                        newItems.push({ id: 'img_' + generateId(), type: 'image', url: img.url, note: img.note, createdAt: Date.now() });
-                    });
+                    itemForm.images.forEach(img => { newItems.push({ id: 'img_' + generateId(), type: 'image', url: img.url, note: img.note, createdAt: Date.now() }); });
                 }
                 const updatedItems = [...(activeCategory.items || []), ...newItems];
                 await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: updatedItems });
@@ -2123,9 +2149,7 @@ ${promptAction}`;
             setIsUploading(false);
         };
 
-        const toggleSelectItem = (id) => {
-            setSelectedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-        };
+        const toggleSelectItem = (id) => setSelectedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
 
         const handleDeleteSelectedItems = async () => {
             if (selectedItems.length === 0 || !activeCategory) return;
@@ -2136,6 +2160,36 @@ ${promptAction}`;
                 setSelectedItems([]);
                 setIsSelectingItems(false);
             } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
+        };
+
+        // 🌟 ฟังก์ชัน Drag & Drop หน้ารายการย่อย
+        const handleDragStartItem = (e, index) => {
+            setDraggedItemIdx(index);
+            e.dataTransfer.effectAllowed = "move";
+            setTimeout(() => { if(e.target) e.target.style.opacity = '0.4'; }, 0);
+        };
+        const handleDragEnterItem = (e, index) => {
+            e.preventDefault();
+            if (draggedItemIdx === null || draggedItemIdx === index) return;
+            const newItems = [...activeCategory.items];
+            const draggedObj = newItems[draggedItemIdx];
+            newItems.splice(draggedItemIdx, 1);
+            newItems.splice(index, 0, draggedObj);
+            setDraggedItemIdx(index);
+            setActiveCategory({...activeCategory, items: newItems});
+        };
+        const handleDragEndItem = (e) => {
+            if(e.target) e.target.style.opacity = '1';
+            setDraggedItemIdx(null);
+        };
+        const handleSaveOrderItems = async () => {
+            setIsUploading(true);
+            try {
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: activeCategory.items });
+                setIsReorderingItems(false);
+                setCategories(prev => prev.map(c => c.id === activeCategory.id ? activeCategory : c));
+            } catch (err) { alert("บันทึกตำแหน่งล้มเหลว"); }
+            setIsUploading(false);
         };
 
         const handleDownloadSingle = async (url, filename) => {
@@ -2158,25 +2212,31 @@ ${promptAction}`;
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
                     {/* Header */}
-                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-2">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setSelectedItems([]); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
+                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-2 overflow-x-auto horizontal-scrollbar">
+                        <div className="flex items-center gap-3 shrink-0">
+                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
                                 <Icon name="ChevronLeft" size={20} />
                             </button>
-                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 truncate flex items-center">
+                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 truncate flex items-center max-w-[150px] sm:max-w-[250px]">
                                 <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block" /> 
                                 {activeCategory.title}
                             </h2>
-                            {/* ปุ่มแก้ไขชื่อหมวดหมู่ ✏️ */}
-                            {!isSelectingItems && (
+                            {!isSelectingItems && !isReorderingItems && (
                                 <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors shrink-0">
                                     <Icon name="Edit" size={14} />
                                 </button>
                             )}
                         </div>
                         
-                        <div className="flex gap-2 shrink-0">
-                            {isSelectingItems ? (
+                        <div className="flex gap-2 shrink-0 ml-auto">
+                            {isReorderingItems ? (
+                                <>
+                                    <button onClick={() => setIsReorderingItems(false)} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
+                                    <button onClick={handleSaveOrderItems} disabled={isUploading} className="px-4 py-2 text-[13px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-colors flex items-center shadow-sm">
+                                        {isUploading ? <Icon name="RefreshCw" size={14} className="animate-spin mr-1.5" /> : <Icon name="Check" size={14} className="mr-1.5" />} บันทึก
+                                    </button>
+                                </>
+                            ) : isSelectingItems ? (
                                 <>
                                     <button onClick={() => { setIsSelectingItems(false); setSelectedItems([]); }} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
                                     <button onClick={handleDeleteSelectedItems} disabled={selectedItems.length === 0} className="px-4 py-2 text-[13px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-xl transition-colors flex items-center shadow-sm">
@@ -2186,15 +2246,22 @@ ${promptAction}`;
                             ) : (
                                 <>
                                     {items.length > 0 && (
-                                        <button onClick={() => setIsSelectingItems(true)} className="px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                        <>
+                                            <button onClick={() => setIsReorderingItems(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm hidden sm:flex items-center">
+                                                <Icon name="Menu" size={14} className="mr-1.5" /> จัดเรียง
+                                            </button>
+                                            <button onClick={() => setIsSelectingItems(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                        </>
                                     )}
-                                    <button onClick={() => { setItemForm(initialItemForm); setItemTab('text'); setIsItemModalOpen(true); }} className="px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
+                                    <button onClick={() => { setItemForm(initialItemForm); setItemTab('text'); setIsItemModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
                                         <Icon name="Plus" size={16} className="mr-1 sm:mr-1.5" /> <span className="hidden sm:inline">เพิ่ม</span>
                                     </button>
                                 </>
                             )}
                         </div>
                     </div>
+
+                    {isReorderingItems && <div className="bg-emerald-50 text-emerald-700 text-center py-2 text-[12px] font-bold animate-pulse">💡 กดค้างที่การ์ดแล้วลากเพื่อสลับตำแหน่งได้เลยค่ะ</div>}
 
                     {/* Items Grid */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
@@ -2205,19 +2272,28 @@ ${promptAction}`;
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                {items.map(item => {
+                                {items.map((item, idx) => {
                                     const isSelected = selectedItems.includes(item.id);
                                     return (
                                         <div 
                                             key={item.id} 
+                                            draggable={isReorderingItems}
+                                            onDragStart={(e) => isReorderingItems && handleDragStartItem(e, idx)}
+                                            onDragEnter={(e) => isReorderingItems && handleDragEnterItem(e, idx)}
+                                            onDragEnd={isReorderingItems ? handleDragEndItem : undefined}
+                                            onDragOver={(e) => isReorderingItems && e.preventDefault()}
                                             onClick={() => {
+                                                if (isReorderingItems) return;
                                                 if (isSelectingItems) toggleSelectItem(item.id);
                                                 else if (item.type === 'text') setViewingTextItem(item);
                                                 else if (item.type === 'image') setFullScreenImg(item.url);
                                             }}
-                                            className={`relative rounded-[16px] overflow-hidden border-2 transition-all cursor-pointer group flex flex-col h-[180px] bg-white ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-sm hover:border-brand/40 hover:shadow-md'}`}
+                                            className={`relative rounded-[16px] overflow-hidden border-2 transition-all flex flex-col h-[180px] bg-white select-none
+                                                ${isReorderingItems ? 'cursor-grab active:cursor-grabbing hover:border-emerald-400 border-dashed animate-pulse' : 'cursor-pointer hover:border-brand/40 group'} 
+                                                ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-sm'}
+                                                ${draggedItemIdx === idx ? 'opacity-40 scale-95 border-emerald-500' : ''}
+                                            `}
                                         >
-                                            {/* ปุ่ม Checkbox โหมดเลือก */}
                                             {isSelectingItems && (
                                                 <div className="absolute top-2 right-2 z-20">
                                                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-brand border-brand text-white' : 'bg-white/90 border-gray-300'}`}>
@@ -2225,9 +2301,14 @@ ${promptAction}`;
                                                     </div>
                                                 </div>
                                             )}
+                                            {isReorderingItems && (
+                                                <div className="absolute top-2 right-2 z-20 bg-white/80 p-1.5 rounded-full shadow-sm text-gray-400 backdrop-blur-sm">
+                                                    <Icon name="Menu" size={14} />
+                                                </div>
+                                            )}
 
                                             {item.type === 'text' ? (
-                                                <div className="p-4 flex flex-col h-full">
+                                                <div className="p-4 flex flex-col h-full pointer-events-none">
                                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 ${isSelected ? 'bg-brand/20 text-brand' : 'bg-blue-50 text-blue-500'}`}>
                                                         <Icon name="FileSignature" size={20} />
                                                     </div>
@@ -2235,14 +2316,9 @@ ${promptAction}`;
                                                     <p className="text-[11px] text-gray-500 line-clamp-3 leading-relaxed mt-auto break-words">{item.content}</p>
                                                 </div>
                                             ) : (
-                                                <div className="flex flex-col h-full">
+                                                <div className="flex flex-col h-full pointer-events-none">
                                                     <div className="flex-1 bg-gray-100 relative overflow-hidden">
                                                         <img src={item.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="อ้างอิง" />
-                                                        {!isSelectingItems && (
-                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center z-10">
-                                                                <Icon name="Maximize" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
-                                                            </div>
-                                                        )}
                                                     </div>
                                                     {item.note && (
                                                         <div className="p-2.5 bg-gray-50 border-t border-gray-100 shrink-0">
@@ -2315,7 +2391,7 @@ ${promptAction}`;
                                             </div>
                                             <div>
                                                 <label className="block text-[13px] font-bold text-gray-600 mb-1.5">รายละเอียด</label>
-                                                <textarea required={itemTab === 'text'} rows="8" value={itemForm.content} onChange={e => setItemForm({...itemForm, content: e.target.value})} placeholder="พิมพ์เนื้อหาที่นี่..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm resize-none custom-scrollbar leading-relaxed"></textarea>
+                                                <textarea required={itemTab === 'text'} rows="8" value={itemForm.content} onChange={e => setItemForm({...itemForm, content: e.target.value})} placeholder="พิมพ์เนื้อหาที่นี่..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm resize-none custom-scrollbar leading-relaxed whitespace-pre-wrap"></textarea>
                                             </div>
                                         </div>
                                     ) : (
@@ -2366,17 +2442,24 @@ ${promptAction}`;
         }
 
         // -----------------------------------------------------
-        // 2. หน้าหลัก (Category List)
+        // 2. หน้าหลัก (Category List View Mode)
         // -----------------------------------------------------
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                <div className="flex justify-between items-center mb-6 md:mb-8 shrink-0 gap-2">
+                <div className="flex justify-between items-center mb-6 md:mb-8 shrink-0 gap-2 overflow-x-auto horizontal-scrollbar">
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center shrink-0">
                         <Icon name="Building" className="mr-2 md:mr-3 text-brand" size={26}/> ข้อมูลบริษัท
                     </h2>
                     
-                    <div className="flex gap-2 shrink-0">
-                        {isSelectingCats ? (
+                    <div className="flex gap-2 shrink-0 ml-auto">
+                        {isReorderingCats ? (
+                            <>
+                                <button onClick={() => setIsReorderingCats(false)} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
+                                <button onClick={handleSaveOrderCats} disabled={isUploading} className="px-4 py-2 text-[13px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl transition-colors flex items-center shadow-sm">
+                                    {isUploading ? <Icon name="RefreshCw" size={14} className="animate-spin mr-1.5" /> : <Icon name="Check" size={14} className="mr-1.5" />} บันทึก
+                                </button>
+                            </>
+                        ) : isSelectingCats ? (
                             <>
                                 <button onClick={() => { setIsSelectingCats(false); setSelectedCats([]); }} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
                                 <button onClick={handleDeleteSelectedCats} disabled={selectedCats.length === 0} className="px-4 py-2 text-[13px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-xl transition-colors flex items-center shadow-sm">
@@ -2386,21 +2469,28 @@ ${promptAction}`;
                         ) : (
                             <>
                                 {categories.length > 0 && (
-                                    <button onClick={() => setIsSelectingCats(true)} className="px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                    <>
+                                        <button onClick={() => setIsReorderingCats(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm hidden sm:flex items-center">
+                                            <Icon name="Menu" size={14} className="mr-1.5" /> จัดเรียง
+                                        </button>
+                                        <button onClick={() => setIsSelectingCats(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                    </>
                                 )}
-                                <button onClick={() => { setCatForm(initialCatForm); setModalMode('add'); setIsCatModalOpen(true); }} className="px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
-                                    <Icon name="Plus" size={16} className="mr-1.5"/> เพิ่ม
+                                <button onClick={() => { setCatForm(initialCatForm); setModalMode('add'); setIsCatModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
+                                    <Icon name="Plus" size={16} className="mr-1 sm:mr-1.5"/> <span className="hidden sm:inline">เพิ่ม</span>
                                 </button>
                             </>
                         )}
                     </div>
                 </div>
 
+                {isReorderingCats && <div className="bg-emerald-50 text-emerald-700 text-center py-2 mb-4 rounded-xl text-[12px] font-bold animate-pulse shadow-sm">💡 กดค้างที่แฟ้มแล้วลากเพื่อสลับตำแหน่งได้เลยค่ะ</div>}
+
                 {isLoading ? (
                     <div className="flex justify-center py-20"><Icon name="RefreshCw" size={32} className="animate-spin text-brand/30" /></div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {categories.map(cat => {
+                        {categories.map((cat, idx) => {
                             const isSelected = selectedCats.includes(cat.id);
                             const itemStats = (cat.items || []).reduce((acc, curr) => {
                                 if(curr.type === 'text') acc.texts++; else if(curr.type === 'image') acc.imgs++;
@@ -2410,11 +2500,21 @@ ${promptAction}`;
                             return (
                                 <div 
                                     key={cat.id} 
+                                    draggable={isReorderingCats}
+                                    onDragStart={(e) => isReorderingCats && handleDragStartCat(e, idx)}
+                                    onDragEnter={(e) => isReorderingCats && handleDragEnterCat(e, idx)}
+                                    onDragEnd={isReorderingCats ? handleDragEndCat : undefined}
+                                    onDragOver={(e) => isReorderingCats && e.preventDefault()}
                                     onClick={() => {
+                                        if (isReorderingCats) return;
                                         if (isSelectingCats) toggleSelectCat(cat.id);
                                         else setActiveCategory(cat);
                                     }} 
-                                    className={`bg-surface p-5 rounded-[20px] border-2 cursor-pointer transition-all hover:shadow-lg group relative overflow-hidden flex flex-col ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-subtle hover:border-brand/40'}`}
+                                    className={`bg-surface p-5 rounded-[20px] border-2 transition-all relative overflow-hidden flex flex-col select-none
+                                        ${isReorderingCats ? 'cursor-grab active:cursor-grabbing hover:border-emerald-400 border-dashed animate-pulse' : 'cursor-pointer hover:shadow-lg group'}
+                                        ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-subtle hover:border-brand/40'}
+                                        ${draggedCatIdx === idx ? 'opacity-40 scale-95 border-emerald-500' : ''}
+                                    `}
                                 >
                                     {isSelectingCats && (
                                         <div className="absolute top-4 right-4 z-20">
@@ -2423,15 +2523,19 @@ ${promptAction}`;
                                             </div>
                                         </div>
                                     )}
-
-                                    <div className="flex items-center gap-4 mb-3 relative z-10">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform shrink-0 shadow-sm ${isSelected ? 'bg-brand text-white' : 'bg-brand/10 text-brand group-hover:scale-110'}`}>
-                                            <Icon name={cat.icon || 'FileSignature'} size={24} />
+                                    {isReorderingCats && (
+                                        <div className="absolute top-4 right-4 z-20 bg-gray-50 p-1.5 rounded-full shadow-sm text-gray-400">
+                                            <Icon name="Menu" size={14} />
                                         </div>
-                                        <h3 className={`font-extrabold text-[16px] transition-colors line-clamp-2 ${isSelected ? 'text-brand' : 'text-gray-800 group-hover:text-brand'}`}>{cat.title}</h3>
+                                    )}
+
+                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-brand/20 group-hover:bg-brand transition-colors pointer-events-none"></div>
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform shrink-0 shadow-sm mb-5 pointer-events-none ${isSelected ? 'bg-brand text-white' : 'bg-brand/10 text-brand group-hover:scale-110'}`}>
+                                        <Icon name={cat.icon || 'FileSignature'} size={24} />
                                     </div>
+                                    <h3 className={`font-extrabold text-[16px] transition-colors line-clamp-2 pointer-events-none ${isSelected ? 'text-brand' : 'text-gray-800 group-hover:text-brand'}`}>{cat.title}</h3>
                                     
-                                    <div className="mt-auto pt-3 border-t border-gray-100 flex gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                                    <div className="mt-auto pt-3 border-t border-gray-100 flex gap-3 opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none">
                                         <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="FileSignature" size={12} className="mr-1"/> {itemStats.texts} ข้อความ</span>
                                         <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="Image" size={12} className="mr-1"/> {itemStats.imgs} รูปภาพ</span>
                                     </div>
@@ -2443,12 +2547,13 @@ ${promptAction}`;
 
                 {/* Modal เพิ่ม/แก้ไข หมวดหมู่ */}
                 {isCatModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
                         <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
                             <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center">
                                     <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มหมวดหมู่' : 'แก้ไขแฟ้มหมวดหมู่'}
                                 </h3>
+                                <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
                             </div>
                             
                             <form id="catFormObj" onSubmit={handleSaveCategory} className="p-5 space-y-5">
@@ -2469,7 +2574,7 @@ ${promptAction}`;
                             </form>
 
                             <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold">ยกเลิก</button>
+                                <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
                                 <button form="catFormObj" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
                             </div>
                         </div>
