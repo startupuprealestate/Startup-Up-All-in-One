@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.3: ระบบแฟ้มอัจฉริยะ + กดค้างลากจัดตำแหน่งได้สไตล์ iOS)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.4: ระบบแฟ้มอัจฉริยะ + ไอคอนอัตโนมัติตามชื่อหัวข้อ)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -1994,7 +1994,7 @@ ${promptAction}`;
         const [isSelectingItems, setIsSelectingItems] = useState(false);
         const [selectedItems, setSelectedItems] = useState([]);
 
-        // 🌟 ระบบจัดเรียง (Drag & Drop Mode)
+        // ระบบจัดเรียง (Drag & Drop Mode)
         const [isReorderingCats, setIsReorderingCats] = useState(false);
         const [draggedCatIdx, setDraggedCatIdx] = useState(null);
         const [isReorderingItems, setIsReorderingItems] = useState(false);
@@ -2008,9 +2008,21 @@ ${promptAction}`;
         const initialItemForm = { title: '', content: '', images: [] };
         const [itemForm, setItemForm] = useState(initialItemForm);
 
-        const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin', 'TrendingUp'];
-
         const generateId = () => Math.random().toString(36).substring(2, 10);
+
+        // 🧠 สมองกลอ่านใจ: เลือกไอคอนอัตโนมัติตามคำคีย์เวิร์ด
+        const getAutoIcon = (text) => {
+            const t = text.toLowerCase();
+            if (t.includes('ลา') || t.includes('หยุด') || t.includes('วัน')) return 'CalendarIcon';
+            if (t.includes('เงิน') || t.includes('คอมมิชชัน') || t.includes('เบิก') || t.includes('รายได้') || t.includes('สวัสดิการ')) return 'TrendingUp';
+            if (t.includes('ติดต่อ') || t.includes('บุคคล') || t.includes('พนักงาน') || t.includes('hr')) return 'Users';
+            if (t.includes('บริษัท') || t.includes('องค์กร') || t.includes('วิสัยทัศน์')) return 'Building';
+            if (t.includes('รูป') || t.includes('ภาพ') || t.includes('ผลงาน') || t.includes('มีเดีย')) return 'Image';
+            if (t.includes('เวลา') || t.includes('เข้างาน') || t.includes('สาย')) return 'Clock';
+            if (t.includes('ทำเล') || t.includes('แผนที่') || t.includes('โซน')) return 'MapPin';
+            if (t.includes('งาน') || t.includes('หน้าที่') || t.includes('โปรเจกต์')) return 'ListTodo';
+            return 'FileSignature'; // ไอคอนเริ่มต้นถ้าหาคีย์เวิร์ดไม่เจอ
+        };
 
         useEffect(() => {
             if (!window.firebaseAPI || !window.firebaseDB) return;
@@ -2022,7 +2034,6 @@ ${promptAction}`;
                     let items = data.items || [];
                     let needsMigration = false;
 
-                    // แปลงข้อมูลเก่าให้เป็นการ์ด
                     if (data.description) {
                         items.unshift({ id: 'text_' + Date.now(), type: 'text', title: 'รายละเอียด (เก่า)', content: data.description, createdAt: Date.now() });
                         needsMigration = true;
@@ -2059,10 +2070,12 @@ ${promptAction}`;
             e.preventDefault();
             if (!catForm.title.trim()) return;
             try {
+                // อัปเดตไอคอนให้ชัวร์อีกครั้งก่อนเซฟ
+                const finalIcon = getAutoIcon(catForm.title);
                 if (modalMode === 'add') {
-                    await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "company_info"), { title: catForm.title, icon: catForm.icon, items: [], order: categories.length + 1 });
+                    await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "company_info"), { title: catForm.title, icon: finalIcon, items: [], order: categories.length + 1 });
                 } else {
-                    await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", catForm.id), { title: catForm.title, icon: catForm.icon });
+                    await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", catForm.id), { title: catForm.title, icon: finalIcon });
                 }
                 setIsCatModalOpen(false);
                 setCatForm(initialCatForm);
@@ -2081,7 +2094,6 @@ ${promptAction}`;
             } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
         };
 
-        // 🌟 ฟังก์ชัน Drag & Drop หน้าหมวดหมู่หลัก
         const handleDragStartCat = (e, index) => {
             setDraggedCatIdx(index);
             e.dataTransfer.effectAllowed = "move";
@@ -2162,7 +2174,6 @@ ${promptAction}`;
             } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
         };
 
-        // 🌟 ฟังก์ชัน Drag & Drop หน้ารายการย่อย
         const handleDragStartItem = (e, index) => {
             setDraggedItemIdx(index);
             e.dataTransfer.effectAllowed = "move";
@@ -2211,7 +2222,6 @@ ${promptAction}`;
             const items = activeCategory.items || [];
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
-                    {/* Header */}
                     <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-2 overflow-x-auto horizontal-scrollbar">
                         <div className="flex items-center gap-3 shrink-0">
                             <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
@@ -2263,7 +2273,6 @@ ${promptAction}`;
 
                     {isReorderingItems && <div className="bg-emerald-50 text-emerald-700 text-center py-2 text-[12px] font-bold animate-pulse">💡 กดค้างที่การ์ดแล้วลากเพื่อสลับตำแหน่งได้เลยค่ะ</div>}
 
-                    {/* Items Grid */}
                     <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
                         {items.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -2551,25 +2560,27 @@ ${promptAction}`;
                         <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
                             <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                                    <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มหมวดหมู่' : 'แก้ไขแฟ้มหมวดหมู่'}
+                                    <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มข้อมูล' : 'แก้ไขแฟ้มข้อมูล'}
                                 </h3>
                                 <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
                             </div>
                             
                             <form id="catFormObj" onSubmit={handleSaveCategory} className="p-5 space-y-5">
                                 <div>
-                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">หน้าปก (ไอคอน)</label>
-                                    <div className="flex gap-2 overflow-x-auto horizontal-scrollbar pb-2">
-                                        {availableIcons.map(icon => (
-                                            <button key={icon} type="button" onClick={() => setCatForm({...catForm, icon})} className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all ${catForm.icon === icon ? 'bg-brand/10 border-brand text-brand scale-110 shadow-sm' : 'bg-white border-gray-200 text-gray-400 hover:border-brand/40'}`}>
-                                                <Icon name={icon} size={20} />
-                                            </button>
-                                        ))}
+                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล (ระบบจะเลือกหน้าปกให้อัตโนมัติ)</label>
+                                    <div className="relative flex items-center">
+                                        <div className="absolute left-3 w-8 h-8 bg-brand/10 text-brand rounded-lg flex items-center justify-center shadow-sm">
+                                            <Icon name={catForm.icon || 'FileSignature'} size={16} />
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            required 
+                                            value={catForm.title} 
+                                            onChange={e => setCatForm({...catForm, title: e.target.value, icon: getAutoIcon(e.target.value)})} 
+                                            placeholder="เช่น โครงสร้างเงินเดือน, ระเบียบการลา..." 
+                                            className="w-full pl-14 pr-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800 transition-all" 
+                                        />
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล</label>
-                                    <input type="text" required value={catForm.title} onChange={e => setCatForm({...catForm, title: e.target.value})} placeholder="เช่น โครงสร้างเงินเดือน..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800" />
                                 </div>
                             </form>
 
