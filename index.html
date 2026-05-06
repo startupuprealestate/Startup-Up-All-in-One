@@ -1266,10 +1266,9 @@
             else if (i % 3 === 2) workloads.Ketar.push(h);
         });
 
-        // 💡 2. สมองกลจัดไพ่ (ดึงเฉพาะจากตะกร้าตัวเอง ไม่กวนคนอื่น)
+        // 💡 2. สมองกลจัดไพ่ (อัปเกรด: ล็อคบ้านที่โพสต์แล้วให้อยู่วันนี้เสมอ)
         const pickHousesForAssignee = (name) => {
             let myPool = workloads[name].filter(h => !isSkipped(h, name));
-            const finalHouses = [];
             
             const sortOldest = (a, b) => {
                 const expA = getExpScore(a), expB = getExpScore(b);
@@ -1285,15 +1284,60 @@
                 return String(a.id).localeCompare(String(b.id)); 
             };
 
-            let poolOld = [...myPool];
-            let poolNew = [...myPool];
-
-            // 💡 เติมตัวแปร slotLabel ลงไปเพื่อแปะป้ายให้หน้าจอมองเห็นว่ามาจากคิวไหน
-            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'today', slotLabel: 'คิวบ้านเก่าสุด' }); poolNew = poolNew.filter(x => x.id !== h.id); }
-            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'today', slotLabel: 'คิวบ้านมาใหม่' }); poolOld = poolOld.filter(x => x.id !== h.id); }
-            if (poolOld.length > 0) { poolOld.sort(sortOldest); const h = poolOld.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow', slotLabel: 'คิวบ้านเก่าสุด' }); poolNew = poolNew.filter(x => x.id !== h.id); }
-            if (poolNew.length > 0) { poolNew.sort(sortNewest); const h = poolNew.shift(); finalHouses.push({ ...h, scheduleType: 'tomorrow', slotLabel: 'คิวบ้านมาใหม่' }); }
+            // 💡 1. แยกกลุ่ม "โพสต์แล้ววันนี้" กับ "ยังไม่โพสต์" ออกจากกัน
+            const postedToday = [];
+            const pendingPool = [];
             
+            myPool.forEach(h => {
+                const { data } = getPostDataWithTelepathy(h);
+                if (data[name] === assignmentTodayStr) postedToday.push(h);
+                else pendingPool.push(h);
+            });
+
+            let poolOld = [...pendingPool];
+            let poolNew = [...pendingPool];
+
+            const finalHouses = [];
+            let todaySlotsFilled = 0;
+
+            // 💡 2. ยึดที่นั่ง! เอาบ้านที่ติ๊กโพสต์แล้ว ยัดลงช่อง "วันนี้" ก่อนเลย (ป้องกันโดนเตะไปพรุ่งนี้)
+            postedToday.forEach((h, idx) => {
+                finalHouses.push({ 
+                    ...h, 
+                    scheduleType: 'today', 
+                    slotLabel: todaySlotsFilled < 2 ? (idx % 2 === 0 ? 'คิวบ้านเก่าสุด' : 'คิวบ้านมาใหม่') : 'บ้านโพสต์เสริม' 
+                });
+                todaySlotsFilled++;
+            });
+
+            // 💡 3. ถ้าโควต้าวันนี้ยังไม่เต็ม 2 หลัง ให้ดึงบ้านจาก Pending มาเติมให้ครบ
+            if (todaySlotsFilled < 2 && poolOld.length > 0) {
+                poolOld.sort(sortOldest);
+                const h = poolOld.shift();
+                finalHouses.push({ ...h, scheduleType: 'today', slotLabel: 'คิวบ้านเก่าสุด' });
+                poolNew = poolNew.filter(x => x.id !== h.id);
+                todaySlotsFilled++;
+            }
+            if (todaySlotsFilled < 2 && poolNew.length > 0) {
+                poolNew.sort(sortNewest);
+                const h = poolNew.shift();
+                finalHouses.push({ ...h, scheduleType: 'today', slotLabel: 'คิวบ้านมาใหม่' });
+                poolOld = poolOld.filter(x => x.id !== h.id);
+            }
+
+            // 💡 4. จัดคิวสำหรับ "พรุ่งนี้" (เอาจาก Pending ที่เหลืออีก 2 หลัง)
+            if (poolOld.length > 0) {
+                poolOld.sort(sortOldest);
+                const h = poolOld.shift();
+                finalHouses.push({ ...h, scheduleType: 'tomorrow', slotLabel: 'คิวบ้านเก่าสุด' });
+                poolNew = poolNew.filter(x => x.id !== h.id);
+            }
+            if (poolNew.length > 0) {
+                poolNew.sort(sortNewest);
+                const h = poolNew.shift();
+                finalHouses.push({ ...h, scheduleType: 'tomorrow', slotLabel: 'คิวบ้านมาใหม่' });
+            }
+
             return finalHouses;
         };
 
