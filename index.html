@@ -1974,196 +1974,391 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (แบบ Hybrid: ข้อความ + แกลลอรี่รูปภาพ)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.2: ระบบแฟ้มอัจฉริยะสไตล์ iOS)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
-        const [isModalOpen, setIsModalOpen] = useState(false);
-        const [modalMode, setModalMode] = useState('add'); // 'add' หรือ 'edit'
         const [isLoading, setIsLoading] = useState(true);
         const [isUploading, setIsUploading] = useState(false);
         const [fullScreenImg, setFullScreenImg] = useState(null);
+        const [viewingTextItem, setViewingTextItem] = useState(null);
+
+        // ระบบ Modal
+        const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+        const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+        const [modalMode, setModalMode] = useState('add'); // 'add' หรือ 'edit'
+
+        // ระบบเลือก (Select Mode แบบ iOS)
+        const [isSelectingCats, setIsSelectingCats] = useState(false);
+        const [selectedCats, setSelectedCats] = useState([]);
+        const [isSelectingItems, setIsSelectingItems] = useState(false);
+        const [selectedItems, setSelectedItems] = useState([]);
 
         // โครงสร้างฟอร์ม
-        const initialForm = { id: '', title: '', description: '', icon: 'FileSignature', images: [] };
-        const [formData, setFormData] = useState(initialForm);
+        const initialCatForm = { id: '', title: '', icon: 'FileSignature' };
+        const [catForm, setCatForm] = useState(initialCatForm);
+        
+        const [itemTab, setItemTab] = useState('text'); // 'text' หรือ 'image'
+        const initialItemForm = { title: '', content: '', images: [] };
+        const [itemForm, setItemForm] = useState(initialItemForm);
 
-        // ไอคอนที่มีให้เลือกตอนสร้างหมวด
-        const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin'];
+        const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin', 'TrendingUp'];
+
+        // สร้าง ID อัตโนมัติ
+        const generateId = () => Math.random().toString(36).substring(2, 10);
 
         useEffect(() => {
             if (!window.firebaseAPI || !window.firebaseDB) return;
-            const { collection, onSnapshot } = window.firebaseAPI;
+            const { collection, onSnapshot, updateDoc, doc } = window.firebaseAPI;
             const unsubscribe = onSnapshot(collection(window.firebaseDB, "company_info"), (snapshot) => {
                 const loaded = [];
-                snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
-                loaded.sort((a, b) => (a.order || 0) - (b.order || 0));
-                
-                // ถ้าเพิ่งเปิดแอป และไม่มีข้อมูลเลย ให้สร้างข้อมูลตั้งต้น
-                if (loaded.length === 0) {
-                    const defaults = [
-                        { title: 'ระเบียบการลา', icon: 'FileSignature', description: 'รายละเอียดระเบียบการลาต่างๆ ของบริษัท...', order: 1, images: [] },
-                        { title: 'โครงสร้างคอมมิชชัน', icon: 'TrendingUp', description: 'เกณฑ์การจ่ายคอมมิชชันทีมขาย...', order: 2, images: [] },
-                        { title: 'ติดต่อฝ่ายบุคคล', icon: 'User', description: 'เบอร์ติดต่อ HR...', order: 3, images: [] }
-                    ];
-                    defaults.forEach(async (item) => {
-                        try { await window.firebaseAPI.addDoc(collection(window.firebaseDB, "company_info"), item); } catch(e){}
-                    });
-                } else {
-                    setCategories(loaded);
-                    // อัปเดตข้อมูลที่กำลังเปิดดูอยู่ให้เป็นปัจจุบัน
-                    if (activeCategory) {
-                        const updatedActive = loaded.find(c => c.id === activeCategory.id);
-                        if (updatedActive) setActiveCategory(updatedActive);
-                        else setActiveCategory(null); // ถูกลบไปแล้ว
+                snapshot.forEach(document => {
+                    const data = document.data();
+                    let items = data.items || [];
+                    let needsMigration = false;
+
+                    // 💡 ระบบแปลงข้อมูลเก่า (Legacy Migration) ให้กลายเป็นกล่องการ์ด
+                    if (data.description) {
+                        items.unshift({ id: 'text_' + Date.now(), type: 'text', title: 'รายละเอียด (เก่า)', content: data.description, createdAt: Date.now() });
+                        needsMigration = true;
                     }
-                }
+                    if (data.images && data.images.length > 0) {
+                        data.images.forEach((img, i) => {
+                            items.push({ id: 'img_' + Date.now() + i, type: 'image', url: img.url, note: img.note, createdAt: Date.now() });
+                        });
+                        needsMigration = true;
+                    }
+
+                    loaded.push({ id: document.id, ...data, items });
+
+                    if (needsMigration) {
+                        updateDoc(doc(window.firebaseDB, "company_info", document.id), { items: items, description: null, images: null }).catch(()=>{});
+                    }
+                });
+                
+                loaded.sort((a, b) => (a.order || 0) - (b.order || 0));
+                setCategories(loaded);
                 setIsLoading(false);
             });
             return () => unsubscribe();
         }, []);
 
-        const handleSave = async (e) => {
+        // อัปเดตข้อมูลหมวดที่กำลังเปิดดูอยู่ให้เรียลไทม์
+        useEffect(() => {
+            if (activeCategory) {
+                const updated = categories.find(c => c.id === activeCategory.id);
+                setActiveCategory(updated || null);
+            }
+        }, [categories]);
+
+        // -----------------------------------------------------------------
+        // ฟังก์ชันจัดการหมวดหมู่ (Category)
+        // -----------------------------------------------------------------
+        const handleSaveCategory = async (e) => {
             e.preventDefault();
-            if (!formData.title.trim()) return;
-            
+            if (!catForm.title.trim()) return;
             try {
                 if (modalMode === 'add') {
-                    await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "company_info"), {
-                        title: formData.title,
-                        description: formData.description,
-                        icon: formData.icon,
-                        images: formData.images,
-                        order: categories.length + 1
-                    });
+                    await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "company_info"), { title: catForm.title, icon: catForm.icon, items: [], order: categories.length + 1 });
                 } else {
-                    await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", formData.id), {
-                        title: formData.title,
-                        description: formData.description,
-                        icon: formData.icon,
-                        images: formData.images
-                    });
+                    await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", catForm.id), { title: catForm.title, icon: catForm.icon });
                 }
-                setIsModalOpen(false);
-                setFormData(initialForm);
-            } catch (err) {
-                alert("บันทึกข้อมูลไม่สำเร็จค่ะ");
-            }
+                setIsCatModalOpen(false);
+                setCatForm(initialCatForm);
+            } catch (err) { alert("บันทึกข้อมูลไม่สำเร็จค่ะ"); }
         };
 
-        const handleDelete = async () => {
-            if (!window.confirm(`ต้องการลบหมวดหมู่ "${formData.title}" ใช่หรือไม่?`)) return;
+        const toggleSelectCat = (id) => {
+            setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+        };
+
+        const handleDeleteSelectedCats = async () => {
+            if (selectedCats.length === 0) return;
+            if (!window.confirm(`ต้องการลบ ${selectedCats.length} หมวดหมู่ที่เลือกใช่หรือไม่?`)) return;
             try {
-                await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", formData.id));
-                setIsModalOpen(false);
-                setActiveCategory(null);
-            } catch (err) {}
+                await Promise.all(selectedCats.map(id => window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", id))));
+                setSelectedCats([]);
+                setIsSelectingCats(false);
+            } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
         };
 
+        // -----------------------------------------------------------------
+        // ฟังก์ชันจัดการรายการย่อย (Items: Text / Image)
+        // -----------------------------------------------------------------
         const handleAddImagesToForm = async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
             setIsUploading(true);
             try {
-                // สมมติว่ามีฟังก์ชัน compressImage และ uploadToCloudinary อยู่ในระบบแล้ว
                 const newImagesData = await Promise.all(files.map(async (file) => {
                     const compressed = await compressImage(file);
                     const url = await uploadToCloudinary(compressed);
-                    return { url: url, note: '' }; // โครงสร้างรูปภาพ: มี URL และช่องหมายเหตุ
+                    return { url: url, note: '' }; 
                 }));
-                
-                setFormData(prev => ({ 
-                    ...prev, 
-                    images: [...prev.images, ...newImagesData].slice(0, 20) // จำกัด 20 รูป
-                }));
-            } catch (error) { 
-                alert('อัปโหลดรูปล้มเหลวค่ะ'); 
-            }
+                setItemForm(prev => ({ ...prev, images: [...prev.images, ...newImagesData].slice(0, 20) }));
+            } catch (error) { alert('อัปโหลดรูปล้มเหลวค่ะ'); }
             setIsUploading(false);
         };
 
-        const handleImageNoteChange = (index, newNote) => {
-            const updatedImages = [...formData.images];
-            updatedImages[index].note = newNote;
-            setFormData(prev => ({ ...prev, images: updatedImages }));
+        const handleSaveItem = async (e) => {
+            e.preventDefault();
+            if (!activeCategory) return;
+            setIsUploading(true);
+            try {
+                const newItems = [];
+                if (itemTab === 'text') {
+                    if (!itemForm.title.trim() || !itemForm.content.trim()) { setIsUploading(false); return; }
+                    newItems.push({ id: 'txt_' + generateId(), type: 'text', title: itemForm.title, content: itemForm.content, createdAt: Date.now() });
+                } else if (itemTab === 'image') {
+                    if (itemForm.images.length === 0) { setIsUploading(false); return; }
+                    itemForm.images.forEach(img => {
+                        newItems.push({ id: 'img_' + generateId(), type: 'image', url: img.url, note: img.note, createdAt: Date.now() });
+                    });
+                }
+                const updatedItems = [...(activeCategory.items || []), ...newItems];
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: updatedItems });
+                setIsItemModalOpen(false);
+                setItemForm(initialItemForm);
+            } catch (err) { alert("เพิ่มข้อมูลไม่สำเร็จค่ะ"); }
+            setIsUploading(false);
         };
 
-        const handleRemoveFormImage = (indexToRemove) => {
-            setFormData(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== indexToRemove) }));
+        const toggleSelectItem = (id) => {
+            setSelectedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+        };
+
+        const handleDeleteSelectedItems = async () => {
+            if (selectedItems.length === 0 || !activeCategory) return;
+            if (!window.confirm(`ต้องการลบ ${selectedItems.length} รายการที่เลือกใช่หรือไม่?`)) return;
+            try {
+                const updatedItems = activeCategory.items.filter(item => !selectedItems.includes(item.id));
+                await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: updatedItems });
+                setSelectedItems([]);
+                setIsSelectingItems(false);
+            } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
+        };
+
+        const handleDownloadSingle = async (url, filename) => {
+            try {
+                let downloadUrl = url;
+                if (url.includes('cloudinary.com')) {
+                    const safeName = filename ? filename.replace('.jpg', '') : 'Company_Doc';
+                    downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${safeName}/`);
+                }
+                const link = document.createElement('a'); link.href = downloadUrl; link.download = filename || 'Company_Doc.jpg'; link.target = '_blank';
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            } catch (error) { window.open(url, '_blank'); }
         };
 
         // -----------------------------------------------------
-        // 1. หน้าแสดงรายละเอียด (View Mode)
+        // 1. หน้าแสดงรายละเอียดหมวดหมู่ (Items View Mode)
         // -----------------------------------------------------
         if (activeCategory) {
+            const items = activeCategory.items || [];
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
                     {/* Header */}
-                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10">
-                        <div className="flex items-center gap-3">
-                            <button onClick={() => setActiveCategory(null)} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-gray-200 transition-colors">
+                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-2">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setSelectedItems([]); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
                                 <Icon name="ChevronLeft" size={20} />
                             </button>
-                            <div className="w-10 h-10 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
-                                <Icon name={activeCategory.icon} size={20} />
-                            </div>
-                            <h2 className="text-xl md:text-2xl font-bold text-gray-800">{activeCategory.title}</h2>
+                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 truncate flex items-center">
+                                <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block" /> 
+                                {activeCategory.title}
+                            </h2>
+                            {/* ปุ่มแก้ไขชื่อหมวดหมู่ ✏️ */}
+                            {!isSelectingItems && (
+                                <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors shrink-0">
+                                    <Icon name="Edit" size={14} />
+                                </button>
+                            )}
                         </div>
-                        <button onClick={() => { setFormData(activeCategory); setModalMode('edit'); setIsModalOpen(true); }} className="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-brand transition-all text-[13px] font-bold shadow-sm">
-                            <Icon name="Edit" size={16} className="mr-2 text-brand" /> แก้ไขข้อมูล
-                        </button>
+                        
+                        <div className="flex gap-2 shrink-0">
+                            {isSelectingItems ? (
+                                <>
+                                    <button onClick={() => { setIsSelectingItems(false); setSelectedItems([]); }} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
+                                    <button onClick={handleDeleteSelectedItems} disabled={selectedItems.length === 0} className="px-4 py-2 text-[13px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-xl transition-colors flex items-center shadow-sm">
+                                        <Icon name="Trash" size={14} className="mr-1.5" /> ลบ ({selectedItems.length})
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    {items.length > 0 && (
+                                        <button onClick={() => setIsSelectingItems(true)} className="px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                    )}
+                                    <button onClick={() => { setItemForm(initialItemForm); setItemTab('text'); setIsItemModalOpen(true); }} className="px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
+                                        <Icon name="Plus" size={16} className="mr-1 sm:mr-1.5" /> <span className="hidden sm:inline">เพิ่ม</span>
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Content Body */}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar space-y-8" style={{ overscrollBehavior: 'none' }}>
-                        {/* ส่วนข้อความอธิบาย */}
-                        {activeCategory.description && (
-                            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-subtle border border-gray-100">
-                                <p className="text-[15px] leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">
-                                    {activeCategory.description}
-                                </p>
+                    {/* Items Grid */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
+                        {items.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                                <Icon name="Plus" size={48} className="mb-4 opacity-20" />
+                                <p className="text-[14px] font-bold">ยังไม่มีข้อมูล กด "เพิ่ม" เพื่อเริ่มบันทึกได้เลยค่ะ</p>
                             </div>
-                        )}
-
-                        {/* ส่วนแกลลอรี่รูปภาพ */}
-                        {activeCategory.images && activeCategory.images.length > 0 && (
-                            <div>
-                                <h3 className="text-[16px] font-bold text-gray-800 mb-4 flex items-center border-b border-gray-200 pb-2">
-                                    <Icon name="Image" size={18} className="mr-2 text-brand" /> เอกสารและรูปภาพอ้างอิง
-                                </h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                                    {activeCategory.images.map((imgObj, idx) => (
-                                        <div key={idx} className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm group">
-                                            <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden cursor-pointer" onClick={() => setFullScreenImg(imgObj.url)}>
-                                                <img src={imgObj.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="อ้างอิง" />
-                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                                    <Icon name="Maximize" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                        ) : (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                                {items.map(item => {
+                                    const isSelected = selectedItems.includes(item.id);
+                                    return (
+                                        <div 
+                                            key={item.id} 
+                                            onClick={() => {
+                                                if (isSelectingItems) toggleSelectItem(item.id);
+                                                else if (item.type === 'text') setViewingTextItem(item);
+                                                else if (item.type === 'image') setFullScreenImg(item.url);
+                                            }}
+                                            className={`relative rounded-[16px] overflow-hidden border-2 transition-all cursor-pointer group flex flex-col h-[180px] bg-white ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-sm hover:border-brand/40 hover:shadow-md'}`}
+                                        >
+                                            {/* ปุ่ม Checkbox โหมดเลือก */}
+                                            {isSelectingItems && (
+                                                <div className="absolute top-2 right-2 z-20">
+                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-brand border-brand text-white' : 'bg-white/90 border-gray-300'}`}>
+                                                        {isSelected && <Icon name="Check" size={14} />}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            {imgObj.note && (
-                                                <div className="p-3 bg-gray-50 border-t border-gray-100">
-                                                    <p className="text-[13px] font-bold text-gray-700 leading-tight break-words">{imgObj.note}</p>
+                                            )}
+
+                                            {item.type === 'text' ? (
+                                                <div className="p-4 flex flex-col h-full">
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 shrink-0 ${isSelected ? 'bg-brand/20 text-brand' : 'bg-blue-50 text-blue-500'}`}>
+                                                        <Icon name="FileSignature" size={20} />
+                                                    </div>
+                                                    <h4 className="font-extrabold text-[14px] text-gray-800 line-clamp-2 mb-1">{item.title}</h4>
+                                                    <p className="text-[11px] text-gray-500 line-clamp-3 leading-relaxed mt-auto break-words">{item.content}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col h-full">
+                                                    <div className="flex-1 bg-gray-100 relative overflow-hidden">
+                                                        <img src={item.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="อ้างอิง" />
+                                                        {!isSelectingItems && (
+                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center z-10">
+                                                                <Icon name="Maximize" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {item.note && (
+                                                        <div className="p-2.5 bg-gray-50 border-t border-gray-100 shrink-0">
+                                                            <p className="text-[11px] font-bold text-gray-700 truncate">{item.note}</p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        
-                        {!activeCategory.description && (!activeCategory.images || activeCategory.images.length === 0) && (
-                            <div className="text-center py-20 text-gray-400">
-                                <Icon name="FileSignature" size={48} className="mx-auto mb-3 opacity-20" />
-                                <p className="text-[14px] font-bold">ยังไม่มีข้อมูลในหมวดหมู่นี้</p>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
 
-                    {/* Full Screen Image Viewer */}
+                    {/* Pop-up อ่านข้อความ */}
+                    {viewingTextItem && (
+                        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewingTextItem(null)}>
+                            <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 animate-[slideUp_0.3s_ease-out]" onClick={e => e.stopPropagation()}>
+                                <div className="p-6 text-center relative bg-brand">
+                                    <button onClick={() => setViewingTextItem(null)} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"><Icon name="X" size={24} /></button>
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+                                        <Icon name="FileSignature" size={32} className="text-brand" />
+                                    </div>
+                                    <h3 className="text-lg font-black text-white">{viewingTextItem.title}</h3>
+                                </div>
+                                <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar bg-gray-50/50">
+                                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                        <p className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap break-words">{viewingTextItem.content}</p>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-gray-50 border-t border-gray-100">
+                                    <button onClick={() => setViewingTextItem(null)} className="w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold text-[14px] transition-colors">ปิดหน้าต่าง</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Pop-up ดูรูปภาพเต็มจอ */}
                     {fullScreenImg && (
                         <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setFullScreenImg(null)}>
-                            <button className="absolute top-4 right-4 sm:top-6 sm:right-6 text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20 z-10"><Icon name="X" size={20} /></button>
+                            <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex gap-3 z-10">
+                                <button onClick={(e) => { e.stopPropagation(); handleDownloadSingle(fullScreenImg); }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20"><Icon name="Download" size={20} /></button>
+                                <button onClick={() => setFullScreenImg(null)} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20"><Icon name="X" size={20} /></button>
+                            </div>
                             <img src={fullScreenImg} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} alt="Full Screen" />
+                        </div>
+                    )}
+
+                    {/* Modal เพิ่มข้อมูล (ข้อความ/รูปภาพ) */}
+                    {isItemModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                            <div className="bg-surface rounded-[24px] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
+                                <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name="Plus" className="mr-2 text-brand" size={20} /> เพิ่มข้อมูล</h3>
+                                    <button onClick={() => setIsItemModalOpen(false)} className="p-2 bg-white text-gray-500 rounded-full border border-gray-200 hover:bg-gray-100 transition-colors shadow-sm"><Icon name="X" size={16}/></button>
+                                </div>
+                                
+                                <div className="flex bg-gray-100 p-1.5 mx-5 mt-5 rounded-xl shrink-0">
+                                    <button onClick={() => setItemTab('text')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex justify-center items-center ${itemTab === 'text' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Icon name="FileSignature" size={16} className="mr-1.5"/> เพิ่มข้อความ</button>
+                                    <button onClick={() => setItemTab('image')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex justify-center items-center ${itemTab === 'image' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Icon name="Image" size={16} className="mr-1.5"/> เพิ่มรูปภาพ</button>
+                                </div>
+
+                                <form id="itemFormObj" onSubmit={handleSaveItem} className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                                    {itemTab === 'text' ? (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5">หัวข้อ</label>
+                                                <input type="text" required={itemTab === 'text'} value={itemForm.title} onChange={e => setItemForm({...itemForm, title: e.target.value})} placeholder="เช่น โครงสร้างเงินเดือน..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[13px] font-bold text-gray-600 mb-1.5">รายละเอียด</label>
+                                                <textarea required={itemTab === 'text'} rows="8" value={itemForm.content} onChange={e => setItemForm({...itemForm, content: e.target.value})} placeholder="พิมพ์เนื้อหาที่นี่..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm resize-none custom-scrollbar leading-relaxed"></textarea>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <label className="block text-[14px] font-bold text-gray-800">เลือกรูปภาพ</label>
+                                                <label className="bg-brand/10 text-brand hover:bg-brand hover:text-white px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors cursor-pointer shadow-sm flex items-center">
+                                                    {isUploading ? <Icon name="RefreshCw" size={14} className="animate-spin mr-1.5" /> : <Icon name="Plus" size={14} className="mr-1.5" />} เพิ่มรูปภาพ
+                                                    <input type="file" multiple accept="image/*" className="hidden" onChange={handleAddImagesToForm} disabled={isUploading} />
+                                                </label>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {itemForm.images.map((imgObj, idx) => (
+                                                    <div key={idx} className="flex gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl group items-start">
+                                                        <div className="w-20 h-20 shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-white">
+                                                            <img src={imgObj.url} className="w-full h-full object-cover" alt={`preview ${idx}`} />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <label className="block text-[11px] font-bold text-gray-500 mb-1">คำอธิบายใต้รูป (พิมพ์หรือไม่ก็ได้)</label>
+                                                            <input type="text" value={imgObj.note} onChange={(e) => {
+                                                                const updated = [...itemForm.images]; updated[idx].note = e.target.value; setItemForm({...itemForm, images: updated});
+                                                            }} placeholder="เช่น ใบเสร็จค่าน้ำมัน..." className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand text-[13px] shadow-sm" />
+                                                        </div>
+                                                        <button type="button" onClick={() => setItemForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg mt-4">
+                                                            <Icon name="Trash" size={18} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {itemForm.images.length === 0 && !isUploading && (
+                                                    <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400 text-[13px] font-bold">ยังไม่มีรูปภาพ กดปุ่มมุมขวาบนเพื่อเพิ่มรูป</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </form>
+
+                                <div className="p-4 md:p-5 bg-gray-50 border-t border-gray-100 shrink-0 flex justify-end gap-3 rounded-b-[24px]">
+                                    <button type="button" onClick={() => setIsItemModalOpen(false)} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
+                                    <button form="itemFormObj" type="submit" disabled={isUploading || (itemTab==='image' && itemForm.images.length===0)} className="px-6 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md flex items-center disabled:opacity-50">
+                                        <Icon name="Check" size={16} className="mr-2" /> บันทึกข้อมูล
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -2171,122 +2366,111 @@ ${promptAction}`;
         }
 
         // -----------------------------------------------------
-        // 2. หน้าหลัก (Grid Categories)
+        // 2. หน้าหลัก (Category List)
         // -----------------------------------------------------
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                <div className="flex justify-between items-center mb-8 shrink-0">
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                        <Icon name="Building" className="mr-3 text-brand" size={26}/> ข้อมูลบริษัท
+                <div className="flex justify-between items-center mb-6 md:mb-8 shrink-0 gap-2">
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center shrink-0">
+                        <Icon name="Building" className="mr-2 md:mr-3 text-brand" size={26}/> ข้อมูลบริษัท
                     </h2>
-                    <button onClick={() => { setFormData(initialForm); setModalMode('add'); setIsModalOpen(true); }} className="bg-brand hover:bg-brandLight text-white px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all shadow-md flex items-center">
-                        <Icon name="Plus" size={18} className="mr-1.5"/> เพิ่มหมวดหมู่
-                    </button>
+                    
+                    <div className="flex gap-2 shrink-0">
+                        {isSelectingCats ? (
+                            <>
+                                <button onClick={() => { setIsSelectingCats(false); setSelectedCats([]); }} className="px-4 py-2 text-[13px] font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">ยกเลิก</button>
+                                <button onClick={handleDeleteSelectedCats} disabled={selectedCats.length === 0} className="px-4 py-2 text-[13px] font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 rounded-xl transition-colors flex items-center shadow-sm">
+                                    <Icon name="Trash" size={14} className="mr-1.5" /> ลบ ({selectedCats.length})
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                {categories.length > 0 && (
+                                    <button onClick={() => setIsSelectingCats(true)} className="px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm">เลือก</button>
+                                )}
+                                <button onClick={() => { setCatForm(initialCatForm); setModalMode('add'); setIsCatModalOpen(true); }} className="px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
+                                    <Icon name="Plus" size={16} className="mr-1.5"/> เพิ่ม
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {isLoading ? (
                     <div className="flex justify-center py-20"><Icon name="RefreshCw" size={32} className="animate-spin text-brand/30" /></div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {categories.map(cat => (
-                            <div key={cat.id} onClick={() => setActiveCategory(cat)} className="bg-surface p-6 rounded-2xl border border-gray-100 shadow-subtle cursor-pointer transition-all hover:border-brand/40 hover:shadow-lg group relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1.5 h-full bg-brand/20 group-hover:bg-brand transition-colors"></div>
-                                <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform shadow-sm">
-                                    <Icon name={cat.icon || 'FileSignature'} className="text-brand" size={24} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {categories.map(cat => {
+                            const isSelected = selectedCats.includes(cat.id);
+                            const itemStats = (cat.items || []).reduce((acc, curr) => {
+                                if(curr.type === 'text') acc.texts++; else if(curr.type === 'image') acc.imgs++;
+                                return acc;
+                            }, { texts: 0, imgs: 0 });
+
+                            return (
+                                <div 
+                                    key={cat.id} 
+                                    onClick={() => {
+                                        if (isSelectingCats) toggleSelectCat(cat.id);
+                                        else setActiveCategory(cat);
+                                    }} 
+                                    className={`bg-surface p-5 rounded-[20px] border-2 cursor-pointer transition-all hover:shadow-lg group relative overflow-hidden flex flex-col ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-subtle hover:border-brand/40'}`}
+                                >
+                                    {isSelectingCats && (
+                                        <div className="absolute top-4 right-4 z-20">
+                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-brand border-brand text-white' : 'bg-white border-gray-300'}`}>
+                                                {isSelected && <Icon name="Check" size={14} />}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-4 mb-3 relative z-10">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform shrink-0 shadow-sm ${isSelected ? 'bg-brand text-white' : 'bg-brand/10 text-brand group-hover:scale-110'}`}>
+                                            <Icon name={cat.icon || 'FileSignature'} size={24} />
+                                        </div>
+                                        <h3 className={`font-extrabold text-[16px] transition-colors line-clamp-2 ${isSelected ? 'text-brand' : 'text-gray-800 group-hover:text-brand'}`}>{cat.title}</h3>
+                                    </div>
+                                    
+                                    <div className="mt-auto pt-3 border-t border-gray-100 flex gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="FileSignature" size={12} className="mr-1"/> {itemStats.texts} ข้อความ</span>
+                                        <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="Image" size={12} className="mr-1"/> {itemStats.imgs} รูปภาพ</span>
+                                    </div>
                                 </div>
-                                <h3 className="font-extrabold text-lg text-gray-800 mb-1.5 group-hover:text-brand transition-colors">{cat.title}</h3>
-                                <p className="text-[13px] text-gray-500 line-clamp-2 leading-relaxed">
-                                    {cat.description || 'คลิกเพื่อดูรายละเอียดและเอกสารที่เกี่ยวข้อง'}
-                                </p>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 
-                {/* -----------------------------------------------------
-                  3. หน้าต่าง Modal (สำหรับเพิ่ม/แก้ไขหมวดหมู่)
-                ----------------------------------------------------- */}
-                {isModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
-                        <div className="bg-surface rounded-[24px] w-full max-w-3xl h-[90vh] flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
-                            <div className="flex justify-between items-center p-5 md:p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                {/* Modal เพิ่ม/แก้ไข หมวดหมู่ */}
+                {isCatModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                        <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
+                            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                                    <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> 
-                                    {modalMode === 'add' ? 'เพิ่มหมวดหมู่ใหม่' : 'แก้ไขข้อมูลหมวดหมู่'}
+                                    <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มหมวดหมู่' : 'แก้ไขแฟ้มหมวดหมู่'}
                                 </h3>
-                                <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white text-gray-500 rounded-full border border-gray-200 hover:bg-gray-100 transition-colors shadow-sm"><Icon name="X" size={16}/></button>
                             </div>
                             
-                            <form id="companyForm" onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 md:p-6 custom-scrollbar space-y-6">
-                                {/* เลือก Icon & ชื่อหมวด */}
-                                <div className="flex gap-4">
-                                    <div className="shrink-0">
-                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ไอคอน</label>
-                                        <select value={formData.icon} onChange={e => setFormData({...formData, icon: e.target.value})} className="w-14 h-12 px-2 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-center cursor-pointer shadow-sm">
-                                            {availableIcons.map(icon => <option key={icon} value={icon}>{icon}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="flex-1">
-                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อหมวดหมู่</label>
-                                        <input type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="เช่น ระเบียบการลา, แบบฟอร์มต่างๆ..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand transition-all text-[14px] shadow-sm font-bold text-gray-800" />
-                                    </div>
-                                </div>
-
-                                {/* รายละเอียด (ข้อความ) */}
+                            <form id="catFormObj" onSubmit={handleSaveCategory} className="p-5 space-y-5">
                                 <div>
-                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">รายละเอียด / ข้อความ</label>
-                                    <textarea rows="6" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="พิมพ์รายละเอียด หรือข้อความประกาศที่นี่..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand transition-all text-[14px] shadow-sm custom-scrollbar leading-relaxed resize-none"></textarea>
-                                </div>
-
-                                {/* รูปภาพอ้างอิง */}
-                                <div className="border-t border-gray-100 pt-6">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <label className="block text-[14px] font-bold text-gray-800 flex items-center">
-                                            <Icon name="Image" size={16} className="mr-2 text-brand" /> รูปภาพและเอกสารแนบ
-                                        </label>
-                                        <label className="bg-brand/10 text-brand hover:bg-brand hover:text-white px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors cursor-pointer shadow-sm flex items-center">
-                                            {isUploading ? <Icon name="RefreshCw" size={14} className="animate-spin mr-1.5" /> : <Icon name="Plus" size={14} className="mr-1.5" />}
-                                            เพิ่มรูปภาพ
-                                            <input type="file" multiple accept="image/*" className="hidden" onChange={handleAddImagesToForm} disabled={isUploading} />
-                                        </label>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        {formData.images.map((imgObj, idx) => (
-                                            <div key={idx} className="flex gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl relative group items-start">
-                                                <div className="w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-white">
-                                                    <img src={imgObj.url} className="w-full h-full object-cover" alt={`preview ${idx}`} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <label className="block text-[11px] font-bold text-gray-500 mb-1">หมายเหตุ / คำอธิบายรูปภาพนี้</label>
-                                                    <input type="text" value={imgObj.note} onChange={(e) => handleImageNoteChange(idx, e.target.value)} placeholder="เช่น แบบฟอร์มใบลาป่วย..." className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand text-[13px] shadow-sm" />
-                                                </div>
-                                                <button type="button" onClick={() => handleRemoveFormImage(idx)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-4">
-                                                    <Icon name="Trash" size={18} />
-                                                </button>
-                                            </div>
+                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">หน้าปก (ไอคอน)</label>
+                                    <div className="flex gap-2 overflow-x-auto horizontal-scrollbar pb-2">
+                                        {availableIcons.map(icon => (
+                                            <button key={icon} type="button" onClick={() => setCatForm({...catForm, icon})} className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border-2 transition-all ${catForm.icon === icon ? 'bg-brand/10 border-brand text-brand scale-110 shadow-sm' : 'bg-white border-gray-200 text-gray-400 hover:border-brand/40'}`}>
+                                                <Icon name={icon} size={20} />
+                                            </button>
                                         ))}
-                                        {formData.images.length === 0 && !isUploading && (
-                                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400 text-[13px] font-bold">
-                                                ยังไม่มีรูปภาพแนบ
-                                            </div>
-                                        )}
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล</label>
+                                    <input type="text" required value={catForm.title} onChange={e => setCatForm({...catForm, title: e.target.value})} placeholder="เช่น โครงสร้างเงินเดือน..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800" />
                                 </div>
                             </form>
 
-                            <div className="p-4 md:p-6 bg-gray-50 border-t border-gray-100 shrink-0 flex justify-between items-center rounded-b-[24px]">
-                                {modalMode === 'edit' ? (
-                                    <button type="button" onClick={handleDelete} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[13px] font-bold transition-colors">
-                                        ลบหมวดหมู่นี้
-                                    </button>
-                                ) : <div></div>}
-                                <div className="flex gap-3">
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
-                                    <button form="companyForm" type="submit" disabled={isUploading} className="px-6 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md flex items-center disabled:opacity-50">
-                                        <Icon name="Check" size={16} className="mr-2" /> บันทึกข้อมูล
-                                    </button>
-                                </div>
+                            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+                                <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold">ยกเลิก</button>
+                                <button form="catFormObj" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
                             </div>
                         </div>
                     </div>
