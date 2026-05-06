@@ -1974,7 +1974,7 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.4: ระบบแฟ้มอัจฉริยะ + ไอคอนอัตโนมัติตามชื่อหัวข้อ)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.5: ระบบแฟ้มอัจฉริยะ + ไอคอนอัตโนมัติ + ระบบค้นหาข้อมูล)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -1982,6 +1982,9 @@ ${promptAction}`;
         const [isUploading, setIsUploading] = useState(false);
         const [fullScreenImg, setFullScreenImg] = useState(null);
         const [viewingTextItem, setViewingTextItem] = useState(null);
+
+        // 🔍 ระบบค้นหา
+        const [searchQuery, setSearchQuery] = useState('');
 
         // ระบบ Modal
         const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -2010,7 +2013,7 @@ ${promptAction}`;
 
         const generateId = () => Math.random().toString(36).substring(2, 10);
 
-        // 🧠 สมองกลอ่านใจ: เลือกไอคอนอัตโนมัติตามคำคีย์เวิร์ด
+        // สมองกลอ่านใจ
         const getAutoIcon = (text) => {
             const t = text.toLowerCase();
             if (t.includes('ลา') || t.includes('หยุด') || t.includes('วัน')) return 'CalendarIcon';
@@ -2021,7 +2024,7 @@ ${promptAction}`;
             if (t.includes('เวลา') || t.includes('เข้างาน') || t.includes('สาย')) return 'Clock';
             if (t.includes('ทำเล') || t.includes('แผนที่') || t.includes('โซน')) return 'MapPin';
             if (t.includes('งาน') || t.includes('หน้าที่') || t.includes('โปรเจกต์')) return 'ListTodo';
-            return 'FileSignature'; // ไอคอนเริ่มต้นถ้าหาคีย์เวิร์ดไม่เจอ
+            return 'FileSignature';
         };
 
         useEffect(() => {
@@ -2070,7 +2073,6 @@ ${promptAction}`;
             e.preventDefault();
             if (!catForm.title.trim()) return;
             try {
-                // อัปเดตไอคอนให้ชัวร์อีกครั้งก่อนเซฟ
                 const finalIcon = getAutoIcon(catForm.title);
                 if (modalMode === 'add') {
                     await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "company_info"), { title: catForm.title, icon: finalIcon, items: [], order: categories.length + 1 });
@@ -2219,19 +2221,32 @@ ${promptAction}`;
         // 1. หน้าแสดงรายละเอียดหมวดหมู่ (Items View Mode)
         // -----------------------------------------------------
         if (activeCategory) {
-            const items = activeCategory.items || [];
+            const rawItems = activeCategory.items || [];
+            
+            // 🔍 สมองกลกรองข้อมูลรายการย่อย
+            const filteredItems = rawItems.filter(item => {
+                if (!searchQuery) return true;
+                const q = searchQuery.toLowerCase();
+                if (item.type === 'text') {
+                    return (item.title && item.title.toLowerCase().includes(q)) || (item.content && item.content.toLowerCase().includes(q));
+                } else if (item.type === 'image') {
+                    return item.note && item.note.toLowerCase().includes(q);
+                }
+                return false;
+            });
+
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
                     <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-2 overflow-x-auto horizontal-scrollbar">
                         <div className="flex items-center gap-3 shrink-0">
-                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
+                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
                                 <Icon name="ChevronLeft" size={20} />
                             </button>
                             <h2 className="text-[18px] md:text-xl font-bold text-gray-800 truncate flex items-center max-w-[150px] sm:max-w-[250px]">
                                 <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block" /> 
                                 {activeCategory.title}
                             </h2>
-                            {!isSelectingItems && !isReorderingItems && (
+                            {!isSelectingItems && !isReorderingItems && !searchQuery && (
                                 <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition-colors shrink-0">
                                     <Icon name="Edit" size={14} />
                                 </button>
@@ -2255,7 +2270,7 @@ ${promptAction}`;
                                 </>
                             ) : (
                                 <>
-                                    {items.length > 0 && (
+                                    {rawItems.length > 0 && !searchQuery && (
                                         <>
                                             <button onClick={() => setIsReorderingItems(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm hidden sm:flex items-center">
                                                 <Icon name="Menu" size={14} className="mr-1.5" /> จัดเรียง
@@ -2271,26 +2286,48 @@ ${promptAction}`;
                         </div>
                     </div>
 
-                    {isReorderingItems && <div className="bg-emerald-50 text-emerald-700 text-center py-2 text-[12px] font-bold animate-pulse">💡 กดค้างที่การ์ดแล้วลากเพื่อสลับตำแหน่งได้เลยค่ะ</div>}
+                    {/* 🔍 แถบค้นหา */}
+                    <div className="px-4 pt-4 shrink-0">
+                        <div className="relative">
+                            <Icon name="Search" size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <input 
+                                type="text" 
+                                placeholder="ค้นหาหัวข้อ, เนื้อหา, หรือหมายเหตุรูปภาพ..." 
+                                value={searchQuery} 
+                                onChange={(e) => setSearchQuery(e.target.value)} 
+                                className="w-full pl-11 pr-10 py-3 bg-white border border-gray-200 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm font-medium" 
+                            />
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <Icon name="X" size={14} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-background">
-                        {items.length === 0 ? (
+                    {isReorderingItems && <div className="bg-emerald-50 text-emerald-700 text-center py-2 mt-4 mx-4 text-[12px] font-bold animate-pulse rounded-xl shadow-sm">💡 กดค้างที่การ์ดแล้วลากเพื่อสลับตำแหน่งได้เลยค่ะ</div>}
+
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-background">
+                        {filteredItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                                <Icon name="Plus" size={48} className="mb-4 opacity-20" />
-                                <p className="text-[14px] font-bold">ยังไม่มีข้อมูล กด "เพิ่ม" เพื่อเริ่มบันทึกได้เลยค่ะ</p>
+                                <Icon name="Search" size={48} className="mb-4 opacity-20" />
+                                <p className="text-[14px] font-bold">{searchQuery ? 'ไม่พบข้อมูลที่ค้นหาค่ะ' : 'ยังไม่มีข้อมูล กด "เพิ่ม" เพื่อเริ่มบันทึกได้เลยค่ะ'}</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                                {items.map((item, idx) => {
+                                {filteredItems.map((item, idx) => {
                                     const isSelected = selectedItems.includes(item.id);
+                                    // หา index จริงใน array ต้นฉบับเพื่อใช้ลาก (ในกรณีที่ค้นหาอยู่ จะลากไม่ได้)
+                                    const realIdx = rawItems.findIndex(r => r.id === item.id);
+
                                     return (
                                         <div 
                                             key={item.id} 
-                                            draggable={isReorderingItems}
-                                            onDragStart={(e) => isReorderingItems && handleDragStartItem(e, idx)}
-                                            onDragEnter={(e) => isReorderingItems && handleDragEnterItem(e, idx)}
-                                            onDragEnd={isReorderingItems ? handleDragEndItem : undefined}
-                                            onDragOver={(e) => isReorderingItems && e.preventDefault()}
+                                            draggable={isReorderingItems && !searchQuery}
+                                            onDragStart={(e) => isReorderingItems && !searchQuery && handleDragStartItem(e, realIdx)}
+                                            onDragEnter={(e) => isReorderingItems && !searchQuery && handleDragEnterItem(e, realIdx)}
+                                            onDragEnd={isReorderingItems && !searchQuery ? handleDragEndItem : undefined}
+                                            onDragOver={(e) => isReorderingItems && !searchQuery && e.preventDefault()}
                                             onClick={() => {
                                                 if (isReorderingItems) return;
                                                 if (isSelectingItems) toggleSelectItem(item.id);
@@ -2300,7 +2337,7 @@ ${promptAction}`;
                                             className={`relative rounded-[16px] overflow-hidden border-2 transition-all flex flex-col h-[180px] bg-white select-none
                                                 ${isReorderingItems ? 'cursor-grab active:cursor-grabbing hover:border-emerald-400 border-dashed animate-pulse' : 'cursor-pointer hover:border-brand/40 group'} 
                                                 ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-sm'}
-                                                ${draggedItemIdx === idx ? 'opacity-40 scale-95 border-emerald-500' : ''}
+                                                ${draggedItemIdx === realIdx ? 'opacity-40 scale-95 border-emerald-500' : ''}
                                             `}
                                         >
                                             {isSelectingItems && (
@@ -2310,7 +2347,7 @@ ${promptAction}`;
                                                     </div>
                                                 </div>
                                             )}
-                                            {isReorderingItems && (
+                                            {isReorderingItems && !searchQuery && (
                                                 <div className="absolute top-2 right-2 z-20 bg-white/80 p-1.5 rounded-full shadow-sm text-gray-400 backdrop-blur-sm">
                                                     <Icon name="Menu" size={14} />
                                                 </div>
@@ -2377,7 +2414,7 @@ ${promptAction}`;
                         </div>
                     )}
 
-                    {/* Modal เพิ่มข้อมูล (ข้อความ/รูปภาพ) */}
+                    {/* Modal เพิ่มข้อมูล */}
                     {isItemModalOpen && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                             <div className="bg-surface rounded-[24px] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
@@ -2453,9 +2490,11 @@ ${promptAction}`;
         // -----------------------------------------------------
         // 2. หน้าหลัก (Category List View Mode)
         // -----------------------------------------------------
+        const filteredCats = categories.filter(cat => cat.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
         return (
             <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-                <div className="flex justify-between items-center mb-6 md:mb-8 shrink-0 gap-2 overflow-x-auto horizontal-scrollbar">
+                <div className="flex justify-between items-center mb-6 shrink-0 gap-2 overflow-x-auto horizontal-scrollbar">
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center shrink-0">
                         <Icon name="Building" className="mr-2 md:mr-3 text-brand" size={26}/> ข้อมูลบริษัท
                     </h2>
@@ -2477,7 +2516,7 @@ ${promptAction}`;
                             </>
                         ) : (
                             <>
-                                {categories.length > 0 && (
+                                {categories.length > 0 && !searchQuery && (
                                     <>
                                         <button onClick={() => setIsReorderingCats(true)} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm hidden sm:flex items-center">
                                             <Icon name="Menu" size={14} className="mr-1.5" /> จัดเรียง
@@ -2493,14 +2532,39 @@ ${promptAction}`;
                     </div>
                 </div>
 
+                {/* 🔍 แถบค้นหาแฟ้มหมวดหมู่ */}
+                <div className="mb-6 relative shrink-0">
+                    <Icon name="Search" size={16} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input 
+                        type="text" 
+                        placeholder="ค้นหาแฟ้มข้อมูลบริษัท..." 
+                        value={searchQuery} 
+                        onChange={(e) => setSearchQuery(e.target.value)} 
+                        className="w-full pl-11 pr-10 py-3 bg-white border border-gray-200 hover:border-brand rounded-xl outline-none focus:border-brand transition-all text-[13px] shadow-sm font-medium" 
+                    />
+                    {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <Icon name="X" size={14} />
+                        </button>
+                    )}
+                </div>
+
                 {isReorderingCats && <div className="bg-emerald-50 text-emerald-700 text-center py-2 mb-4 rounded-xl text-[12px] font-bold animate-pulse shadow-sm">💡 กดค้างที่แฟ้มแล้วลากเพื่อสลับตำแหน่งได้เลยค่ะ</div>}
 
                 {isLoading ? (
                     <div className="flex justify-center py-20"><Icon name="RefreshCw" size={32} className="animate-spin text-brand/30" /></div>
+                ) : filteredCats.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                        <Icon name="Search" size={48} className="mb-4 opacity-20" />
+                        <p className="text-[14px] font-bold">{searchQuery ? 'ไม่พบข้อมูลที่ค้นหาค่ะ' : 'ยังไม่มีข้อมูล กด "เพิ่ม" เพื่อเริ่มบันทึกได้เลยค่ะ'}</p>
+                    </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {categories.map((cat, idx) => {
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        {filteredCats.map((cat, idx) => {
                             const isSelected = selectedCats.includes(cat.id);
+                            // หา index จาก array ต้นฉบับ
+                            const realIdx = categories.findIndex(c => c.id === cat.id);
+                            
                             const itemStats = (cat.items || []).reduce((acc, curr) => {
                                 if(curr.type === 'text') acc.texts++; else if(curr.type === 'image') acc.imgs++;
                                 return acc;
@@ -2509,20 +2573,23 @@ ${promptAction}`;
                             return (
                                 <div 
                                     key={cat.id} 
-                                    draggable={isReorderingCats}
-                                    onDragStart={(e) => isReorderingCats && handleDragStartCat(e, idx)}
-                                    onDragEnter={(e) => isReorderingCats && handleDragEnterCat(e, idx)}
-                                    onDragEnd={isReorderingCats ? handleDragEndCat : undefined}
-                                    onDragOver={(e) => isReorderingCats && e.preventDefault()}
+                                    draggable={isReorderingCats && !searchQuery}
+                                    onDragStart={(e) => isReorderingCats && !searchQuery && handleDragStartCat(e, realIdx)}
+                                    onDragEnter={(e) => isReorderingCats && !searchQuery && handleDragEnterCat(e, realIdx)}
+                                    onDragEnd={isReorderingCats && !searchQuery ? handleDragEndCat : undefined}
+                                    onDragOver={(e) => isReorderingCats && !searchQuery && e.preventDefault()}
                                     onClick={() => {
                                         if (isReorderingCats) return;
                                         if (isSelectingCats) toggleSelectCat(cat.id);
-                                        else setActiveCategory(cat);
+                                        else {
+                                            setActiveCategory(cat);
+                                            setSearchQuery(''); // ล้างคำค้นหาก่อนเข้าแฟ้มย่อย
+                                        }
                                     }} 
-                                    className={`bg-surface p-5 rounded-[20px] border-2 transition-all relative overflow-hidden flex flex-col select-none
+                                    className={`bg-surface p-5 rounded-[20px] border-2 transition-all relative overflow-hidden flex flex-col select-none h-[150px]
                                         ${isReorderingCats ? 'cursor-grab active:cursor-grabbing hover:border-emerald-400 border-dashed animate-pulse' : 'cursor-pointer hover:shadow-lg group'}
                                         ${isSelected ? 'border-brand shadow-md scale-[0.98]' : 'border-gray-100 shadow-subtle hover:border-brand/40'}
-                                        ${draggedCatIdx === idx ? 'opacity-40 scale-95 border-emerald-500' : ''}
+                                        ${draggedCatIdx === realIdx ? 'opacity-40 scale-95 border-emerald-500' : ''}
                                     `}
                                 >
                                     {isSelectingCats && (
@@ -2532,21 +2599,24 @@ ${promptAction}`;
                                             </div>
                                         </div>
                                     )}
-                                    {isReorderingCats && (
+                                    {isReorderingCats && !searchQuery && (
                                         <div className="absolute top-4 right-4 z-20 bg-gray-50 p-1.5 rounded-full shadow-sm text-gray-400">
                                             <Icon name="Menu" size={14} />
                                         </div>
                                     )}
 
                                     <div className="absolute top-0 left-0 w-1.5 h-full bg-brand/20 group-hover:bg-brand transition-colors pointer-events-none"></div>
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform shrink-0 shadow-sm mb-5 pointer-events-none ${isSelected ? 'bg-brand text-white' : 'bg-brand/10 text-brand group-hover:scale-110'}`}>
-                                        <Icon name={cat.icon || 'FileSignature'} size={24} />
+                                    
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform shrink-0 shadow-sm pointer-events-none ${isSelected ? 'bg-brand text-white' : 'bg-brand/10 text-brand group-hover:scale-110'}`}>
+                                            <Icon name={cat.icon || 'FileSignature'} size={24} />
+                                        </div>
+                                        <h3 className={`font-extrabold text-[15px] transition-colors line-clamp-2 pointer-events-none ${isSelected ? 'text-brand' : 'text-gray-800 group-hover:text-brand'}`}>{cat.title}</h3>
                                     </div>
-                                    <h3 className={`font-extrabold text-[16px] transition-colors line-clamp-2 pointer-events-none ${isSelected ? 'text-brand' : 'text-gray-800 group-hover:text-brand'}`}>{cat.title}</h3>
                                     
                                     <div className="mt-auto pt-3 border-t border-gray-100 flex gap-3 opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="FileSignature" size={12} className="mr-1"/> {itemStats.texts} ข้อความ</span>
-                                        <span className="text-[12px] font-bold text-gray-500 flex items-center"><Icon name="Image" size={12} className="mr-1"/> {itemStats.imgs} รูปภาพ</span>
+                                        <span className="text-[11px] font-bold text-gray-500 flex items-center"><Icon name="FileSignature" size={12} className="mr-1"/> {itemStats.texts} ข้อความ</span>
+                                        <span className="text-[11px] font-bold text-gray-500 flex items-center"><Icon name="Image" size={12} className="mr-1"/> {itemStats.imgs} รูปภาพ</span>
                                     </div>
                                 </div>
                             );
