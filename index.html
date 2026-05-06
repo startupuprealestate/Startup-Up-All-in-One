@@ -1974,22 +1974,326 @@ ${promptAction}`;
       );
     };
 
-    const CompanyInfo = () => (
-      <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
-         <h2 className="text-2xl font-bold text-gray-800 mb-8">ข้อมูลบริษัท</h2>
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {['ระเบียบการลา', 'โครงสร้างคอมมิชชัน', 'แบบฟอร์มเบิกจ่าย', 'ติดต่อฝ่ายบุคคล', 'วิสัยทัศน์องค์กร'].map(title => (
-              <div key={title} className="bg-surface p-6 rounded-2xl border border-gray-100 shadow-subtle cursor-pointer transition-all hover:-translate-y-1 group">
-                <div className="w-12 h-12 rounded-xl bg-mintPill flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                  <Icon name="FileSignature" className="text-mintText" size={24} />
+    // 💡 ระบบข้อมูลบริษัท (แบบ Hybrid: ข้อความ + แกลลอรี่รูปภาพ)
+    const CompanyInfo = () => {
+        const [categories, setCategories] = useState([]);
+        const [activeCategory, setActiveCategory] = useState(null);
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [modalMode, setModalMode] = useState('add'); // 'add' หรือ 'edit'
+        const [isLoading, setIsLoading] = useState(true);
+        const [isUploading, setIsUploading] = useState(false);
+        const [fullScreenImg, setFullScreenImg] = useState(null);
+
+        // โครงสร้างฟอร์ม
+        const initialForm = { id: '', title: '', description: '', icon: 'FileSignature', images: [] };
+        const [formData, setFormData] = useState(initialForm);
+
+        // ไอคอนที่มีให้เลือกตอนสร้างหมวด
+        const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin'];
+
+        useEffect(() => {
+            if (!window.firebaseAPI || !window.firebaseDB) return;
+            const { collection, onSnapshot } = window.firebaseAPI;
+            const unsubscribe = onSnapshot(collection(window.firebaseDB, "company_info"), (snapshot) => {
+                const loaded = [];
+                snapshot.forEach(doc => loaded.push({ id: doc.id, ...doc.data() }));
+                loaded.sort((a, b) => (a.order || 0) - (b.order || 0));
+                
+                // ถ้าเพิ่งเปิดแอป และไม่มีข้อมูลเลย ให้สร้างข้อมูลตั้งต้น
+                if (loaded.length === 0) {
+                    const defaults = [
+                        { title: 'ระเบียบการลา', icon: 'FileSignature', description: 'รายละเอียดระเบียบการลาต่างๆ ของบริษัท...', order: 1, images: [] },
+                        { title: 'โครงสร้างคอมมิชชัน', icon: 'TrendingUp', description: 'เกณฑ์การจ่ายคอมมิชชันทีมขาย...', order: 2, images: [] },
+                        { title: 'ติดต่อฝ่ายบุคคล', icon: 'User', description: 'เบอร์ติดต่อ HR...', order: 3, images: [] }
+                    ];
+                    defaults.forEach(async (item) => {
+                        try { await window.firebaseAPI.addDoc(collection(window.firebaseDB, "company_info"), item); } catch(e){}
+                    });
+                } else {
+                    setCategories(loaded);
+                    // อัปเดตข้อมูลที่กำลังเปิดดูอยู่ให้เป็นปัจจุบัน
+                    if (activeCategory) {
+                        const updatedActive = loaded.find(c => c.id === activeCategory.id);
+                        if (updatedActive) setActiveCategory(updatedActive);
+                        else setActiveCategory(null); // ถูกลบไปแล้ว
+                    }
+                }
+                setIsLoading(false);
+            });
+            return () => unsubscribe();
+        }, []);
+
+        const handleSave = async (e) => {
+            e.preventDefault();
+            if (!formData.title.trim()) return;
+            
+            try {
+                if (modalMode === 'add') {
+                    await window.firebaseAPI.addDoc(window.firebaseAPI.collection(window.firebaseDB, "company_info"), {
+                        title: formData.title,
+                        description: formData.description,
+                        icon: formData.icon,
+                        images: formData.images,
+                        order: categories.length + 1
+                    });
+                } else {
+                    await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", formData.id), {
+                        title: formData.title,
+                        description: formData.description,
+                        icon: formData.icon,
+                        images: formData.images
+                    });
+                }
+                setIsModalOpen(false);
+                setFormData(initialForm);
+            } catch (err) {
+                alert("บันทึกข้อมูลไม่สำเร็จค่ะ");
+            }
+        };
+
+        const handleDelete = async () => {
+            if (!window.confirm(`ต้องการลบหมวดหมู่ "${formData.title}" ใช่หรือไม่?`)) return;
+            try {
+                await window.firebaseAPI.deleteDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", formData.id));
+                setIsModalOpen(false);
+                setActiveCategory(null);
+            } catch (err) {}
+        };
+
+        const handleAddImagesToForm = async (e) => {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+            setIsUploading(true);
+            try {
+                // สมมติว่ามีฟังก์ชัน compressImage และ uploadToCloudinary อยู่ในระบบแล้ว
+                const newImagesData = await Promise.all(files.map(async (file) => {
+                    const compressed = await compressImage(file);
+                    const url = await uploadToCloudinary(compressed);
+                    return { url: url, note: '' }; // โครงสร้างรูปภาพ: มี URL และช่องหมายเหตุ
+                }));
+                
+                setFormData(prev => ({ 
+                    ...prev, 
+                    images: [...prev.images, ...newImagesData].slice(0, 20) // จำกัด 20 รูป
+                }));
+            } catch (error) { 
+                alert('อัปโหลดรูปล้มเหลวค่ะ'); 
+            }
+            setIsUploading(false);
+        };
+
+        const handleImageNoteChange = (index, newNote) => {
+            const updatedImages = [...formData.images];
+            updatedImages[index].note = newNote;
+            setFormData(prev => ({ ...prev, images: updatedImages }));
+        };
+
+        const handleRemoveFormImage = (indexToRemove) => {
+            setFormData(prev => ({ ...prev, images: prev.images.filter((_, idx) => idx !== indexToRemove) }));
+        };
+
+        // -----------------------------------------------------
+        // 1. หน้าแสดงรายละเอียด (View Mode)
+        // -----------------------------------------------------
+        if (activeCategory) {
+            return (
+                <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
+                    {/* Header */}
+                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setActiveCategory(null)} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-gray-200 transition-colors">
+                                <Icon name="ChevronLeft" size={20} />
+                            </button>
+                            <div className="w-10 h-10 rounded-xl bg-brand/10 text-brand flex items-center justify-center">
+                                <Icon name={activeCategory.icon} size={20} />
+                            </div>
+                            <h2 className="text-xl md:text-2xl font-bold text-gray-800">{activeCategory.title}</h2>
+                        </div>
+                        <button onClick={() => { setFormData(activeCategory); setModalMode('edit'); setIsModalOpen(true); }} className="flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-brand transition-all text-[13px] font-bold shadow-sm">
+                            <Icon name="Edit" size={16} className="mr-2 text-brand" /> แก้ไขข้อมูล
+                        </button>
+                    </div>
+
+                    {/* Content Body */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar space-y-8" style={{ overscrollBehavior: 'none' }}>
+                        {/* ส่วนข้อความอธิบาย */}
+                        {activeCategory.description && (
+                            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-subtle border border-gray-100">
+                                <p className="text-[15px] leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">
+                                    {activeCategory.description}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* ส่วนแกลลอรี่รูปภาพ */}
+                        {activeCategory.images && activeCategory.images.length > 0 && (
+                            <div>
+                                <h3 className="text-[16px] font-bold text-gray-800 mb-4 flex items-center border-b border-gray-200 pb-2">
+                                    <Icon name="Image" size={18} className="mr-2 text-brand" /> เอกสารและรูปภาพอ้างอิง
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                    {activeCategory.images.map((imgObj, idx) => (
+                                        <div key={idx} className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm group">
+                                            <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden cursor-pointer" onClick={() => setFullScreenImg(imgObj.url)}>
+                                                <img src={imgObj.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="อ้างอิง" />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                    <Icon name="Maximize" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                                                </div>
+                                            </div>
+                                            {imgObj.note && (
+                                                <div className="p-3 bg-gray-50 border-t border-gray-100">
+                                                    <p className="text-[13px] font-bold text-gray-700 leading-tight break-words">{imgObj.note}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {!activeCategory.description && (!activeCategory.images || activeCategory.images.length === 0) && (
+                            <div className="text-center py-20 text-gray-400">
+                                <Icon name="FileSignature" size={48} className="mx-auto mb-3 opacity-20" />
+                                <p className="text-[14px] font-bold">ยังไม่มีข้อมูลในหมวดหมู่นี้</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Full Screen Image Viewer */}
+                    {fullScreenImg && (
+                        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setFullScreenImg(null)}>
+                            <button className="absolute top-4 right-4 sm:top-6 sm:right-6 text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20 z-10"><Icon name="X" size={20} /></button>
+                            <img src={fullScreenImg} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} alt="Full Screen" />
+                        </div>
+                    )}
                 </div>
-                <h3 className="font-bold text-lg text-gray-800 mb-1">{title}</h3>
-                <p className="text-sm text-gray-500">คลิกเพื่อดูรายละเอียดและเอกสารที่เกี่ยวข้อง</p>
-              </div>
-            ))}
-         </div>
-      </div>
-    );
+            );
+        }
+
+        // -----------------------------------------------------
+        // 2. หน้าหลัก (Grid Categories)
+        // -----------------------------------------------------
+        return (
+            <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar" style={{ overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+                <div className="flex justify-between items-center mb-8 shrink-0">
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                        <Icon name="Building" className="mr-3 text-brand" size={26}/> ข้อมูลบริษัท
+                    </h2>
+                    <button onClick={() => { setFormData(initialForm); setModalMode('add'); setIsModalOpen(true); }} className="bg-brand hover:bg-brandLight text-white px-5 py-2.5 rounded-xl font-bold text-[14px] transition-all shadow-md flex items-center">
+                        <Icon name="Plus" size={18} className="mr-1.5"/> เพิ่มหมวดหมู่
+                    </button>
+                </div>
+
+                {isLoading ? (
+                    <div className="flex justify-center py-20"><Icon name="RefreshCw" size={32} className="animate-spin text-brand/30" /></div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {categories.map(cat => (
+                            <div key={cat.id} onClick={() => setActiveCategory(cat)} className="bg-surface p-6 rounded-2xl border border-gray-100 shadow-subtle cursor-pointer transition-all hover:border-brand/40 hover:shadow-lg group relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1.5 h-full bg-brand/20 group-hover:bg-brand transition-colors"></div>
+                                <div className="w-12 h-12 rounded-xl bg-brand/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform shadow-sm">
+                                    <Icon name={cat.icon || 'FileSignature'} className="text-brand" size={24} />
+                                </div>
+                                <h3 className="font-extrabold text-lg text-gray-800 mb-1.5 group-hover:text-brand transition-colors">{cat.title}</h3>
+                                <p className="text-[13px] text-gray-500 line-clamp-2 leading-relaxed">
+                                    {cat.description || 'คลิกเพื่อดูรายละเอียดและเอกสารที่เกี่ยวข้อง'}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* -----------------------------------------------------
+                  3. หน้าต่าง Modal (สำหรับเพิ่ม/แก้ไขหมวดหมู่)
+                ----------------------------------------------------- */}
+                {isModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
+                        <div className="bg-surface rounded-[24px] w-full max-w-3xl h-[90vh] flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
+                            <div className="flex justify-between items-center p-5 md:p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                    <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> 
+                                    {modalMode === 'add' ? 'เพิ่มหมวดหมู่ใหม่' : 'แก้ไขข้อมูลหมวดหมู่'}
+                                </h3>
+                                <button onClick={() => setIsModalOpen(false)} className="p-2 bg-white text-gray-500 rounded-full border border-gray-200 hover:bg-gray-100 transition-colors shadow-sm"><Icon name="X" size={16}/></button>
+                            </div>
+                            
+                            <form id="companyForm" onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 md:p-6 custom-scrollbar space-y-6">
+                                {/* เลือก Icon & ชื่อหมวด */}
+                                <div className="flex gap-4">
+                                    <div className="shrink-0">
+                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ไอคอน</label>
+                                        <select value={formData.icon} onChange={e => setFormData({...formData, icon: e.target.value})} className="w-14 h-12 px-2 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-center cursor-pointer shadow-sm">
+                                            {availableIcons.map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อหมวดหมู่</label>
+                                        <input type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="เช่น ระเบียบการลา, แบบฟอร์มต่างๆ..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand transition-all text-[14px] shadow-sm font-bold text-gray-800" />
+                                    </div>
+                                </div>
+
+                                {/* รายละเอียด (ข้อความ) */}
+                                <div>
+                                    <label className="block text-[13px] font-bold text-gray-600 mb-2">รายละเอียด / ข้อความ</label>
+                                    <textarea rows="6" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="พิมพ์รายละเอียด หรือข้อความประกาศที่นี่..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand transition-all text-[14px] shadow-sm custom-scrollbar leading-relaxed resize-none"></textarea>
+                                </div>
+
+                                {/* รูปภาพอ้างอิง */}
+                                <div className="border-t border-gray-100 pt-6">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <label className="block text-[14px] font-bold text-gray-800 flex items-center">
+                                            <Icon name="Image" size={16} className="mr-2 text-brand" /> รูปภาพและเอกสารแนบ
+                                        </label>
+                                        <label className="bg-brand/10 text-brand hover:bg-brand hover:text-white px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors cursor-pointer shadow-sm flex items-center">
+                                            {isUploading ? <Icon name="RefreshCw" size={14} className="animate-spin mr-1.5" /> : <Icon name="Plus" size={14} className="mr-1.5" />}
+                                            เพิ่มรูปภาพ
+                                            <input type="file" multiple accept="image/*" className="hidden" onChange={handleAddImagesToForm} disabled={isUploading} />
+                                        </label>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {formData.images.map((imgObj, idx) => (
+                                            <div key={idx} className="flex gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl relative group items-start">
+                                                <div className="w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-lg overflow-hidden border border-gray-200 shadow-sm bg-white">
+                                                    <img src={imgObj.url} className="w-full h-full object-cover" alt={`preview ${idx}`} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <label className="block text-[11px] font-bold text-gray-500 mb-1">หมายเหตุ / คำอธิบายรูปภาพนี้</label>
+                                                    <input type="text" value={imgObj.note} onChange={(e) => handleImageNoteChange(idx, e.target.value)} placeholder="เช่น แบบฟอร์มใบลาป่วย..." className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand text-[13px] shadow-sm" />
+                                                </div>
+                                                <button type="button" onClick={() => handleRemoveFormImage(idx)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors mt-4">
+                                                    <Icon name="Trash" size={18} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {formData.images.length === 0 && !isUploading && (
+                                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400 text-[13px] font-bold">
+                                                ยังไม่มีรูปภาพแนบ
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </form>
+
+                            <div className="p-4 md:p-6 bg-gray-50 border-t border-gray-100 shrink-0 flex justify-between items-center rounded-b-[24px]">
+                                {modalMode === 'edit' ? (
+                                    <button type="button" onClick={handleDelete} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl text-[13px] font-bold transition-colors">
+                                        ลบหมวดหมู่นี้
+                                    </button>
+                                ) : <div></div>}
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
+                                    <button form="companyForm" type="submit" disabled={isUploading} className="px-6 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md flex items-center disabled:opacity-50">
+                                        <Icon name="Check" size={16} className="mr-2" /> บันทึกข้อมูล
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const HouseGallery = ({ houses, sheetData, isFirebaseLoaded }) => {
         const [modalMode, setModalMode] = useState('none');
