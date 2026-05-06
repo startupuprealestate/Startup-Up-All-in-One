@@ -199,7 +199,8 @@
         { id: 'company', label: 'ข้อมูลบริษัท', icon: 'Building' },
         { id: 'facescan', label: 'ระบบบันทึกเวลาทำงาน', icon: 'Clock' },
         { id: 'ai', label: 'AI ผู้ช่วยบริษัท', icon: 'MessageCircle' },
-        { id: 'admin', label: 'จัดการระบบ (Admin)', icon: 'User' }
+        { id: 'admin', label: 'จัดการระบบ (Admin)', icon: 'User' },
+        { id: 'backup', label: 'สำรองข้อมูล (Admin)', icon: 'Database' }
     ];
 
     const ACTIVITIES = ['เปิดบ้าน', 'เซ็นสัญญายื่นกู้', 'เซ็นสัญญารับบ้าน', 'โอนบ้าน', 'ตรวจบ้าน', 'ถ่ายคลิปหรือคอนเทนต์', 'อื่นๆ'];
@@ -1972,6 +1973,245 @@ ${promptAction}`;
         </div>
       </div>
       );
+    };
+
+// 💡 ศูนย์จัดการสำรองข้อมูล (System Backup Center) 
+    // โค้ดนี้สามารถแยกเป็นหน้าใหม่ (Page) ให้เฉพาะ Admin เข้าถึงได้เลยค่ะ
+    const SystemBackup = () => {
+        const [isProcessing, setIsProcessing] = useState(false);
+        const [processText, setProcessText] = useState('');
+        const restoreFileRef = useRef(null);
+
+        // 📝 รายชื่อหมวดหมู่และชื่อ Collection อัปเดตตาม Firebase จริง 100%
+        const dbCollections = [
+            { id: 'events', name: 'ปฏิทินการทำงาน (และวันหยุด)', dbName: 'events' },
+            { id: 'content', name: 'เช็กลิสต์คอนเทนต์', dbName: 'content_checklists' },
+            { id: 'houses', name: 'ข้อมูลบ้าน (แยกโซน/สถานะ)', dbName: 'houses' },
+            { id: 'construction', name: 'ความคืบหน้าก่อสร้าง', dbName: 'construction_progress' },
+            { id: 'post_tracking', name: 'ประวัติตารางโพสต์บ้าน', dbName: 'post_tracking' },
+            { id: 'company_info', name: 'ข้อมูลบริษัท', dbName: 'company_info' },
+            { id: 'users', name: 'บัญชีผู้ใช้งาน', dbName: 'users' },
+            { id: 'departments', name: 'ข้อมูลแผนก', dbName: 'departments' },
+            { id: 'system', name: 'การตั้งค่าระบบหลัก', dbName: 'system' }
+        ];
+
+        // -----------------------------------------------------
+        // 1. ฟังก์ชันโหลดและแพ็กไฟล์
+        // -----------------------------------------------------
+        const downloadJSON = (dataObj, filename) => {
+            const dataStr = JSON.stringify(dataObj, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        };
+
+        const fetchCollectionData = async (collectionName) => {
+            const { collection, getDocs } = window.firebaseAPI;
+            const snapshot = await getDocs(collection(window.firebaseDB, collectionName));
+            const items = [];
+            snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+            return items;
+        };
+
+        const wipeCollection = async (collectionName) => {
+            const { collection, getDocs, deleteDoc, doc } = window.firebaseAPI;
+            const snapshot = await getDocs(collection(window.firebaseDB, collectionName));
+            const deletePromises = [];
+            snapshot.forEach(docSnap => {
+                deletePromises.push(deleteDoc(doc(window.firebaseDB, collectionName, docSnap.id)));
+            });
+            await Promise.all(deletePromises);
+        };
+
+        // -----------------------------------------------------
+        // 2. ระบบสำรองข้อมูล (BACKUP)
+        // -----------------------------------------------------
+        // Backup แบบเฉพาะหมวด
+        const handleBackupSingle = async (cat) => {
+            setIsProcessing(true);
+            setProcessText(`กำลังรวบรวมข้อมูล ${cat.name}...`);
+            try {
+                const data = await fetchCollectionData(cat.dbName);
+                if(data.length === 0) { alert(`ไม่มีข้อมูลในหมวด ${cat.name} ให้สำรองค่ะ`); setIsProcessing(false); return; }
+
+                const backupObj = {
+                    backupType: "SINGLE",
+                    collectionName: cat.dbName,
+                    displayName: cat.name,
+                    timestamp: Date.now(),
+                    data: data
+                };
+                
+                const d = new Date();
+                const dateString = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+                downloadJSON(backupObj, `Backup_${cat.id}_${dateString}.json`);
+                
+            } catch (err) { alert('เกิดข้อผิดพลาดในการสำรองข้อมูลค่ะ'); }
+            setIsProcessing(false);
+        };
+
+        // Backup แบบ All-in-One
+        const handleBackupAll = async () => {
+            setIsProcessing(true);
+            try {
+                const allData = {};
+                for (const cat of dbCollections) {
+                    setProcessText(`กำลังสำรอง ${cat.name}...`);
+                    const data = await fetchCollectionData(cat.dbName);
+                    allData[cat.dbName] = data;
+                }
+
+                setProcessText('กำลังแพ็กไฟล์ All-in-One...');
+                const backupObj = {
+                    backupType: "ALL_IN_ONE",
+                    timestamp: Date.now(),
+                    data: allData
+                };
+
+                const d = new Date();
+                const dateString = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+                downloadJSON(backupObj, `StartupUp_FullBackup_${dateString}.json`);
+
+            } catch (err) { alert('เกิดข้อผิดพลาดในการสำรองข้อมูลทั้งหมดค่ะ'); }
+            setIsProcessing(false);
+        };
+
+        // -----------------------------------------------------
+        // 3. ระบบกู้คืนข้อมูล (RESTORE)
+        // -----------------------------------------------------
+        const handleRestoreClick = () => {
+            if(window.confirm('🚨 คำเตือน: ระบบจะ "ลบข้อมูลเดิมทิ้งและเขียนทับใหม่" ด้วยไฟล์กู้คืน\n\n(หากเป็นไฟล์ All-in-One ข้อมูลจะถูกเขียนทับทุกหมวดหมู่) ต้องการดำเนินการต่อหรือไม่?')) {
+                if (restoreFileRef.current) restoreFileRef.current.click();
+            }
+        };
+
+        const processRestoreFile = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            setIsProcessing(true);
+            setProcessText('กำลังวิเคราะห์ไฟล์กู้คืน...');
+            try {
+                const text = await file.text();
+                const backupData = JSON.parse(text);
+                const { doc, setDoc } = window.firebaseAPI;
+
+                // ตรวจสอบไฟล์ SINGLE
+                if (backupData.backupType === "SINGLE") {
+                    setProcessText(`กำลังล้างข้อมูลเดิมในหมวด ${backupData.displayName}...`);
+                    await wipeCollection(backupData.collectionName);
+
+                    setProcessText(`กำลังเขียนข้อมูลใหม่ลงใน ${backupData.displayName}...`);
+                    const restorePromises = backupData.data.map(item => {
+                        const { id, ...dataToSave } = item;
+                        return setDoc(doc(window.firebaseDB, backupData.collectionName, id), dataToSave);
+                    });
+                    await Promise.all(restorePromises);
+                    alert(`✅ กู้คืนหมวด "${backupData.displayName}" เสร็จสมบูรณ์แล้วค่ะ!`);
+                } 
+                // ตรวจสอบไฟล์ ALL-IN-ONE
+                else if (backupData.backupType === "ALL_IN_ONE") {
+                    for (const cat of dbCollections) {
+                        if (backupData.data[cat.dbName]) {
+                            setProcessText(`กำลังเขียนข้อมูล: ${cat.name}...`);
+                            await wipeCollection(cat.dbName);
+                            const restorePromises = backupData.data[cat.dbName].map(item => {
+                                const { id, ...dataToSave } = item;
+                                return setDoc(doc(window.firebaseDB, cat.dbName, id), dataToSave);
+                            });
+                            await Promise.all(restorePromises);
+                        }
+                    }
+                    alert('✅ 🚀 กู้คืนระบบแบบ All-in-One เสร็จสมบูรณ์ร้อยเปอร์เซ็นต์แล้วค่ะ!');
+                } else {
+                    throw new Error("Invalid format");
+                }
+
+            } catch (err) {
+                alert('❌ เกิดข้อผิดพลาด! ไฟล์ที่ใช้อาจไม่ใช่ไฟล์สำรองของระบบ หรือไฟล์เสียหายค่ะ');
+            }
+            setIsProcessing(false);
+            e.target.value = ''; // รีเซ็ต input
+        };
+
+        return (
+            <div className="flex-1 p-4 md:p-8 overflow-y-auto bg-background h-full custom-scrollbar">
+                <div className="max-w-4xl mx-auto space-y-8">
+                    
+                    {/* Header */}
+                    <div className="flex items-center gap-4 mb-8 border-b border-gray-200 pb-6">
+                        <div className="w-14 h-14 bg-brand/10 text-brand rounded-2xl flex items-center justify-center shadow-sm">
+                            <Icon name="Database" size={28} />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">ศูนย์สำรองข้อมูลระบบ</h2>
+                            <p className="text-gray-500 font-medium mt-1">สำรอง (Backup) และ กู้คืน (Restore) ฐานข้อมูลทั้งหมดของบริษัท</p>
+                        </div>
+                    </div>
+
+                    {isProcessing && (
+                        <div className="bg-brand/10 border border-brand/30 text-brand p-4 rounded-xl flex items-center shadow-sm animate-pulse mb-6">
+                            <Icon name="RefreshCw" size={20} className="animate-spin mr-3" />
+                            <span className="font-bold">{processText}</span>
+                        </div>
+                    )}
+
+                    <input type="file" accept=".json" ref={restoreFileRef} style={{display:'none'}} onChange={processRestoreFile} />
+
+                    {/* Zone 1: All in One */}
+                    <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-8 rounded-[24px] shadow-xl text-white relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+                        <div className="relative z-10">
+                            <div className="flex items-center gap-3 mb-4">
+                                <Icon name="Zap" size={24} className="text-yellow-400" />
+                                <h3 className="text-xl font-bold">ระบบจัดการแบบ All-in-One</h3>
+                            </div>
+                            <p className="text-gray-300 text-[14px] leading-relaxed mb-8 max-w-2xl">
+                                แนะนำให้ใช้วิธีนี้สัปดาห์ละ 1 ครั้ง ระบบจะดึงข้อมูลทุกหมวดหมู่ (ปฏิทิน, คอนเทนต์, ก่อสร้าง, ข้อมูลบริษัท ฯลฯ) รวมกันเป็นไฟล์เดียวเพื่อความปลอดภัยสูงสุด
+                            </p>
+                            
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <button onClick={handleBackupAll} disabled={isProcessing} className="flex-1 bg-brand hover:bg-brandLight text-white py-4 px-6 rounded-xl font-bold shadow-lg transition-all flex justify-center items-center gap-2 disabled:opacity-50 border border-white/10">
+                                    <Icon name="DownloadCloud" size={20} /> สำรองข้อมูลทั้งหมด (Backup All)
+                                </button>
+                                <button onClick={handleRestoreClick} disabled={isProcessing} className="flex-1 bg-white/10 hover:bg-red-500 text-white py-4 px-6 rounded-xl font-bold shadow-lg transition-all flex justify-center items-center gap-2 disabled:opacity-50 border border-white/10 backdrop-blur-sm">
+                                    <Icon name="UploadCloud" size={20} /> กู้คืนข้อมูล (Restore)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Zone 2: Specific Modules */}
+                    <div>
+                        <h3 className="text-[16px] font-bold text-gray-800 mb-4 flex items-center">
+                            <Icon name="Layers" size={18} className="mr-2 text-brand" /> สำรองข้อมูลเฉพาะส่วน (แยกตามหมวด)
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {dbCollections.map(cat => (
+                                <div key={cat.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col items-start group">
+                                    <div className="w-10 h-10 bg-gray-50 text-gray-600 rounded-lg flex items-center justify-center mb-3 group-hover:bg-brand/10 group-hover:text-brand transition-colors">
+                                        <Icon name="Folder" size={20} />
+                                    </div>
+                                    <h4 className="font-bold text-gray-800 text-[15px] mb-1">{cat.name}</h4>
+                                    <p className="text-[11px] text-gray-400 mb-5 font-mono">DB: {cat.dbName}</p>
+                                    
+                                    <button onClick={() => handleBackupSingle(cat)} disabled={isProcessing} className="w-full mt-auto py-2.5 bg-gray-50 hover:bg-brand text-gray-700 hover:text-white rounded-xl text-[13px] font-bold transition-colors flex justify-center items-center gap-2 disabled:opacity-50 border border-gray-200 group-hover:border-transparent">
+                                        <Icon name="Download" size={14} /> สำรองหมวดนี้
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        );
     };
 
     // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.10: เพิ่มระบบ Backup & Restore กันข้อมูลหาย)
@@ -5216,7 +5456,7 @@ ${promptAction}`;
                 </div>
                 
                 {/* 💡 เติมปีกกา { และคำสั่ง .map กลับมาให้แล้วค่ะ จอไม่ขาวแน่นอน! */}
-                {MAIN_MENUS.filter(menu => (menu.id !== 'admin' || isAdmin) && menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase())).map(menu => {
+                {MAIN_MENUS.filter(menu => ((menu.id !== 'admin' && menu.id !== 'backup') || isAdmin) && menu.label.toLowerCase().includes(menuSearchQuery.toLowerCase())).map(menu => {
   const isActive = activeApp === menu.id;
   return (
       <button 
@@ -5273,6 +5513,7 @@ ${promptAction}`;
               {activeApp === 'post' && <PostSchedule sheetData={sheetData} setManualRefreshKey={setManualRefreshKey} postTracking={postTracking} isFirebaseLoaded={isFirebaseLoaded} constructionProgress={constructionProgress} user={user} />}
               {activeApp === 'company' && <CompanyInfo />}
               {activeApp === 'admin' && isAdmin && <AdminPanel isFirebaseLoaded={isFirebaseLoaded} />}
+              {activeApp === 'backup' && isAdmin && <SystemBackup />}
               {activeApp === 'gallery' && <HouseGallery houses={houses} sheetData={sheetData} isFirebaseLoaded={isFirebaseLoaded} />}
               {activeApp === 'affiliate' && <AffiliateTable />}
               {activeApp === 'ai' && <AiChatView sheetData={sheetData} contentChecklists={contentChecklists} messages={aiMessages} setMessages={setAiMessages} />}
