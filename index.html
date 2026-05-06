@@ -1974,22 +1974,27 @@ ${promptAction}`;
       );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.6: แก้บั๊กปุ่มแก้ไข + แสดงชื่อเต็ม + ย้ายปุ่มไปมุมขวา)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.7: ย้ายปุ่มดินสอ + เพิ่มระบบแก้ไขรูปลิสต์/ข้อความ)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
         const [isLoading, setIsLoading] = useState(true);
         const [isUploading, setIsUploading] = useState(false);
-        const [fullScreenImg, setFullScreenImg] = useState(null);
+        
+        // สถานะการเปิดดูข้อมูล
+        const [viewingImageItem, setViewingImageItem] = useState(null);
         const [viewingTextItem, setViewingTextItem] = useState(null);
 
         // 🔍 ระบบค้นหา
         const [searchQuery, setSearchQuery] = useState('');
 
-        // ระบบ Modal
+        // ระบบ Modal (แฟ้มหลัก)
         const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-        const [isItemModalOpen, setIsItemModalOpen] = useState(false);
         const [modalMode, setModalMode] = useState('add');
+
+        // ระบบ Modal (รายการย่อย)
+        const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+        const [itemModalMode, setItemModalMode] = useState('add'); // 'add' หรือ 'edit'
 
         // ระบบเลือก (Select Mode)
         const [isSelectingCats, setIsSelectingCats] = useState(false);
@@ -2008,9 +2013,10 @@ ${promptAction}`;
         const [catForm, setCatForm] = useState(initialCatForm);
         
         const [itemTab, setItemTab] = useState('text');
-        const initialItemForm = { title: '', content: '', images: [] };
+        const initialItemForm = { id: '', title: '', content: '', images: [] };
         const [itemForm, setItemForm] = useState(initialItemForm);
 
+        const availableIcons = ['FileSignature', 'Building', 'ListTodo', 'Users', 'Clock', 'CheckSquare', 'Image', 'MapPin', 'TrendingUp'];
         const generateId = () => Math.random().toString(36).substring(2, 10);
 
         // สมองกลอ่านใจ
@@ -2038,7 +2044,7 @@ ${promptAction}`;
                     let needsMigration = false;
 
                     if (data.description) {
-                        items.unshift({ id: 'text_' + Date.now(), type: 'text', title: 'รายละเอียด (เก่า)', content: data.description, createdAt: Date.now() });
+                        items.unshift({ id: 'txt_' + Date.now(), type: 'text', title: 'รายละเอียด (เก่า)', content: data.description, createdAt: Date.now() });
                         needsMigration = true;
                     }
                     if (data.images && data.images.length > 0) {
@@ -2067,7 +2073,7 @@ ${promptAction}`;
         }, [categories]);
 
         // -----------------------------------------------------------------
-        // ฟังก์ชันจัดการหมวดหมู่ (Category)
+        // ฟังก์ชันจัดการหมวดหมู่หลัก (Category)
         // -----------------------------------------------------------------
         const handleSaveCategory = async (e) => {
             e.preventDefault();
@@ -2096,11 +2102,7 @@ ${promptAction}`;
             } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
         };
 
-        const handleDragStartCat = (e, index) => {
-            setDraggedCatIdx(index);
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => { if(e.target) e.target.style.opacity = '0.4'; }, 0);
-        };
+        const handleDragStartCat = (e, index) => { setDraggedCatIdx(index); e.dataTransfer.effectAllowed = "move"; setTimeout(() => { if(e.target) e.target.style.opacity = '0.4'; }, 0); };
         const handleDragEnterCat = (e, index) => {
             e.preventDefault();
             if (draggedCatIdx === null || draggedCatIdx === index) return;
@@ -2111,22 +2113,32 @@ ${promptAction}`;
             setDraggedCatIdx(index);
             setCategories(newCats);
         };
-        const handleDragEndCat = (e) => {
-            if(e.target) e.target.style.opacity = '1';
-            setDraggedCatIdx(null);
-        };
+        const handleDragEndCat = (e) => { if(e.target) e.target.style.opacity = '1'; setDraggedCatIdx(null); };
         const handleSaveOrderCats = async () => {
             setIsUploading(true);
             try {
                 await Promise.all(categories.map((cat, index) => window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", cat.id), { order: index + 1 })));
                 setIsReorderingCats(false);
-            } catch (err) { alert("บันทึกตำแหน่งล้มเหลว"); }
+            } catch (err) {}
             setIsUploading(false);
         };
 
         // -----------------------------------------------------------------
         // ฟังก์ชันจัดการรายการย่อย (Items: Text / Image)
         // -----------------------------------------------------------------
+        const handleEditItem = (item) => {
+            setItemTab(item.type);
+            setItemModalMode('edit');
+            if (item.type === 'text') {
+                setItemForm({ id: item.id, title: item.title || '', content: item.content || '', images: [] });
+                setViewingTextItem(null);
+            } else if (item.type === 'image') {
+                setItemForm({ id: item.id, title: '', content: '', images: [{ url: item.url, note: item.note || '' }] });
+                setViewingImageItem(null);
+            }
+            setIsItemModalOpen(true);
+        };
+
         const handleAddImagesToForm = async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
@@ -2147,19 +2159,33 @@ ${promptAction}`;
             if (!activeCategory) return;
             setIsUploading(true);
             try {
-                const newItems = [];
-                if (itemTab === 'text') {
-                    if (!itemForm.title.trim() || !itemForm.content.trim()) { setIsUploading(false); return; }
-                    newItems.push({ id: 'txt_' + generateId(), type: 'text', title: itemForm.title, content: itemForm.content, createdAt: Date.now() });
-                } else if (itemTab === 'image') {
-                    if (itemForm.images.length === 0) { setIsUploading(false); return; }
-                    itemForm.images.forEach(img => { newItems.push({ id: 'img_' + generateId(), type: 'image', url: img.url, note: img.note, createdAt: Date.now() }); });
+                let updatedItems = [...(activeCategory.items || [])];
+
+                if (itemModalMode === 'edit') {
+                    const idx = updatedItems.findIndex(i => i.id === itemForm.id);
+                    if (idx > -1) {
+                        if (itemTab === 'text') {
+                            updatedItems[idx] = { ...updatedItems[idx], title: itemForm.title, content: itemForm.content };
+                        } else if (itemTab === 'image') {
+                            updatedItems[idx] = { ...updatedItems[idx], url: itemForm.images[0].url, note: itemForm.images[0].note };
+                        }
+                    }
+                } else {
+                    const newItems = [];
+                    if (itemTab === 'text') {
+                        if (!itemForm.title.trim() || !itemForm.content.trim()) { setIsUploading(false); return; }
+                        newItems.push({ id: 'txt_' + generateId(), type: 'text', title: itemForm.title, content: itemForm.content, createdAt: Date.now() });
+                    } else if (itemTab === 'image') {
+                        if (itemForm.images.length === 0) { setIsUploading(false); return; }
+                        itemForm.images.forEach(img => { newItems.push({ id: 'img_' + generateId(), type: 'image', url: img.url, note: img.note, createdAt: Date.now() }); });
+                    }
+                    updatedItems = [...updatedItems, ...newItems];
                 }
-                const updatedItems = [...(activeCategory.items || []), ...newItems];
+
                 await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: updatedItems });
                 setIsItemModalOpen(false);
                 setItemForm(initialItemForm);
-            } catch (err) { alert("เพิ่มข้อมูลไม่สำเร็จค่ะ"); }
+            } catch (err) { alert("บันทึกข้อมูลไม่สำเร็จค่ะ"); }
             setIsUploading(false);
         };
 
@@ -2176,11 +2202,7 @@ ${promptAction}`;
             } catch (err) { alert("เกิดข้อผิดพลาดในการลบค่ะ"); }
         };
 
-        const handleDragStartItem = (e, index) => {
-            setDraggedItemIdx(index);
-            e.dataTransfer.effectAllowed = "move";
-            setTimeout(() => { if(e.target) e.target.style.opacity = '0.4'; }, 0);
-        };
+        const handleDragStartItem = (e, index) => { setDraggedItemIdx(index); e.dataTransfer.effectAllowed = "move"; setTimeout(() => { if(e.target) e.target.style.opacity = '0.4'; }, 0); };
         const handleDragEnterItem = (e, index) => {
             e.preventDefault();
             if (draggedItemIdx === null || draggedItemIdx === index) return;
@@ -2191,17 +2213,14 @@ ${promptAction}`;
             setDraggedItemIdx(index);
             setActiveCategory({...activeCategory, items: newItems});
         };
-        const handleDragEndItem = (e) => {
-            if(e.target) e.target.style.opacity = '1';
-            setDraggedItemIdx(null);
-        };
+        const handleDragEndItem = (e) => { if(e.target) e.target.style.opacity = '1'; setDraggedItemIdx(null); };
         const handleSaveOrderItems = async () => {
             setIsUploading(true);
             try {
                 await window.firebaseAPI.updateDoc(window.firebaseAPI.doc(window.firebaseDB, "company_info", activeCategory.id), { items: activeCategory.items });
                 setIsReorderingItems(false);
                 setCategories(prev => prev.map(c => c.id === activeCategory.id ? activeCategory : c));
-            } catch (err) { alert("บันทึกตำแหน่งล้มเหลว"); }
+            } catch (err) {}
             setIsUploading(false);
         };
 
@@ -2237,15 +2256,20 @@ ${promptAction}`;
 
             return (
                 <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
-                    {/* Header: แสดงชื่อเต็มๆ และย้ายปุ่มแก้ไขไปด้านขวา */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 md:p-6 bg-white border-b border-gray-100 shrink-0 shadow-sm z-10 gap-4">
-                        <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto min-w-0">
-                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0 mt-1 sm:mt-0">
+                        <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
+                            <button onClick={() => { setActiveCategory(null); setIsSelectingItems(false); setIsReorderingItems(false); setSelectedItems([]); setSearchQuery(''); }} className="p-2 bg-gray-50 text-gray-500 rounded-full hover:bg-brand/10 hover:text-brand transition-colors shrink-0">
                                 <Icon name="ChevronLeft" size={20} />
                             </button>
-                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 flex items-center flex-wrap leading-snug">
+                            <h2 className="text-[18px] md:text-xl font-bold text-gray-800 flex items-center flex-wrap leading-snug break-words">
                                 <Icon name={activeCategory.icon || 'FileSignature'} size={20} className="mr-2 text-brand hidden sm:block shrink-0" /> 
                                 {activeCategory.title}
+                                {/* ✏️ ปุ่มแก้ไขหัวข้อย้ายมาตรงนี้ */}
+                                {!isSelectingItems && !isReorderingItems && !searchQuery && (
+                                    <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="ml-2.5 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-brand rounded-full transition-colors shrink-0" title="แก้ไขชื่อแฟ้ม">
+                                        <Icon name="Edit" size={16} />
+                                    </button>
+                                )}
                             </h2>
                         </div>
                         
@@ -2276,13 +2300,7 @@ ${promptAction}`;
                                             </button>
                                         </>
                                     )}
-                                    {/* 💡 ย้ายปุ่ม "แก้ไขหัวข้อ" มาอยู่รวมกลุ่มด้านขวาแล้วค่ะ */}
-                                    {!searchQuery && (
-                                        <button onClick={() => { setCatForm(activeCategory); setModalMode('edit'); setIsCatModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition-colors shadow-sm flex items-center">
-                                            <Icon name="Edit" size={14} className="mr-1.5" /> <span className="hidden sm:inline">แก้ไขหัวข้อ</span><span className="sm:hidden">แก้ไข</span>
-                                        </button>
-                                    )}
-                                    <button onClick={() => { setItemForm(initialItemForm); setItemTab('text'); setIsItemModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
+                                    <button onClick={() => { setItemForm(initialItemForm); setItemTab('text'); setItemModalMode('add'); setIsItemModalOpen(true); }} className="px-3 sm:px-4 py-2 text-[13px] font-bold text-white bg-brand hover:bg-brandLight rounded-xl transition-colors flex items-center shadow-sm">
                                         <Icon name="Plus" size={16} className="mr-1 sm:mr-1.5" /> <span className="hidden sm:inline">เพิ่มข้อมูล</span>
                                     </button>
                                 </>
@@ -2315,13 +2333,12 @@ ${promptAction}`;
                         {filteredItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                                 <Icon name="Search" size={48} className="mb-4 opacity-20" />
-                                <p className="text-[14px] font-bold">{searchQuery ? 'ไม่พบข้อมูลที่ค้นหาค่ะ' : 'ยังไม่มีข้อมูล กด "เพิ่ม" เพื่อเริ่มบันทึกได้เลยค่ะ'}</p>
+                                <p className="text-[14px] font-bold">{searchQuery ? 'ไม่พบข้อมูลที่ค้นหาค่ะ' : 'ยังไม่มีข้อมูล กด "เพิ่มข้อมูล" เพื่อเริ่มบันทึกได้เลยค่ะ'}</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                                 {filteredItems.map((item, idx) => {
                                     const isSelected = selectedItems.includes(item.id);
-                                    // หา index จริงใน array ต้นฉบับเพื่อใช้ลาก (ในกรณีที่ค้นหาอยู่ จะลากไม่ได้)
                                     const realIdx = rawItems.findIndex(r => r.id === item.id);
 
                                     return (
@@ -2336,7 +2353,7 @@ ${promptAction}`;
                                                 if (isReorderingItems) return;
                                                 if (isSelectingItems) toggleSelectItem(item.id);
                                                 else if (item.type === 'text') setViewingTextItem(item);
-                                                else if (item.type === 'image') setFullScreenImg(item.url);
+                                                else if (item.type === 'image') setViewingImageItem(item);
                                             }}
                                             className={`relative rounded-[16px] overflow-hidden border-2 transition-all flex flex-col h-[180px] bg-white select-none
                                                 ${isReorderingItems ? 'cursor-grab active:cursor-grabbing hover:border-emerald-400 border-dashed animate-pulse' : 'cursor-pointer hover:border-brand/40 group'} 
@@ -2384,7 +2401,7 @@ ${promptAction}`;
                         )}
                     </div>
 
-                    {/* Pop-up อ่านข้อความ */}
+                    {/* ✏️ Pop-up อ่านข้อความ (เพิ่มปุ่มแก้ไขแล้ว) */}
                     {viewingTextItem && (
                         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewingTextItem(null)}>
                             <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 animate-[slideUp_0.3s_ease-out]" onClick={e => e.stopPropagation()}>
@@ -2393,44 +2410,64 @@ ${promptAction}`;
                                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
                                         <Icon name="FileSignature" size={32} className="text-brand" />
                                     </div>
-                                    <h3 className="text-lg font-black text-white">{viewingTextItem.title}</h3>
+                                    <h3 className="text-lg font-black text-white px-2 break-words">{viewingTextItem.title}</h3>
                                 </div>
                                 <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar bg-gray-50/50">
-                                    <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
                                         <p className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap break-words">{viewingTextItem.content}</p>
                                     </div>
                                 </div>
-                                <div className="p-4 bg-gray-50 border-t border-gray-100">
-                                    <button onClick={() => setViewingTextItem(null)} className="w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold text-[14px] transition-colors">ปิดหน้าต่าง</button>
+                                <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+                                    <button onClick={() => setViewingTextItem(null)} className="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold text-[14px] transition-colors">ปิดหน้าต่าง</button>
+                                    <button onClick={() => handleEditItem(viewingTextItem)} className="flex-1 py-3 bg-brand hover:bg-brandLight text-white rounded-xl font-bold text-[14px] transition-colors flex items-center justify-center shadow-md">
+                                        <Icon name="Edit" size={16} className="mr-2" /> แก้ไขข้อมูล
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Pop-up ดูรูปภาพเต็มจอ */}
-                    {fullScreenImg && (
-                        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setFullScreenImg(null)}>
+                    {/* ✏️ Pop-up ดูรูปภาพเต็มจอ (เพิ่มปุ่มแก้ไขแล้ว) */}
+                    {viewingImageItem && (
+                        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setViewingImageItem(null)}>
                             <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex gap-3 z-10">
-                                <button onClick={(e) => { e.stopPropagation(); handleDownloadSingle(fullScreenImg); }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20"><Icon name="Download" size={20} /></button>
-                                <button onClick={() => setFullScreenImg(null)} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20"><Icon name="X" size={20} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); handleEditItem(viewingImageItem); }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20" title="แก้ไข/เปลี่ยนรูป">
+                                    <Icon name="Edit" size={20} />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDownloadSingle(viewingImageItem.url); }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20" title="ดาวน์โหลด">
+                                    <Icon name="Download" size={20} />
+                                </button>
+                                <button onClick={() => setViewingImageItem(null)} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20" title="ปิด">
+                                    <Icon name="X" size={20} />
+                                </button>
                             </div>
-                            <img src={fullScreenImg} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} alt="Full Screen" />
+                            <img src={viewingImageItem.url} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} alt="Full Screen" />
+                            {viewingImageItem.note && (
+                                <div className="absolute bottom-6 sm:bottom-10 left-1/2 transform -translate-x-1/2 bg-black/70 backdrop-blur-md px-6 py-3 rounded-full text-white text-[14px] font-bold shadow-lg border border-white/10 text-center max-w-[90%] truncate">
+                                    {viewingImageItem.note}
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {/* Modal เพิ่มข้อมูล (ข้อความ/รูปภาพ) */}
+                    {/* Modal เพิ่ม/แก้ไขข้อมูล (ข้อความ/รูปภาพ) */}
                     {isItemModalOpen && (
                         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                             <div className="bg-surface rounded-[24px] w-full max-w-2xl h-[85vh] flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
                                 <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
-                                    <h3 className="text-lg font-bold text-gray-800 flex items-center"><Icon name="Plus" className="mr-2 text-brand" size={20} /> เพิ่มข้อมูล</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                        <Icon name={itemModalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> 
+                                        {itemModalMode === 'add' ? 'เพิ่มข้อมูล' : 'แก้ไขข้อมูล'}
+                                    </h3>
                                     <button onClick={() => setIsItemModalOpen(false)} className="p-2 bg-white text-gray-500 rounded-full border border-gray-200 hover:bg-gray-100 transition-colors shadow-sm"><Icon name="X" size={16}/></button>
                                 </div>
                                 
-                                <div className="flex bg-gray-100 p-1.5 mx-5 mt-5 rounded-xl shrink-0">
-                                    <button onClick={() => setItemTab('text')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex justify-center items-center ${itemTab === 'text' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Icon name="FileSignature" size={16} className="mr-1.5"/> เพิ่มข้อความ</button>
-                                    <button onClick={() => setItemTab('image')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex justify-center items-center ${itemTab === 'image' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Icon name="Image" size={16} className="mr-1.5"/> เพิ่มรูปภาพ</button>
-                                </div>
+                                {itemModalMode === 'add' && (
+                                    <div className="flex bg-gray-100 p-1.5 mx-5 mt-5 rounded-xl shrink-0">
+                                        <button onClick={() => setItemTab('text')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex justify-center items-center ${itemTab === 'text' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Icon name="FileSignature" size={16} className="mr-1.5"/> ข้อความ</button>
+                                        <button onClick={() => setItemTab('image')} className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all flex justify-center items-center ${itemTab === 'image' ? 'bg-white text-brand shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Icon name="Image" size={16} className="mr-1.5"/> รูปภาพ</button>
+                                    </div>
+                                )}
 
                                 <form id="itemFormObj" onSubmit={handleSaveItem} className="flex-1 overflow-y-auto p-5 custom-scrollbar">
                                     {itemTab === 'text' ? (
@@ -2444,6 +2481,39 @@ ${promptAction}`;
                                                 <textarea required={itemTab === 'text'} rows="8" value={itemForm.content} onChange={e => setItemForm({...itemForm, content: e.target.value})} placeholder="พิมพ์เนื้อหาที่นี่..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm resize-none custom-scrollbar leading-relaxed whitespace-pre-wrap"></textarea>
                                             </div>
                                         </div>
+                                    ) : itemModalMode === 'edit' ? (
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <label className="block text-[14px] font-bold text-gray-800">เปลี่ยนรูปภาพ (ถ้าต้องการ)</label>
+                                                <label className="bg-brand/10 text-brand hover:bg-brand hover:text-white px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors cursor-pointer shadow-sm flex items-center">
+                                                    {isUploading ? <Icon name="RefreshCw" size={14} className="animate-spin mr-1.5" /> : <Icon name="Edit" size={14} className="mr-1.5" />} เปลี่ยนรูปใหม่
+                                                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                                        const files = Array.from(e.target.files);
+                                                        if (!files.length) return;
+                                                        setIsUploading(true);
+                                                        try {
+                                                            const compressed = await compressImage(files[0]);
+                                                            const url = await uploadToCloudinary(compressed);
+                                                            const updated = [...itemForm.images];
+                                                            updated[0].url = url;
+                                                            setItemForm({...itemForm, images: updated});
+                                                        } catch(err) { alert('อัปโหลดล้มเหลว'); }
+                                                        setIsUploading(false);
+                                                    }} disabled={isUploading} />
+                                                </label>
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 border border-gray-200 rounded-xl items-start">
+                                                <div className="w-32 h-32 shrink-0 rounded-xl overflow-hidden border border-gray-200 bg-white shadow-sm mx-auto sm:mx-0">
+                                                    <img src={itemForm.images[0]?.url} className="w-full h-full object-cover" alt="preview" />
+                                                </div>
+                                                <div className="flex-1 w-full mt-2 sm:mt-0">
+                                                    <label className="block text-[12px] font-bold text-gray-500 mb-1.5">แก้ไขคำอธิบายใต้รูป</label>
+                                                    <textarea rows="3" value={itemForm.images[0]?.note || ''} onChange={(e) => {
+                                                        const updated = [...itemForm.images]; updated[0].note = e.target.value; setItemForm({...itemForm, images: updated});
+                                                    }} placeholder="เช่น ใบเสร็จค่าน้ำมัน..." className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[13px] shadow-sm resize-none custom-scrollbar" />
+                                                </div>
+                                            </div>
+                                        </div>
                                     ) : (
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-center mb-2">
@@ -2455,17 +2525,17 @@ ${promptAction}`;
                                             </div>
                                             <div className="space-y-3">
                                                 {itemForm.images.map((imgObj, idx) => (
-                                                    <div key={idx} className="flex gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl group items-start">
+                                                    <div key={idx} className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl group items-start">
                                                         <div className="w-20 h-20 shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-white">
                                                             <img src={imgObj.url} className="w-full h-full object-cover" alt={`preview ${idx}`} />
                                                         </div>
-                                                        <div className="flex-1">
+                                                        <div className="flex-1 w-full">
                                                             <label className="block text-[11px] font-bold text-gray-500 mb-1">คำอธิบายใต้รูป (พิมพ์หรือไม่ก็ได้)</label>
                                                             <input type="text" value={imgObj.note} onChange={(e) => {
                                                                 const updated = [...itemForm.images]; updated[idx].note = e.target.value; setItemForm({...itemForm, images: updated});
                                                             }} placeholder="เช่น ใบเสร็จค่าน้ำมัน..." className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg outline-none focus:border-brand text-[13px] shadow-sm" />
                                                         </div>
-                                                        <button type="button" onClick={() => setItemForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg mt-4">
+                                                        <button type="button" onClick={() => setItemForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg self-end sm:self-auto sm:mt-4">
                                                             <Icon name="Trash" size={18} />
                                                         </button>
                                                     </div>
@@ -2480,47 +2550,9 @@ ${promptAction}`;
 
                                 <div className="p-4 md:p-5 bg-gray-50 border-t border-gray-100 shrink-0 flex justify-end gap-3 rounded-b-[24px]">
                                     <button type="button" onClick={() => setIsItemModalOpen(false)} className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
-                                    <button form="itemFormObj" type="submit" disabled={isUploading || (itemTab==='image' && itemForm.images.length===0)} className="px-6 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md flex items-center disabled:opacity-50">
+                                    <button form="itemFormObj" type="submit" disabled={isUploading || (itemTab==='image' && itemModalMode === 'add' && itemForm.images.length===0)} className="px-6 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md flex items-center disabled:opacity-50">
                                         <Icon name="Check" size={16} className="mr-2" /> บันทึกข้อมูล
                                     </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* 💡 วางกล่องแก้ไขหมวดหมู่ (Category Edit Modal) ให้แสดงผลในหน้ารายการย่อยด้วย! */}
-                    {isCatModalOpen && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
-                            <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
-                                <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
-                                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                                        <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มข้อมูล' : 'แก้ไขแฟ้มข้อมูล'}
-                                    </h3>
-                                    <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
-                                </div>
-                                
-                                <form id="catFormObj2" onSubmit={handleSaveCategory} className="p-5 space-y-5">
-                                    <div>
-                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล (ระบบจะเลือกหน้าปกให้อัตโนมัติ)</label>
-                                        <div className="relative flex items-center">
-                                            <div className="absolute left-3 w-8 h-8 bg-brand/10 text-brand rounded-lg flex items-center justify-center shadow-sm">
-                                                <Icon name={catForm.icon || 'FileSignature'} size={16} />
-                                            </div>
-                                            <input 
-                                                type="text" 
-                                                required 
-                                                value={catForm.title} 
-                                                onChange={e => setCatForm({...catForm, title: e.target.value, icon: getAutoIcon(e.target.value)})} 
-                                                placeholder="เช่น โครงสร้างเงินเดือน, ระเบียบการลา..." 
-                                                className="w-full pl-14 pr-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800 transition-all" 
-                                            />
-                                        </div>
-                                    </div>
-                                </form>
-
-                                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-                                    <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
-                                    <button form="catFormObj2" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
                                 </div>
                             </div>
                         </div>
@@ -2604,7 +2636,6 @@ ${promptAction}`;
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                         {filteredCats.map((cat, idx) => {
                             const isSelected = selectedCats.includes(cat.id);
-                            // หา index จาก array ต้นฉบับ
                             const realIdx = categories.findIndex(c => c.id === cat.id);
                             
                             const itemStats = (cat.items || []).reduce((acc, curr) => {
@@ -2625,7 +2656,7 @@ ${promptAction}`;
                                         if (isSelectingCats) toggleSelectCat(cat.id);
                                         else {
                                             setActiveCategory(cat);
-                                            setSearchQuery(''); // ล้างคำค้นหาก่อนเข้าแฟ้มย่อย
+                                            setSearchQuery('');
                                         }
                                     }} 
                                     className={`bg-surface p-5 rounded-[20px] border-2 transition-all relative overflow-hidden flex flex-col select-none h-[150px]
