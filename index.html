@@ -2225,7 +2225,7 @@ ${promptAction}`;
         );
     };
 
-    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.10: เพิ่มระบบ Backup & Restore กันข้อมูลหาย)
+    // 💡 ระบบข้อมูลบริษัท (อัปเกรด V.11: เพิ่มระบบ Zoom รูปภาพด้วยนิ้ว & เมาส์)
     const CompanyInfo = () => {
         const [categories, setCategories] = useState([]);
         const [activeCategory, setActiveCategory] = useState(null);
@@ -2270,6 +2270,15 @@ ${promptAction}`;
 
         // 🛡️ ตัวแปรสำหรับ Restore
         const restoreFileRef = useRef(null);
+
+        // 🌟 ตัวแปรสมองกลสำหรับจับการเคลื่อนไหวนิ้ว (Pinch to Zoom)
+        const [imgScale, setImgScale] = useState(1);
+        const [imgPos, setImgPos] = useState({ x: 0, y: 0 });
+        const imgDragStart = useRef({ x: 0, y: 0 });
+        const imgLastPos = useRef({ x: 0, y: 0 });
+        const imgPinchStartDist = useRef(0);
+        const imgLastScale = useRef(1);
+        const isImgDragging = useRef(false);
 
         const formatTextWithLinks = (text) => {
             if (!text) return '';
@@ -2334,6 +2343,92 @@ ${promptAction}`;
                 setActiveCategory(updated || null);
             }
         }, [categories]);
+
+        // -----------------------------------------------------------------
+        // 🌟 ระบบจับความเคลื่อนไหว: ถ่างนิ้วเพื่อซูม (Pinch to Zoom) & เลื่อน
+        // -----------------------------------------------------------------
+        const handleImgTouchStart = (e) => {
+            if (e.touches.length === 2) {
+                // เอานิ้วแตะ 2 นิ้ว วัดระยะห่าง
+                const dist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                imgPinchStartDist.current = dist;
+                imgLastScale.current = imgScale;
+            } else if (e.touches.length === 1 && imgScale > 1) {
+                // เอานิ้วเดียวลากรูป (เมื่อซูมอยู่)
+                isImgDragging.current = true;
+                imgDragStart.current = {
+                    x: e.touches[0].clientX - imgLastPos.current.x,
+                    y: e.touches[0].clientY - imgLastPos.current.y
+                };
+            }
+        };
+
+        const handleImgTouchMove = (e) => {
+            if (e.touches.length === 2) {
+                // กำลังถ่างนิ้ว
+                e.preventDefault(); 
+                e.stopPropagation();
+                const dist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const newScale = Math.min(Math.max(1, imgLastScale.current * (dist / imgPinchStartDist.current)), 5);
+                setImgScale(newScale);
+                if (newScale === 1) {
+                    setImgPos({ x: 0, y: 0 });
+                    imgLastPos.current = { x: 0, y: 0 };
+                }
+            } else if (e.touches.length === 1 && isImgDragging.current && imgScale > 1) {
+                // กำลังลากรูปไปมา
+                e.preventDefault();
+                e.stopPropagation();
+                const newX = e.touches[0].clientX - imgDragStart.current.x;
+                const newY = e.touches[0].clientY - imgDragStart.current.y;
+                setImgPos({ x: newX, y: newY });
+                imgLastPos.current = { x: newX, y: newY };
+            }
+        };
+
+        const handleImgTouchEnd = () => {
+            isImgDragging.current = false;
+            imgLastScale.current = imgScale;
+        };
+
+        const handleImgDoubleClick = (e) => {
+            e.stopPropagation();
+            if (imgScale > 1) {
+                setImgScale(1); setImgPos({ x: 0, y: 0 });
+                imgLastPos.current = { x: 0, y: 0 }; imgLastScale.current = 1;
+            } else {
+                setImgScale(2.5); imgLastScale.current = 2.5;
+            }
+        };
+
+        const handleImgWheel = (e) => {
+            const delta = e.deltaY * -0.005;
+            const newScale = Math.min(Math.max(1, imgScale + delta), 5);
+            setImgScale(newScale);
+            imgLastScale.current = newScale;
+            if (newScale === 1) {
+                setImgPos({ x: 0, y: 0 }); imgLastPos.current = { x: 0, y: 0 };
+            }
+        };
+        
+        const zoomIn = (e) => {
+            e.stopPropagation();
+            const newScale = Math.min(imgScale + 0.5, 5);
+            setImgScale(newScale); imgLastScale.current = newScale;
+        };
+        
+        const zoomOut = (e) => {
+            e.stopPropagation();
+            const newScale = Math.max(imgScale - 0.5, 1);
+            setImgScale(newScale); imgLastScale.current = newScale;
+            if (newScale === 1) { setImgPos({ x: 0, y: 0 }); imgLastPos.current = { x: 0, y: 0 }; }
+        };
 
         // -----------------------------------------------------------------
         // 🛡️ ระบบสำรองและกู้คืนข้อมูล (Backup & Restore)
@@ -2698,7 +2793,11 @@ ${promptAction}`;
                                                 if (isReorderingItems) return;
                                                 if (isSelectingItems) toggleSelectItem(item.id);
                                                 else if (item.type === 'text') setViewingTextItem(item);
-                                                else if (item.type === 'image') setViewingImageItem(item);
+                                                else if (item.type === 'image') {
+                                                    setViewingImageItem(item);
+                                                    setImgScale(1); setImgPos({ x: 0, y: 0 });
+                                                    imgLastScale.current = 1; imgLastPos.current = { x: 0, y: 0 };
+                                                }
                                             }}
                                             className={`relative rounded-[16px] overflow-hidden border-2 transition-all flex flex-col h-[180px] bg-white select-none
                                                 ${isReorderingItems ? 'cursor-grab active:cursor-grabbing hover:border-emerald-400 border-dashed animate-pulse' : 'cursor-pointer hover:border-brand/40 group'} 
@@ -2782,23 +2881,58 @@ ${promptAction}`;
                         </div>
                     )}
 
-                    {/* Pop-up ดูรูปภาพเต็มจอ */}
+                    {/* 🌟 Pop-up ดูรูปภาพเต็มจอ (ระบบซูม) */}
                     {viewingImageItem && (
-                        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm" onClick={() => setViewingImageItem(null)}>
-                            <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex gap-3 z-10">
+                        <div 
+                            className="fixed inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center p-0 backdrop-blur-sm overflow-hidden touch-none" 
+                            onClick={() => { 
+                                setViewingImageItem(null); 
+                                setImgScale(1); setImgPos({ x: 0, y: 0 }); 
+                                imgLastScale.current = 1; imgLastPos.current = { x: 0, y: 0 }; 
+                            }}
+                        >
+                            <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex gap-2 sm:gap-3 z-[250]">
+                                <button onClick={zoomIn} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20" title="ซูมเข้า">
+                                    <Icon name="Plus" size={20} />
+                                </button>
+                                <button onClick={zoomOut} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20" title="ซูมออก">
+                                    <Icon name="Minus" size={20} />
+                                </button>
                                 <button onClick={(e) => { e.stopPropagation(); handleEditItem(viewingImageItem); }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20" title="แก้ไข/เปลี่ยนรูป">
                                     <Icon name="Edit" size={20} />
                                 </button>
                                 <button onClick={(e) => { e.stopPropagation(); handleDownloadSingle(viewingImageItem.url); }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-brand transition-colors shadow-lg border border-white/20" title="ดาวน์โหลด">
                                     <Icon name="Download" size={20} />
                                 </button>
-                                <button onClick={() => setViewingImageItem(null)} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20" title="ปิด">
+                                <button onClick={() => { 
+                                    setViewingImageItem(null); 
+                                    setImgScale(1); setImgPos({ x: 0, y: 0 }); 
+                                    imgLastScale.current = 1; imgLastPos.current = { x: 0, y: 0 }; 
+                                }} className="text-white bg-white/10 p-2.5 rounded-full hover:bg-red-500 transition-colors shadow-lg border border-white/20" title="ปิด">
                                     <Icon name="X" size={20} />
                                 </button>
                             </div>
-                            <img src={viewingImageItem.url} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} alt="Full Screen" />
+                            
+                            <div 
+                                className="w-full h-full flex items-center justify-center relative touch-none"
+                                onTouchStart={handleImgTouchStart}
+                                onTouchMove={handleImgTouchMove}
+                                onTouchEnd={handleImgTouchEnd}
+                                onWheel={handleImgWheel}
+                                onDoubleClick={handleImgDoubleClick}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <img 
+                                    src={viewingImageItem.url} 
+                                    className="max-w-full max-h-full object-contain transition-transform duration-100 ease-out origin-center select-none" 
+                                    style={{ transform: `translate3d(${imgPos.x}px, ${imgPos.y}px, 0) scale(${imgScale})` }}
+                                    draggable="false"
+                                    alt="Full Screen" 
+                                />
+                            </div>
+
                             {viewingImageItem.note && (
-                                <div className="absolute bottom-6 sm:bottom-10 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-md px-6 py-3 rounded-[20px] text-white text-[14px] font-bold shadow-lg border border-white/10 text-center max-w-[90%] w-max break-words">
+                                <div className="absolute bottom-6 sm:bottom-10 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-md px-6 py-3 rounded-[20px] text-white text-[14px] font-bold shadow-lg border border-white/10 text-center max-w-[90%] w-max break-words z-[250] pointer-events-none">
                                     {formatTextWithLinks(viewingImageItem.note)}
                                 </div>
                             )}
@@ -2912,6 +3046,44 @@ ${promptAction}`;
                                     <button form="itemFormObj" type="submit" disabled={isUploading || (itemTab==='image' && itemModalMode === 'add' && itemForm.images.length===0)} className="px-6 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md flex items-center disabled:opacity-50">
                                         <Icon name="Check" size={16} className="mr-2" /> บันทึกข้อมูล
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* กล่องแก้ไขแฟ้มหมวดหมู่ (Category Edit Modal) */}
+                    {isCatModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-left">
+                            <div className="bg-surface rounded-[24px] w-full max-w-sm flex flex-col shadow-2xl relative border border-gray-100 overflow-hidden animate-[slideUp_0.3s_ease-out]">
+                                <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50/50">
+                                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                        <Icon name={modalMode === 'add' ? 'Plus' : 'Edit'} className="mr-2 text-brand" size={20} /> {modalMode === 'add' ? 'เพิ่มแฟ้มข้อมูล' : 'แก้ไขแฟ้มข้อมูล'}
+                                    </h3>
+                                    <button onClick={() => setIsCatModalOpen(false)} className="p-1.5 bg-white text-gray-400 hover:text-gray-700 rounded-full border border-gray-200 shadow-sm transition-colors"><Icon name="X" size={16}/></button>
+                                </div>
+                                
+                                <form id="catFormObj2" onSubmit={handleSaveCategory} className="p-5 space-y-5">
+                                    <div>
+                                        <label className="block text-[13px] font-bold text-gray-600 mb-2">ชื่อแฟ้มข้อมูล (ระบบจะเลือกหน้าปกให้อัตโนมัติ)</label>
+                                        <div className="relative flex items-center">
+                                            <div className="absolute left-3 w-8 h-8 bg-brand/10 text-brand rounded-lg flex items-center justify-center shadow-sm">
+                                                <Icon name={catForm.icon || 'FileSignature'} size={16} />
+                                            </div>
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                value={catForm.title} 
+                                                onChange={e => setCatForm({...catForm, title: e.target.value, icon: getAutoIcon(e.target.value)})} 
+                                                placeholder="เช่น โครงสร้างเงินเดือน, ระเบียบการลา..." 
+                                                className="w-full pl-14 pr-4 py-3 bg-white border border-gray-300 rounded-xl outline-none focus:border-brand text-[14px] shadow-sm font-bold text-gray-800 transition-all" 
+                                            />
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+                                    <button type="button" onClick={() => setIsCatModalOpen(false)} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-[13px] font-bold shadow-sm">ยกเลิก</button>
+                                    <button form="catFormObj2" type="submit" className="px-5 py-2.5 bg-brand text-white rounded-xl hover:bg-brandLight transition-colors text-[13px] font-bold shadow-md">บันทึก</button>
                                 </div>
                             </div>
                         </div>
